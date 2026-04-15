@@ -1,207 +1,254 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
+import { useAuth } from '@/hooks/useAuth';
+import { getTourById } from '@/lib/db';
 import { HotspotType } from '@/types/tour.types';
-import { ImageUploader } from '@/components/editor/ImageUploader';
-import { HotspotPanel } from '@/components/editor/HotspotPanel';
-import { SceneManager } from '@/components/editor/SceneManager';
-import { RetouchPanel } from '@/components/editor/RetouchPanel';
+import { ImageUploader }   from '@/components/editor/ImageUploader';
+import { HotspotPanel }    from '@/components/editor/HotspotPanel';
+import { SceneManager }    from '@/components/editor/SceneManager';
+import { RetouchPanel }    from '@/components/editor/RetouchPanel';
+import { InventoryPanel }  from '@/components/editor/InventoryPanel';
+import { EmbedPanel }      from '@/components/editor/EmbedPanel';
+import Link from 'next/link';
 import {
-  ArrowRight,
-  Info,
-  Image,
-  User,
-  ShoppingCart,
-  Plus,
-  Upload,
-  Code2,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Layers,
+  ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
+  Layers, Home, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
-// Three.js viewer must be client-only (no SSR)
 const Viewer360 = dynamic(
   () => import('@/components/viewer/Viewer360').then((m) => m.Viewer360),
   { ssr: false, loading: () => <ViewerPlaceholder /> }
 );
 
-// ─── Hotspot type picker config ───────────────────────────────────────────────
+// ─── Hotspot type toolbar ─────────────────────────────────────────────────────
 
 const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode; color: string }[] = [
-  { value: 'navigation', label: 'Navegar',      icon: <ArrowRight   className="w-4 h-4" />, color: 'bg-blue-600 hover:bg-blue-500' },
-  { value: 'info',       label: 'Info',         icon: <Info         className="w-4 h-4" />, color: 'bg-amber-600 hover:bg-amber-500' },
-  { value: 'media',      label: 'Media',        icon: <Image        className="w-4 h-4" />, color: 'bg-purple-600 hover:bg-purple-500' },
-  { value: 'agent',      label: 'Agente',       icon: <User         className="w-4 h-4" />, color: 'bg-green-600 hover:bg-green-500' },
-  { value: 'product',    label: 'Producto',     icon: <ShoppingCart className="w-4 h-4" />, color: 'bg-rose-600 hover:bg-rose-500' },
+  { value: 'navigation', label: 'Navegar',  icon: <ArrowRight   className="w-4 h-4" />, color: 'bg-blue-600   hover:bg-blue-500'   },
+  { value: 'info',       label: 'Info',     icon: <Info         className="w-4 h-4" />, color: 'bg-amber-600  hover:bg-amber-500'  },
+  { value: 'media',      label: 'Media',    icon: <Image        className="w-4 h-4" />, color: 'bg-purple-600 hover:bg-purple-500' },
+  { value: 'agent',      label: 'Agente',   icon: <User         className="w-4 h-4" />, color: 'bg-green-600  hover:bg-green-500'  },
+  { value: 'product',    label: 'Producto', icon: <ShoppingCart className="w-4 h-4" />, color: 'bg-rose-600   hover:bg-rose-500'   },
+];
+
+// ─── Left sidebar tabs ────────────────────────────────────────────────────────
+
+type LeftTab  = 'scenes' | 'upload' | 'inventory' | 'publish';
+type RightTab = 'hotspot' | 'retouch';
+
+const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'scenes',    label: 'Escenas',    icon: <Layers    className="w-3.5 h-3.5" /> },
+  { id: 'upload',    label: 'Subir',      icon: <Upload    className="w-3.5 h-3.5" /> },
+  { id: 'inventory', label: 'Inventario', icon: <Home      className="w-3.5 h-3.5" /> },
+  { id: 'publish',   label: 'Publicar',   icon: <Globe     className="w-3.5 h-3.5" /> },
 ];
 
 // ─── Editor page ──────────────────────────────────────────────────────────────
 
 export default function EditorPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center bg-gray-950">
+        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+      </div>
+    }>
+      <EditorInner />
+    </Suspense>
+  );
+}
+
+function EditorInner() {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const tourId       = searchParams.get('id');
+
+  const { user } = useAuth();
+
   const tour              = useTourStore((s) => s.tour);
   const currentScene      = useTourStore(selectCurrentScene);
   const currentSceneId    = useTourStore((s) => s.currentSceneId);
   const selectedHotspotId = useTourStore((s) => s.selectedHotspotId);
   const viewerConfig      = useTourStore((s) => s.viewerConfig);
 
-  const initTour          = useTourStore((s) => s.initTour);
-  const addScene          = useTourStore((s) => s.addScene);
-  const addHotspot        = useTourStore((s) => s.addHotspot);
-  const navigateTo        = useTourStore((s) => s.navigateTo);
-  const selectHotspot     = useTourStore((s) => s.selectHotspot);
+  const initTour     = useTourStore((s) => s.initTour);
+  const loadTour     = useTourStore((s) => s.loadTour);
+  const addScene     = useTourStore((s) => s.addScene);
+  const updateScene  = useTourStore((s) => s.updateScene);
+  const addHotspot   = useTourStore((s) => s.addHotspot);
+  const navigateTo   = useTourStore((s) => s.navigateTo);
+  const selectHotspot = useTourStore((s) => s.selectHotspot);
 
-  const [addingType,    setAddingType]    = useState<HotspotType | null>(null);
-  const [leftOpen,      setLeftOpen]      = useState(true);
-  const [rightOpen,     setRightOpen]     = useState(true);
-  const [activeTab,     setActiveTab]     = useState<'scenes' | 'upload'>('scenes');
-  const [rightTab,      setRightTab]      = useState<'hotspot' | 'retouch'>('hotspot');
-  const [showEmbedCode, setShowEmbedCode] = useState(false);
+  const [addingType, setAddingType] = useState<HotspotType | null>(null);
+  const [leftOpen,   setLeftOpen]   = useState(true);
+  const [rightOpen,  setRightOpen]  = useState(true);
+  const [leftTab,    setLeftTab]    = useState<LeftTab>('scenes');
+  const [rightTab,   setRightTab]   = useState<RightTab>('hotspot');
+  const [dbLoading,  setDbLoading]  = useState(false);
 
-  // Initialize a new tour on first load
+  // ── Load tour from DB when ?id= is present ────────────────────────────────
   useEffect(() => {
-    if (!tour) initTour('Mi Tour 360°');
-  }, [tour, initTour]);
+    if (!tourId) {
+      if (!tour) initTour('Mi Tour 360°');
+      return;
+    }
+    setDbLoading(true);
+    getTourById(tourId)
+      .then((row) => {
+        if (row) loadTour(row.data);
+        else router.push('/dashboard');
+      })
+      .catch(() => router.push('/dashboard'))
+      .finally(() => setDbLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourId]);
 
-  const handleImagesReady = (files: Array<{ name: string; url: string; thumbnailUrl?: string }>) => {
-    files.forEach(({ name, url, thumbnailUrl }) => {
-      const sceneName = name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-      const sceneId = addScene(url, sceneName);
-      if (thumbnailUrl) {
-        useTourStore.getState().updateScene(sceneId, { thumbnailUrl });
-      }
-    });
-    setActiveTab('scenes');
-  };
+  // ── Escape to cancel hotspot placement ───────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAddingType(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
-  const handleHotspotAdded = (sceneId: string, yaw: number, pitch: number) => {
-    if (!addingType) return;
-    addHotspot(sceneId, addingType, yaw, pitch);
-    setAddingType(null); // deactivate placement mode after adding one
-  };
+  const handleImagesReady = useCallback(
+    (files: Array<{ name: string; url: string; thumbnailUrl?: string }>) => {
+      files.forEach(({ name, url, thumbnailUrl }) => {
+        const sceneName = name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        const id = addScene(url, sceneName);
+        if (thumbnailUrl) updateScene(id, { thumbnailUrl });
+      });
+      setLeftTab('scenes');
+    },
+    [addScene, updateScene]
+  );
 
-  const embedCode = tour
-    ? `<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/viewer/${tour.id}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`
-    : '';
+  const handleHotspotAdded = useCallback(
+    (sceneId: string, yaw: number, pitch: number) => {
+      if (!addingType) return;
+      addHotspot(sceneId, addingType, yaw, pitch);
+      setAddingType(null);
+    },
+    [addingType, addHotspot]
+  );
+
+  if (dbLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-950">
+        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
-      {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-      <aside
-        className={cn(
-          'flex flex-col border-r border-gray-800 bg-gray-900 transition-all duration-300 overflow-hidden',
-          leftOpen ? 'w-64' : 'w-0'
-        )}
-      >
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-4 min-w-64">
-          {/* Tour title */}
-          <div className="pt-1">
+
+      {/* ── Left sidebar ─────────────────────────────────────────────────────── */}
+      <aside className={cn(
+        'flex flex-col border-r border-gray-800 bg-gray-900 transition-all duration-300 overflow-hidden',
+        leftOpen ? 'w-64' : 'w-0'
+      )}>
+        <div className="flex flex-col h-full min-w-64">
+
+          {/* Tour header */}
+          <div className="p-3 border-b border-gray-800 space-y-2">
+            <div className="flex items-center justify-between">
+              {user ? (
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  <LayoutDashboard className="w-3 h-3" /> Mis tours
+                </Link>
+              ) : (
+                <Link href="/" className="text-sm font-bold text-gray-300">
+                  Tour <span className="text-blue-400">360°</span>
+                </Link>
+              )}
+            </div>
             <input
               type="text"
               value={tour?.title ?? ''}
               onChange={(e) => useTourStore.getState().updateTour({ title: e.target.value })}
-              className="input-dark text-base font-semibold"
+              className="input-dark font-semibold"
               placeholder="Título del tour"
             />
           </div>
 
-          {/* Tabs: Scenes / Upload */}
-          <div className="flex rounded-xl overflow-hidden border border-gray-700">
-            {(['scenes', 'upload'] as const).map((tab) => (
+          {/* Tab nav */}
+          <div className="grid grid-cols-4 border-b border-gray-800 flex-shrink-0">
+            {LEFT_TABS.map(({ id, label, icon }) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                key={id}
+                onClick={() => setLeftTab(id)}
                 className={cn(
-                  'flex-1 py-2 text-xs font-medium transition-colors',
-                  activeTab === tab
-                    ? 'bg-blue-600 text-white'
+                  'flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
+                  leftTab === id
+                    ? 'bg-gray-800 text-white border-b-2 border-blue-500'
                     : 'text-gray-500 hover:text-gray-300'
                 )}
               >
-                {tab === 'scenes' ? (
-                  <span className="flex items-center justify-center gap-1"><Layers className="w-3 h-3" /> Escenas</span>
-                ) : (
-                  <span className="flex items-center justify-center gap-1"><Upload className="w-3 h-3" /> Subir</span>
-                )}
+                {icon}
+                <span className="text-[10px]">{label}</span>
               </button>
             ))}
           </div>
 
-          {activeTab === 'scenes' && (
-            <SceneManager
-              scenes={tour?.scenes ?? []}
-              currentSceneId={currentSceneId}
-              initialSceneId={tour?.initialSceneId ?? ''}
-            />
-          )}
-
-          {activeTab === 'upload' && (
-            <ImageUploader onImagesReady={handleImagesReady} />
-          )}
-        </div>
-
-        {/* Bottom actions */}
-        <div className="p-3 border-t border-gray-800 space-y-2">
-          <Link
-            href={tour ? `/viewer/${tour.id}` : '#'}
-            target="_blank"
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium transition-colors"
-          >
-            <Eye className="w-3.5 h-3.5" /> Previsualizar
-          </Link>
-          <button
-            onClick={() => setShowEmbedCode((v) => !v)}
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium transition-colors"
-          >
-            <Code2 className="w-3.5 h-3.5" /> Código de embed
-          </button>
-          {showEmbedCode && (
-            <textarea
-              readOnly
-              value={embedCode}
-              className="input-dark text-xs font-mono h-20 resize-none"
-              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-            />
-          )}
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
+            {leftTab === 'scenes' && (
+              <SceneManager
+                scenes={tour?.scenes ?? []}
+                currentSceneId={currentSceneId}
+                initialSceneId={tour?.initialSceneId ?? ''}
+              />
+            )}
+            {leftTab === 'upload' && (
+              <ImageUploader onImagesReady={handleImagesReady} />
+            )}
+            {leftTab === 'inventory' && tour && (
+              <InventoryPanel tour={tour} />
+            )}
+            {leftTab === 'publish' && tour && (
+              <EmbedPanel tour={tour} />
+            )}
+          </div>
         </div>
       </aside>
 
-      {/* Toggle left sidebar */}
+      {/* Left sidebar toggle */}
       <button
         onClick={() => setLeftOpen((v) => !v)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-5 h-10 bg-gray-800 border border-gray-700 rounded-r-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+        className="absolute top-1/2 -translate-y-1/2 z-30 w-5 h-10 bg-gray-800 border border-gray-700 rounded-r-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors"
         style={{ left: leftOpen ? 256 : 0 }}
       >
         {leftOpen ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
       </button>
 
-      {/* ── Main viewer area ──────────────────────────────────────────────── */}
+      {/* ── Main viewer area ──────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Toolbar */}
+
+        {/* Hotspot toolbar */}
         <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800 bg-gray-900 flex-shrink-0">
-          <span className="text-xs text-gray-500 font-medium">Agregar hotspot:</span>
-          <div className="flex gap-1.5">
+          <span className="text-xs text-gray-500 font-medium hidden sm:block">Hotspot:</span>
+          <div className="flex gap-1.5 flex-wrap">
             {HOTSPOT_TYPES.map((t) => (
               <button
                 key={t.value}
-                onClick={() =>
-                  setAddingType((prev) => (prev === t.value ? null : t.value))
-                }
+                onClick={() => setAddingType((prev) => (prev === t.value ? null : t.value))}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all',
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-all',
                   t.color,
-                  addingType === t.value
-                    ? 'ring-2 ring-white/50 scale-105'
-                    : 'opacity-80 hover:opacity-100'
+                  addingType === t.value ? 'ring-2 ring-white/50 scale-105' : 'opacity-75 hover:opacity-100'
                 )}
               >
                 {t.icon}
-                {t.label}
+                <span className="hidden sm:inline">{t.label}</span>
               </button>
             ))}
           </div>
@@ -210,7 +257,7 @@ export default function EditorPage() {
               onClick={() => setAddingType(null)}
               className="ml-auto text-xs text-gray-500 hover:text-white transition-colors"
             >
-              Cancelar (Esc)
+              Esc para cancelar
             </button>
           )}
         </div>
@@ -225,25 +272,24 @@ export default function EditorPage() {
               isEditing
               addHotspotType={addingType ?? undefined}
               selectedHotspotId={selectedHotspotId}
-              onNavigate={(sceneId) => navigateTo(sceneId)}
+              onNavigate={navigateTo}
               onHotspotAdded={handleHotspotAdded}
-              onHotspotSelected={(id) => selectHotspot(id)}
+              onHotspotSelected={selectHotspot}
             />
           ) : (
-            <EmptyState onUploadClick={() => setActiveTab('upload')} />
+            <EmptyState onUploadClick={() => { setLeftTab('upload'); setLeftOpen(true); }} />
           )}
         </div>
       </main>
 
-      {/* ── Right sidebar (hotspot editor) ───────────────────────────────── */}
-      <aside
-        className={cn(
-          'flex flex-col border-l border-gray-800 bg-gray-900 transition-all duration-300 overflow-hidden',
-          rightOpen ? 'w-64' : 'w-0'
-        )}
-      >
-        <div className="min-w-64 overflow-y-auto scrollbar-thin flex-1 flex flex-col">
-          {/* Right sidebar tabs */}
+      {/* ── Right sidebar ────────────────────────────────────────────────────── */}
+      <aside className={cn(
+        'flex flex-col border-l border-gray-800 bg-gray-900 transition-all duration-300 overflow-hidden',
+        rightOpen ? 'w-64' : 'w-0'
+      )}>
+        <div className="min-w-64 h-full flex flex-col">
+
+          {/* Tab nav */}
           <div className="flex border-b border-gray-800 flex-shrink-0">
             {(['hotspot', 'retouch'] as const).map((tab) => (
               <button
@@ -261,32 +307,25 @@ export default function EditorPage() {
             ))}
           </div>
 
-          {rightTab === 'hotspot' && (
-            currentScene ? (
-              <HotspotPanel
-                scene={currentScene}
-                selectedHotspotId={selectedHotspotId}
-                allScenes={tour?.scenes ?? []}
-              />
-            ) : (
-              <p className="p-4 text-xs text-gray-600">Selecciona una escena.</p>
-            )
-          )}
-
-          {rightTab === 'retouch' && (
-            currentScene ? (
-              <RetouchPanel scene={currentScene} />
-            ) : (
-              <p className="p-4 text-xs text-gray-600">Selecciona una escena.</p>
-            )
-          )}
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
+            {rightTab === 'hotspot' && (
+              currentScene
+                ? <HotspotPanel scene={currentScene} selectedHotspotId={selectedHotspotId} allScenes={tour?.scenes ?? []} />
+                : <p className="p-4 text-xs text-gray-600">Selecciona una escena.</p>
+            )}
+            {rightTab === 'retouch' && (
+              currentScene
+                ? <RetouchPanel scene={currentScene} />
+                : <p className="p-4 text-xs text-gray-600">Selecciona una escena.</p>
+            )}
+          </div>
         </div>
       </aside>
 
-      {/* Toggle right sidebar */}
+      {/* Right sidebar toggle */}
       <button
         onClick={() => setRightOpen((v) => !v)}
-        className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-5 h-10 bg-gray-800 border border-gray-700 rounded-l-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+        className="absolute top-1/2 -translate-y-1/2 z-30 w-5 h-10 bg-gray-800 border border-gray-700 rounded-l-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors"
         style={{ right: rightOpen ? 256 : 0 }}
       >
         {rightOpen ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
@@ -295,7 +334,7 @@ export default function EditorPage() {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
   return (
@@ -305,7 +344,7 @@ function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
       </div>
       <h2 className="text-xl font-semibold text-gray-300 mb-2">Sin escenas aún</h2>
       <p className="text-sm text-gray-600 max-w-xs mb-6">
-        Sube tus fotos 360° equirectangulares para comenzar a construir tu tour virtual.
+        Sube tus fotos 360° equirectangulares para construir el tour.
       </p>
       <button
         onClick={onUploadClick}
@@ -320,7 +359,7 @@ function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
 function ViewerPlaceholder() {
   return (
     <div className="w-full h-full flex items-center justify-center bg-gray-950">
-      <div className="text-gray-600 text-sm animate-pulse">Inicializando visor…</div>
+      <Loader2 className="w-6 h-6 text-gray-700 animate-spin" />
     </div>
   );
 }

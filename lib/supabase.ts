@@ -1,39 +1,96 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient, createServerClient } from '@supabase/ssr';
+import type { cookies } from 'next/headers';
 
 // ─── Storage bucket names ─────────────────────────────────────────────────────
-export const BUCKET_SCENES = 'tour-scenes';   // equirectangular images
-export const BUCKET_ASSETS = 'tour-assets';   // logos, media files
-export const BUCKET_THUMBS = 'tour-thumbs';   // thumbnails (generated)
+export const BUCKET_SCENES = 'tour-scenes';
+export const BUCKET_ASSETS = 'tour-assets';
+export const BUCKET_THUMBS = 'tour-thumbs';
 
-// ─── Lazy singleton ───────────────────────────────────────────────────────────
-// We don't initialize at module load so that Next.js build doesn't throw
-// when env vars are absent (e.g. CI without secrets, or local without .env.local).
+// ─── Env helpers ─────────────────────────────────────────────────────────────
 
-let _client: SupabaseClient | null = null;
-
-export function getSupabase(): SupabaseClient {
-  if (_client) return _client;
-
+function getEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return { url, key };
+}
 
+export function isSupabaseConfigured(): boolean {
+  const { url, key } = getEnv();
+  return !!(url && key);
+}
+
+// ─── Browser client (lazy singleton) ─────────────────────────────────────────
+// Used in client components and hooks.
+
+let _browserClient: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (_browserClient) return _browserClient;
+
+  const { url, key } = getEnv();
   if (!url || !key) {
     throw new Error(
-      '[Tour360] Supabase not configured. Copy .env.local.example → .env.local and fill in your credentials.'
+      '[Tour360] Supabase not configured. Copy .env.local.example → .env.local'
     );
   }
 
-  _client = createClient(url, key);
-  return _client;
+  // Use @supabase/ssr browser client so cookies are synced with middleware
+  _browserClient = createBrowserClient(url, key);
+  return _browserClient;
 }
 
-/** Returns true when Supabase env vars are present */
-export function isSupabaseConfigured(): boolean {
-  return !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
-
-/** Convenience re-export for callers that need the client directly */
+/** Alias kept for backwards-compatibility with storage.ts */
 export { getSupabase as supabase };
+
+// ─── Server client (for Server Components & Route Handlers) ──────────────────
+// Pass the cookieStore from `next/headers` so the session is available server-side.
+
+export function createSupabaseServerClient(
+  cookieStore: ReturnType<typeof cookies>
+): SupabaseClient {
+  const { url, key } = getEnv();
+  if (!url || !key) throw new Error('[Tour360] Supabase not configured.');
+
+  return createServerClient(url, key, {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: (cookiesToSet) => {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          try {
+            (cookieStore as any).set(name, value, options);
+          } catch {
+            // Server Components can't set cookies — safe to ignore
+          }
+        });
+      },
+    },
+  });
+}
+
+// ─── Middleware client (edge-compatible) ─────────────────────────────────────
+
+export function createSupabaseMiddlewareClient(request: Request, response: Response) {
+  const { url, key } = getEnv();
+  if (!url || !key) throw new Error('[Tour360] Supabase not configured.');
+
+  return createServerClient(url, key, {
+    cookies: {
+      getAll: () => {
+        const cookieHeader = request.headers.get('cookie') ?? '';
+        return cookieHeader.split(';').map((c) => {
+          const [name, ...rest] = c.trim().split('=');
+          return { name: name.trim(), value: rest.join('=') };
+        });
+      },
+      setAll: (cookiesToSet) => {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          (response.headers as any).append(
+            'Set-Cookie',
+            `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`
+          );
+        });
+      },
+    },
+  });
+}
