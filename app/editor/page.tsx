@@ -7,17 +7,19 @@ import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { useAuth } from '@/hooks/useAuth';
 import { getTourById } from '@/lib/db';
 import { HotspotType } from '@/types/tour.types';
-import { ImageUploader }   from '@/components/editor/ImageUploader';
-import { HotspotPanel }    from '@/components/editor/HotspotPanel';
-import { SceneManager }    from '@/components/editor/SceneManager';
-import { RetouchPanel }    from '@/components/editor/RetouchPanel';
-import { InventoryPanel }  from '@/components/editor/InventoryPanel';
-import { EmbedPanel }      from '@/components/editor/EmbedPanel';
+import { ImageUploader }    from '@/components/editor/ImageUploader';
+import { HotspotPanel }     from '@/components/editor/HotspotPanel';
+import { SceneManager }     from '@/components/editor/SceneManager';
+import { RetouchPanel }     from '@/components/editor/RetouchPanel';
+import { InventoryPanel }   from '@/components/editor/InventoryPanel';
+import { EmbedPanel }       from '@/components/editor/EmbedPanel';
+import { FloorPlanEditor }  from '@/components/editor/FloorPlanEditor';
+import { BrandingPanel }    from '@/components/editor/BrandingPanel';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
   Layers, Home, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
-  Loader2,
+  Loader2, Map, Building2, Palette,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,20 +34,23 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
   { value: 'navigation', label: 'Navegar',  icon: <ArrowRight   className="w-4 h-4" />, color: 'bg-blue-600   hover:bg-blue-500'   },
   { value: 'info',       label: 'Info',     icon: <Info         className="w-4 h-4" />, color: 'bg-amber-600  hover:bg-amber-500'  },
   { value: 'media',      label: 'Media',    icon: <Image        className="w-4 h-4" />, color: 'bg-purple-600 hover:bg-purple-500' },
-  { value: 'agent',      label: 'Agente',   icon: <User         className="w-4 h-4" />, color: 'bg-green-600  hover:bg-green-500'  },
-  { value: 'product',    label: 'Producto', icon: <ShoppingCart className="w-4 h-4" />, color: 'bg-rose-600   hover:bg-rose-500'   },
+  { value: 'agent',      label: 'Agente',   icon: <User         className="w-4 h-4" />, color: 'bg-green-600   hover:bg-green-500'   },
+  { value: 'product',    label: 'Producto', icon: <ShoppingCart className="w-4 h-4" />, color: 'bg-rose-600    hover:bg-rose-500'    },
+  { value: 'unit',       label: 'Unidad',   icon: <Building2    className="w-4 h-4" />, color: 'bg-emerald-600 hover:bg-emerald-500' },
 ];
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'inventory' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'branding' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
 const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'scenes',    label: 'Escenas',    icon: <Layers    className="w-3.5 h-3.5" /> },
-  { id: 'upload',    label: 'Subir',      icon: <Upload    className="w-3.5 h-3.5" /> },
-  { id: 'inventory', label: 'Inventario', icon: <Home      className="w-3.5 h-3.5" /> },
-  { id: 'publish',   label: 'Publicar',   icon: <Globe     className="w-3.5 h-3.5" /> },
+  { id: 'scenes',    label: 'Escenas',  icon: <Layers  className="w-3 h-3" /> },
+  { id: 'upload',    label: 'Subir',    icon: <Upload  className="w-3 h-3" /> },
+  { id: 'floorplan', label: 'Plano',    icon: <Map     className="w-3 h-3" /> },
+  { id: 'inventory', label: 'Ventas',   icon: <Home    className="w-3 h-3" /> },
+  { id: 'branding',  label: 'Marca',    icon: <Palette className="w-3 h-3" /> },
+  { id: 'publish',   label: 'Publicar', icon: <Globe   className="w-3 h-3" /> },
 ];
 
 // ─── Editor page ──────────────────────────────────────────────────────────────
@@ -181,7 +186,7 @@ function EditorInner() {
           </div>
 
           {/* Tab nav */}
-          <div className="grid grid-cols-4 border-b border-gray-800 flex-shrink-0">
+          <div className="grid grid-cols-6 border-b border-gray-800 flex-shrink-0">
             {LEFT_TABS.map(({ id, label, icon }) => (
               <button
                 key={id}
@@ -211,8 +216,14 @@ function EditorInner() {
             {leftTab === 'upload' && (
               <ImageUploader onImagesReady={handleImagesReady} />
             )}
+            {leftTab === 'floorplan' && tour && (
+              <FloorPlanEditor tour={tour} />
+            )}
             {leftTab === 'inventory' && tour && (
               <InventoryPanel tour={tour} />
+            )}
+            {leftTab === 'branding' && tour && (
+              <BrandingPanel tour={tour} />
             )}
             {leftTab === 'publish' && tour && (
               <EmbedPanel tour={tour} />

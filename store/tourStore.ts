@@ -10,6 +10,7 @@ import {
   ProductTag,
   ViewerConfig,
   DEFAULT_VIEWER_CONFIG,
+  FloorPlanMarker,
 } from '@/types/tour.types';
 
 // ─── Editor slice ─────────────────────────────────────────────────────────────
@@ -36,6 +37,10 @@ interface EditorState {
   selectHotspot: (hotspotId: string | null) => void;
 
   setEditing: (value: boolean) => void;
+
+  addFloorPlanMarker: (marker: FloorPlanMarker) => void;
+  updateFloorPlanMarker: (sceneId: string, patch: Partial<Omit<FloorPlanMarker, 'sceneId'>>) => void;
+  removeFloorPlanMarker: (sceneId: string) => void;
 }
 
 // ─── Viewer slice ─────────────────────────────────────────────────────────────
@@ -233,6 +238,41 @@ export const useTourStore = create<TourStore>()(
         selectHotspot: (hotspotId) => set({ selectedHotspotId: hotspotId }),
 
         setEditing: (value) => set({ isEditing: value }),
+
+        addFloorPlanMarker: (marker) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  floorPlanMarkers: [...(s.tour.floorPlanMarkers ?? []), marker],
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        updateFloorPlanMarker: (sceneId, patch) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  floorPlanMarkers: (s.tour.floorPlanMarkers ?? []).map((m) =>
+                    m.sceneId === sceneId ? { ...m, ...patch } : m
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        removeFloorPlanMarker: (sceneId) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  floorPlanMarkers: (s.tour.floorPlanMarkers ?? []).filter((m) => m.sceneId !== sceneId),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
 
         // ── Viewer ─────────────────────────────────────────────────────────
 

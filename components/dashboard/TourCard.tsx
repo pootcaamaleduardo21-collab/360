@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { TourSummary } from '@/lib/db';
-import { Globe, Lock, Eye, Layers, MoreVertical, Pencil, Trash2, Copy, ExternalLink } from 'lucide-react';
+import { Globe, Lock, Eye, Layers, MoreVertical, Pencil, Trash2, Copy, ExternalLink, BarChart2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 
@@ -105,6 +105,13 @@ export function TourCard({ tour, onDelete, onDuplicate }: TourCardProps) {
                 <Copy className="w-3.5 h-3.5" /> Duplicar
               </button>
             )}
+            <Link
+              href={`/dashboard/analytics/${tour.id}`}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              <BarChart2 className="w-3.5 h-3.5" /> Analytics
+            </Link>
             <div className="border-t border-gray-800 my-1" />
             <button
               onClick={() => { onDelete(tour.id); setMenuOpen(false); }}
@@ -132,9 +139,13 @@ export function TourCard({ tour, onDelete, onDuplicate }: TourCardProps) {
             <Layers className="w-3 h-3" /> {tour.scene_count} escena{tour.scene_count !== 1 ? 's' : ''}
           </span>
           {tour.is_published && (
-            <span className="flex items-center gap-1">
+            <Link
+              href={`/dashboard/analytics/${tour.id}`}
+              className="flex items-center gap-1 hover:text-blue-400 transition-colors"
+              title="Ver analytics"
+            >
               <Eye className="w-3 h-3" /> {tour.view_count.toLocaleString()}
-            </span>
+            </Link>
           )}
           <span>{formattedDate}</span>
         </div>

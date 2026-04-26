@@ -33,13 +33,16 @@ export interface NadirPatchResult {
   height: number;
 }
 
-/** Load an image from a dataURL or return the element directly */
+/** Load an image from a dataURL or remote URL. Always sets crossOrigin to avoid tainted-canvas errors. */
 function loadImage(src: string | HTMLImageElement): Promise<HTMLImageElement> {
-  if (src instanceof HTMLImageElement && src.complete) return Promise.resolve(src);
+  if (src instanceof HTMLImageElement && src.complete && src.naturalWidth > 0) {
+    return Promise.resolve(src);
+  }
   return new Promise((resolve, reject) => {
     const img = src instanceof HTMLImageElement ? src : new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onerror = () => reject(new Error(`No se pudo cargar la imagen: ${typeof src === 'string' ? src : 'elemento'}`));
     if (typeof src === 'string') img.src = src;
   });
 }

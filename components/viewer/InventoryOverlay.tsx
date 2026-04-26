@@ -1,23 +1,28 @@
 'use client';
 
-import { PropertyUnit, PropertyStatus } from '@/types/tour.types';
+import { PropertyUnit, PropertyStatus, Tour } from '@/types/tour.types';
+import { getNiche } from '@/lib/niches';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Home, X } from 'lucide-react';
 import { useState } from 'react';
 
-const STATUS_COLORS: Record<PropertyStatus, { dot: string; badge: string; label: string }> = {
-  available: { dot: 'bg-green-400',  badge: 'bg-green-500/20 border-green-500/40 text-green-300',  label: 'Disponible' },
-  sold:      { dot: 'bg-red-400',    badge: 'bg-red-500/20 border-red-500/40 text-red-300',         label: 'Vendido'    },
-  reserved:  { dot: 'bg-amber-400',  badge: 'bg-amber-500/20 border-amber-500/40 text-amber-300',   label: 'Reservado'  },
+const STATUS_STYLE: Record<PropertyStatus, { dot: string; badge: string }> = {
+  available:    { dot: 'bg-green-400', badge: 'bg-green-500/20  border-green-500/40  text-green-300'  },
+  sold:         { dot: 'bg-red-400',   badge: 'bg-red-500/20    border-red-500/40    text-red-300'    },
+  reserved:     { dot: 'bg-amber-400', badge: 'bg-amber-500/20  border-amber-500/40  text-amber-300'  },
+  'in-process': { dot: 'bg-blue-400',  badge: 'bg-blue-500/20   border-blue-500/40   text-blue-300'   },
 };
 
 interface InventoryOverlayProps {
+  tour: Tour;
   units: PropertyUnit[];
   currentSceneId: string;
   onNavigate: (sceneId: string) => void;
+  onUnitClick?: (unit: PropertyUnit) => void;
 }
 
-export function InventoryOverlay({ units, currentSceneId, onNavigate }: InventoryOverlayProps) {
+export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUnitClick }: InventoryOverlayProps) {
+  const niche = getNiche(tour);
   const [isOpen,   setIsOpen]   = useState(false);
   const [selected, setSelected] = useState<PropertyUnit | null>(null);
 
@@ -37,7 +42,7 @@ export function InventoryOverlay({ units, currentSceneId, onNavigate }: Inventor
         className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 bg-black/70 hover:bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-white text-sm font-medium transition-colors shadow"
       >
         <Home className="w-4 h-4" />
-        <span>{units.length} unidades</span>
+        <span>{units.length} {niche.overlayCountLabel}</span>
         {/* Status dots */}
         <div className="flex gap-1">
           {summary.available > 0 && <span className="w-2 h-2 rounded-full bg-green-400" />}
@@ -51,11 +56,11 @@ export function InventoryOverlay({ units, currentSceneId, onNavigate }: Inventor
         <div className="absolute top-16 left-4 z-20 w-72 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-gray-100">Inventario</h3>
+            <h3 className="text-sm font-semibold text-gray-100">{niche.inventoryTitle}</h3>
             <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span className="text-green-400">{summary.available} disp.</span>
-              <span className="text-amber-400">{summary.reserved} res.</span>
-              <span className="text-red-400">{summary.sold} vend.</span>
+              <span className="text-green-400">{summary.available} {niche.statusLabels.available.slice(0,4)}.</span>
+              <span className="text-amber-400">{summary.reserved} {niche.statusLabels.reserved.slice(0,3)}.</span>
+              <span className="text-red-400">{summary.sold} {niche.statusLabels.sold.slice(0,4)}.</span>
             </div>
             <button
               onClick={() => setIsOpen(false)}
@@ -68,15 +73,21 @@ export function InventoryOverlay({ units, currentSceneId, onNavigate }: Inventor
           {/* Unit list */}
           <ul className="max-h-72 overflow-y-auto divide-y divide-gray-800">
             {units.map((unit) => {
-              const cfg       = STATUS_COLORS[unit.status];
+              const cfg       = STATUS_STYLE[unit.status];
+              const statusLabel = niche.statusLabels[unit.status];
               const isCurrent = unit.sceneId === currentSceneId;
 
               return (
                 <li key={unit.id}>
                   <button
                     onClick={() => {
-                      setSelected(selected?.id === unit.id ? null : unit);
-                      if (unit.sceneId && !isCurrent) onNavigate(unit.sceneId);
+                      if (onUnitClick) {
+                        onUnitClick(unit);
+                        setIsOpen(false);
+                      } else {
+                        setSelected(selected?.id === unit.id ? null : unit);
+                        if (unit.sceneId && !isCurrent) onNavigate(unit.sceneId);
+                      }
                     }}
                     className={cn(
                       'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
@@ -91,7 +102,7 @@ export function InventoryOverlay({ units, currentSceneId, onNavigate }: Inventor
                       <p className="text-sm font-medium text-gray-200 truncate">{unit.label}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={cn('text-xs border rounded-full px-1.5 py-px', cfg.badge)}>
-                          {cfg.label}
+                          {statusLabel}
                         </span>
                         {unit.area && (
                           <span className="text-xs text-gray-500">{unit.area} m²</span>

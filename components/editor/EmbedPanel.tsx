@@ -1,15 +1,24 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Tour } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { saveTour, updateTourPublishing, slugify } from '@/lib/db';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Globe, Lock, Copy, CheckCheck, ExternalLink, QrCode,
-  Loader2, AlertCircle, RefreshCw, Link2
+  Loader2, AlertCircle, RefreshCw, Link2,
+  Eye, EyeOff, Calendar, Phone, Mail, Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+async function sha256hex(text: string): Promise<string> {
+  const buf  = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 import QRCode from 'qrcode';
 
 interface EmbedPanelProps {
@@ -37,6 +46,49 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
   const [selectedSize, setSelectedSize] = useState(0);
   const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
   const qrRef = useRef<HTMLCanvasElement>(null);
+
+  // ── Password protection ──────────────────────────────────────────────────
+  const [pwEnabled,   setPwEnabled]   = useState(!!tour.passwordEnabled);
+  const [pwInput,     setPwInput]     = useState('');
+  const [pwShow,      setPwShow]      = useState(false);
+  const [pwSaved,     setPwSaved]     = useState(false);
+
+  const handleSavePassword = useCallback(async () => {
+    if (!pwInput.trim()) return;
+    const hash = await sha256hex(pwInput.trim());
+    updateTour({ passwordEnabled: true, passwordHash: hash } as any);
+    setPwEnabled(true);
+    setPwSaved(true);
+    setPwInput('');
+    setTimeout(() => setPwSaved(false), 2500);
+  }, [pwInput, updateTour]);
+
+  const handleTogglePassword = (enabled: boolean) => {
+    setPwEnabled(enabled);
+    updateTour({ passwordEnabled: enabled } as any);
+  };
+
+  // ── Booking config ───────────────────────────────────────────────────────
+  const bc = tour.bookingConfig ?? { method: 'whatsapp' as const };
+  const [bkEnabled, setBkEnabled] = useState(!!tour.bookingEnabled);
+  const [bkMethod,  setBkMethod]  = useState<'whatsapp' | 'email' | 'calendly'>(bc.method ?? 'whatsapp');
+  const [bkPhone,   setBkPhone]   = useState(bc.phone ?? '');
+  const [bkEmail,   setBkEmail]   = useState(bc.email ?? '');
+  const [bkCalendly,setBkCalendly]= useState(bc.calendlyUrl ?? '');
+  const [bkLabel,   setBkLabel]   = useState(bc.ctaLabel ?? '');
+
+  const saveBooking = useCallback(() => {
+    updateTour({
+      bookingEnabled: bkEnabled,
+      bookingConfig: {
+        method:      bkMethod,
+        phone:       bkPhone   || undefined,
+        email:       bkEmail   || undefined,
+        calendlyUrl: bkCalendly|| undefined,
+        ctaLabel:    bkLabel   || undefined,
+      },
+    } as any);
+  }, [bkEnabled, bkMethod, bkPhone, bkEmail, bkCalendly, bkLabel, updateTour]);
 
   const baseUrl    = typeof window !== 'undefined' ? window.location.origin : '';
   const publicUrl  = slug ? `${baseUrl}/viewer/${slug}` : `${baseUrl}/viewer/${tour.id}`;
@@ -109,6 +161,9 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
   };
+
+  // sync booking changes to store on each field change
+  useEffect(() => { saveBooking(); }, [bkEnabled, bkMethod, bkPhone, bkEmail, bkCalendly, bkLabel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="p-4 space-y-5">
@@ -291,6 +346,154 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
           </section>
         </>
       )}
+
+      <div className="border-t border-gray-700/50" />
+
+      {/* ── Password protection ─────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <Shield className="w-3.5 h-3.5" /> Protección por contraseña
+        </h3>
+
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-xs text-gray-400">Activar protección</span>
+          <button
+            onClick={() => handleTogglePassword(!pwEnabled)}
+            className={cn(
+              'relative w-10 h-5 rounded-full transition-colors',
+              pwEnabled ? 'bg-blue-600' : 'bg-gray-700'
+            )}
+          >
+            <span className={cn(
+              'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
+              pwEnabled ? 'translate-x-5' : 'translate-x-0.5'
+            )} />
+          </button>
+        </label>
+
+        {pwEnabled && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500">
+              {tour.passwordHash ? '✓ Contraseña guardada. Escribe una nueva para cambiarla.' : 'Define la contraseña de acceso.'}
+            </p>
+            <div className="relative">
+              <input
+                type={pwShow ? 'text' : 'password'}
+                value={pwInput}
+                onChange={(e) => setPwInput(e.target.value)}
+                placeholder="Nueva contraseña…"
+                className="input-dark w-full pr-9 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setPwShow((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+              >
+                {pwShow ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            <button
+              onClick={handleSavePassword}
+              disabled={!pwInput.trim()}
+              className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              {pwSaved ? <><CheckCheck className="w-3.5 h-3.5" /> Guardada</> : <><Lock className="w-3.5 h-3.5" /> Guardar contraseña</>}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <div className="border-t border-gray-700/50" />
+
+      {/* ── Booking / appointment ───────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5" /> Integración de reservas
+        </h3>
+
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-xs text-gray-400">Mostrar botón de cita</span>
+          <button
+            onClick={() => setBkEnabled((v) => !v)}
+            className={cn('relative w-10 h-5 rounded-full transition-colors', bkEnabled ? 'bg-blue-600' : 'bg-gray-700')}
+          >
+            <span className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform', bkEnabled ? 'translate-x-5' : 'translate-x-0.5')} />
+          </button>
+        </label>
+
+        {bkEnabled && (
+          <div className="space-y-2.5">
+            {/* Method selector */}
+            <div className="grid grid-cols-3 gap-1">
+              {(['whatsapp', 'email', 'calendly'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setBkMethod(m)}
+                  className={cn(
+                    'py-1.5 rounded-lg text-xs font-medium border transition-colors capitalize',
+                    bkMethod === m ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
+                  )}
+                >
+                  {m === 'whatsapp' ? 'WhatsApp' : m === 'email' ? 'Email' : 'Calendly'}
+                </button>
+              ))}
+            </div>
+
+            {/* Method-specific fields */}
+            {bkMethod === 'whatsapp' && (
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                <input
+                  type="tel"
+                  value={bkPhone}
+                  onChange={(e) => setBkPhone(e.target.value)}
+                  placeholder="+52155…"
+                  className="input-dark flex-1 text-xs"
+                />
+              </div>
+            )}
+
+            {bkMethod === 'email' && (
+              <div className="flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                <input
+                  type="email"
+                  value={bkEmail}
+                  onChange={(e) => setBkEmail(e.target.value)}
+                  placeholder="correo@empresa.com"
+                  className="input-dark flex-1 text-xs"
+                />
+              </div>
+            )}
+
+            {bkMethod === 'calendly' && (
+              <div className="flex items-center gap-2">
+                <ExternalLink className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                <input
+                  type="url"
+                  value={bkCalendly}
+                  onChange={(e) => setBkCalendly(e.target.value)}
+                  placeholder="https://calendly.com/tu-link"
+                  className="input-dark flex-1 text-xs"
+                />
+              </div>
+            )}
+
+            {/* CTA label override */}
+            <input
+              type="text"
+              value={bkLabel}
+              onChange={(e) => setBkLabel(e.target.value)}
+              placeholder={`Texto del botón (ej. "Agendar visita")`}
+              className="input-dark w-full text-xs"
+            />
+
+            <p className="text-[10px] text-gray-600">
+              Los cambios se guardan automáticamente.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

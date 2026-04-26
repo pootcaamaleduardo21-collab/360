@@ -1,6 +1,6 @@
 'use client';
 
-import { Hotspot } from '@/types/tour.types';
+import { Hotspot, PropertyStatus } from '@/types/tour.types';
 import { cn } from '@/lib/utils';
 import {
   ArrowRight,
@@ -8,7 +8,7 @@ import {
   Image,
   User,
   ShoppingCart,
-  MapPin,
+  Building2,
 } from 'lucide-react';
 
 interface HotspotMarkerProps {
@@ -18,6 +18,8 @@ interface HotspotMarkerProps {
   isSelected?: boolean;
   isEditing?: boolean;
   onClick: (hotspot: Hotspot) => void;
+  /** Passed by Viewer360 for 'unit' hotspots — drives the status color */
+  unitStatus?: PropertyStatus;
 }
 
 const TYPE_CONFIG = {
@@ -25,33 +27,47 @@ const TYPE_CONFIG = {
     icon: ArrowRight,
     bg: 'bg-blue-500 hover:bg-blue-400',
     border: 'border-blue-300',
-    label: 'Ir a escena',
   },
   info: {
     icon: Info,
     bg: 'bg-amber-500 hover:bg-amber-400',
     border: 'border-amber-300',
-    label: 'Información',
   },
   media: {
     icon: Image,
     bg: 'bg-purple-500 hover:bg-purple-400',
     border: 'border-purple-300',
-    label: 'Media',
   },
   agent: {
     icon: User,
     bg: 'bg-green-500 hover:bg-green-400',
     border: 'border-green-300',
-    label: 'Agente',
   },
   product: {
     icon: ShoppingCart,
     bg: 'bg-rose-500 hover:bg-rose-400',
     border: 'border-rose-300',
-    label: 'Producto',
+  },
+  unit: {
+    icon: Building2,
+    bg: 'bg-emerald-500 hover:bg-emerald-400', // default (overridden by status)
+    border: 'border-emerald-300',
   },
 } as const;
+
+const UNIT_STATUS_BG: Record<PropertyStatus, string> = {
+  available:    'bg-emerald-500 hover:bg-emerald-400',
+  reserved:     'bg-amber-500  hover:bg-amber-400',
+  sold:         'bg-red-500    hover:bg-red-400',
+  'in-process': 'bg-blue-500   hover:bg-blue-400',
+};
+
+const UNIT_STATUS_BORDER: Record<PropertyStatus, string> = {
+  available:    'border-emerald-300',
+  reserved:     'border-amber-300',
+  sold:         'border-red-300',
+  'in-process': 'border-blue-300',
+};
 
 export function HotspotMarker({
   hotspot,
@@ -60,9 +76,14 @@ export function HotspotMarker({
   isSelected,
   isEditing,
   onClick,
+  unitStatus,
 }: HotspotMarkerProps) {
-  const cfg  = TYPE_CONFIG[hotspot.type];
+  const cfg  = TYPE_CONFIG[hotspot.type] ?? TYPE_CONFIG.info;
   const Icon = cfg.icon;
+
+  // For unit hotspots, override colors based on unit availability status
+  const bg     = hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_BG[unitStatus]     : cfg.bg;
+  const border = hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_BORDER[unitStatus] : cfg.border;
 
   return (
     <button
@@ -82,9 +103,8 @@ export function HotspotMarker({
       {/* Pulse ring */}
       <span
         className={cn(
-          'absolute inline-flex h-10 w-10 rounded-full opacity-60',
-          cfg.bg.split(' ')[0], // base color only
-          'animate-ping'
+          'absolute inline-flex h-10 w-10 rounded-full opacity-60 animate-ping',
+          bg.split(' ')[0]
         )}
       />
 
@@ -94,8 +114,8 @@ export function HotspotMarker({
           'relative flex items-center justify-center',
           'w-10 h-10 rounded-full border-2 shadow-lg',
           'transition-all duration-200',
-          cfg.bg,
-          cfg.border,
+          bg,
+          border,
           isSelected && 'ring-4 ring-white ring-offset-1 ring-offset-black/50 scale-110',
           isEditing && 'cursor-crosshair'
         )}

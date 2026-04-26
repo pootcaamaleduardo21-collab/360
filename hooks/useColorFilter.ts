@@ -4,15 +4,10 @@ import { useEffect } from 'react';
 import { ColorAdjustments } from '@/types/tour.types';
 
 /**
- * Applies CSS `filter` to the Three.js renderer canvas to simulate
- * brightness, contrast, and saturation adjustments.
- *
- * The values mirror CSS filter semantics:
- *   brightness: 0 = black, 1 = original, 2 = double
- *   contrast:   0 = grey, 1 = original, 2 = double
- *   saturate:   0 = greyscale, 1 = original, 2 = double
- *
- * Our store uses a -100 to +100 scale for UX. This hook converts.
+ * Applies CSS `filter` to the Three.js renderer canvas.
+ * Converts the store's -100…+100 scale to CSS filter values.
+ * Temperature is approximated via sepia + hue-rotate.
+ * Vignette is a separate DOM overlay handled in Viewer360.
  */
 export function useColorFilter(
   containerRef: React.RefObject<HTMLDivElement>,
@@ -30,20 +25,32 @@ export function useColorFilter(
       return;
     }
 
-    const { brightness, contrast, saturation } = adjustments;
+    const { brightness, contrast, saturation, temperature = 0 } = adjustments;
 
-    // Convert -100…+100 to CSS filter values
-    // brightness: 0 → 0.0, 0 → 1.0 (original), +100 → 2.0
     const b = 1 + brightness / 100;
-    // contrast: -100 → 0.0, 0 → 1.0, +100 → 2.0
     const c = 1 + contrast / 100;
-    // saturate: -100 → 0.0, 0 → 1.0, +100 → 2.0
     const s = 1 + saturation / 100;
 
-    canvas.style.filter = [
+    const filters: string[] = [
       `brightness(${Math.max(0, b).toFixed(2)})`,
       `contrast(${Math.max(0, c).toFixed(2)})`,
       `saturate(${Math.max(0, s).toFixed(2)})`,
-    ].join(' ');
+    ];
+
+    if (temperature !== 0) {
+      const t = temperature / 100; // -1 (cool) to +1 (warm)
+      if (t > 0) {
+        // Warm: sepia adds amber/golden tones; slight negative hue-rotate keeps it amber
+        filters.push(`sepia(${(t * 0.4).toFixed(2)})`);
+        filters.push(`hue-rotate(${(-t * 12).toFixed(1)}deg)`);
+      } else {
+        // Cool: positive hue-rotate shifts spectrum toward blue-cyan
+        const at = Math.abs(t);
+        filters.push(`hue-rotate(${(at * 30).toFixed(1)}deg)`);
+        filters.push(`saturate(${(1 + at * 0.2).toFixed(2)})`);
+      }
+    }
+
+    canvas.style.filter = filters.join(' ');
   }, [containerRef, adjustments]);
 }

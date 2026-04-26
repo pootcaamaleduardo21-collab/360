@@ -7,7 +7,9 @@ import { useColorFilter } from '@/hooks/useColorFilter';
 import { HotspotMarker } from './HotspotMarker';
 import { HotspotModal } from './HotspotModal';
 import { MinimapWidget } from './MinimapWidget';
+import { FloorPlanWidget } from './FloorPlanWidget';
 import { TutorialOverlay } from './TutorialOverlay';
+import { AudioGuide } from './AudioGuide';
 import { useTourStore } from '@/store/tourStore';
 import { cn } from '@/lib/utils';
 import {
@@ -16,7 +18,8 @@ import {
   RotateCcw,
   Maximize2,
   ShoppingCart,
-  Pencil,
+  LayoutList,
+  Calendar,
   Plus,
   Loader2,
   AlertTriangle,
@@ -38,6 +41,8 @@ interface Viewer360Props {
   onHotspotAdded?: (sceneId: string, yaw: number, pitch: number) => void;
   onHotspotSelected?: (hotspotId: string | null) => void;
   selectedHotspotId?: string | null;
+  onOpenSalesPanel?: () => void;
+  onOpenBooking?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -52,6 +57,8 @@ export function Viewer360({
   onHotspotAdded,
   onHotspotSelected,
   selectedHotspotId,
+  onOpenSalesPanel,
+  onOpenBooking,
 }: Viewer360Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
@@ -136,6 +143,18 @@ export function Viewer360({
       {/* Three.js canvas mount point */}
       <div ref={containerRef} className="absolute inset-0" />
 
+      {/* Vignette overlay */}
+      {(currentScene.colorAdjustments?.vignette ?? 0) > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none z-[5]"
+          style={{
+            background: `radial-gradient(ellipse at center, transparent ${
+              Math.round(100 - (currentScene.colorAdjustments!.vignette! * 0.55))
+            }%, rgba(0,0,0,${((currentScene.colorAdjustments!.vignette! / 100) * 0.82).toFixed(2)}) 100%)`,
+          }}
+        />
+      )}
+
       {/* Nadir patch (logo over tripod) */}
       {currentScene.nadirEnabled && currentScene.nadirLogoUrl && (
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/3 w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl pointer-events-none">
@@ -174,6 +193,9 @@ export function Viewer360({
         if (!visible) return null;
         const hotspot = currentScene.hotspots.find((h) => h.id === id);
         if (!hotspot) return null;
+        const unitStatus = hotspot.type === 'unit' && hotspot.unitId
+          ? tour.units?.find((u) => u.id === hotspot.unitId)?.status
+          : undefined;
         return (
           <HotspotMarker
             key={id}
@@ -183,6 +205,7 @@ export function Viewer360({
             isSelected={selectedHotspotId === id}
             isEditing={isEditing}
             onClick={handleHotspotClick}
+            unitStatus={unitStatus}
           />
         );
       })}
@@ -219,6 +242,15 @@ export function Viewer360({
         />
       )}
 
+      {/* Floor plan widget — shows only when a floor plan + markers exist */}
+      {!isEditing && (
+        <FloorPlanWidget
+          tour={tour}
+          currentSceneId={currentScene.id}
+          onNavigate={onNavigate}
+        />
+      )}
+
       {/* Controls toolbar */}
       {config.showControls && (
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
@@ -229,11 +261,50 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Cart button (bottom-right) */}
+      {/* Audio guide — auto-plays when scene has audio, resets on scene change */}
+      {!isEditing && currentScene.audioGuideUrl && (
+        <AudioGuide
+          key={currentScene.id}
+          audioUrl={currentScene.audioGuideUrl}
+          sceneLabel={currentScene.name}
+        />
+      )}
+
+      {/* Booking button (bottom-right, above sales panel) */}
+      {!isEditing && onOpenBooking && (
+        <button
+          onClick={onOpenBooking}
+          className={cn(
+            'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90',
+            onOpenSalesPanel ? 'bottom-[104px]' : 'bottom-16'
+          )}
+          style={{ background: tour.brandColor ? `${tour.brandColor}dd` : '#059669' }}
+        >
+          <Calendar className="w-4 h-4" />
+          <span className="text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar'}</span>
+        </button>
+      )}
+
+      {/* Sales panel toggle (bottom-right, only in viewer mode) */}
+      {!isEditing && onOpenSalesPanel && (
+        <button
+          onClick={onOpenSalesPanel}
+          className="absolute bottom-4 right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
+          style={{ background: tour.brandColor ?? '#1e40af' }}
+        >
+          <LayoutList className="w-4 h-4" />
+          <span className="text-sm">{tour.brandName ?? 'Explorar'}</span>
+        </button>
+      )}
+
+      {/* Cart button (bottom-right, shift up when sales button present) */}
       {!isEditing && cartItemCount > 0 && (
         <button
           onClick={toggleCart}
-          className="absolute bottom-4 right-4 z-20 flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded-xl shadow-lg transition-colors"
+          className={cn(
+            'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded-xl shadow-lg transition-colors',
+            onOpenSalesPanel ? 'bottom-16' : 'bottom-4'
+          )}
         >
           <ShoppingCart className="w-4 h-4" />
           <span className="text-sm">{cartItemCount}</span>

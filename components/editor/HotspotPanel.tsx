@@ -1,17 +1,25 @@
 'use client';
 
-import { Hotspot, HotspotType, Scene } from '@/types/tour.types';
+import { Hotspot, HotspotType, Scene, PropertyStatus } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
-import { Trash2, ChevronRight, ArrowRight, Info, Image, User, ShoppingCart } from 'lucide-react';
+import { Trash2, ArrowRight, Info, Image, User, ShoppingCart, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TYPE_OPTIONS: { value: HotspotType; label: string; icon: React.ReactNode }[] = [
-  { value: 'navigation', label: 'Navegación',  icon: <ArrowRight     className="w-3.5 h-3.5" /> },
-  { value: 'info',       label: 'Información', icon: <Info           className="w-3.5 h-3.5" /> },
-  { value: 'media',      label: 'Media',       icon: <Image          className="w-3.5 h-3.5" /> },
-  { value: 'agent',      label: 'Agente',      icon: <User           className="w-3.5 h-3.5" /> },
-  { value: 'product',    label: 'Producto',    icon: <ShoppingCart   className="w-3.5 h-3.5" /> },
+  { value: 'navigation', label: 'Navegación',  icon: <ArrowRight   className="w-3.5 h-3.5" /> },
+  { value: 'info',       label: 'Información', icon: <Info         className="w-3.5 h-3.5" /> },
+  { value: 'media',      label: 'Media',       icon: <Image        className="w-3.5 h-3.5" /> },
+  { value: 'agent',      label: 'Agente',      icon: <User         className="w-3.5 h-3.5" /> },
+  { value: 'product',    label: 'Producto',    icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+  { value: 'unit',       label: 'Unidad',      icon: <Building2    className="w-3.5 h-3.5" /> },
 ];
+
+const UNIT_STATUS_LABELS: Record<PropertyStatus, string> = {
+  available:    'Disponible',
+  reserved:     'Reservado',
+  sold:         'Vendido',
+  'in-process': 'En proceso',
+};
 
 interface HotspotPanelProps {
   scene: Scene;
@@ -23,6 +31,7 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
   const updateHotspot  = useTourStore((s) => s.updateHotspot);
   const removeHotspot  = useTourStore((s) => s.removeHotspot);
   const selectHotspot  = useTourStore((s) => s.selectHotspot);
+  const tourUnits      = useTourStore((s) => s.tour?.units ?? []);
 
   const selected = scene.hotspots.find((h) => h.id === selectedHotspotId) ?? null;
 
@@ -168,6 +177,30 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
           <Field label="Agencia (opcional)">
             <input type="text" value={selected.agent?.agency ?? ''} onChange={(e) => update({ agent: { ...selected.agent!, agency: e.target.value, name: selected.agent?.name ?? '', phone: selected.agent?.phone ?? '', email: selected.agent?.email ?? '' } })} className="input-dark" />
           </Field>
+        </>
+      )}
+
+      {selected.type === 'unit' && (
+        <>
+          <Field label="Unidad vinculada">
+            <select
+              value={selected.unitId ?? ''}
+              onChange={(e) => update({ unitId: e.target.value || undefined })}
+              className="input-dark"
+            >
+              <option value="">— Seleccionar unidad —</option>
+              {tourUnits.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.label} · {UNIT_STATUS_LABELS[u.status]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {tourUnits.length === 0 && (
+            <p className="text-xs text-amber-500/80">
+              Agrega unidades en la pestaña Inventario primero.
+            </p>
+          )}
         </>
       )}
 

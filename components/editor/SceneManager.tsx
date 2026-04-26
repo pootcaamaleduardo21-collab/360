@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Scene } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
-import { Trash2, Plus, GripVertical, Star } from 'lucide-react';
+import { Trash2, Star, Volume2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SceneManagerProps {
@@ -15,6 +16,9 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
   const setCurrentScene  = useTourStore((s) => s.setCurrentScene);
   const removeScene      = useTourStore((s) => s.removeScene);
   const updateTour       = useTourStore((s) => s.updateTour);
+  const updateScene      = useTourStore((s) => s.updateScene);
+
+  const [expandedAudio, setExpandedAudio] = useState<string | null>(null);
 
   return (
     <div className="space-y-2">
@@ -77,6 +81,21 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
                   <Star className="w-3.5 h-3.5" fill={isInitial ? 'currentColor' : 'none'} />
                 </button>
 
+                {/* Audio guide toggle */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedAudio(expandedAudio === scene.id ? null : scene.id);
+                  }}
+                  title="Guía de audio"
+                  className={cn(
+                    'p-1 rounded transition-colors',
+                    scene.audioGuideUrl ? 'text-blue-400' : 'text-gray-600 hover:text-blue-400'
+                  )}
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                </button>
+
                 {/* Delete */}
                 {scenes.length > 1 && (
                   <button
@@ -91,6 +110,25 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
                   </button>
                 )}
               </button>
+
+              {/* Audio URL input — shown when expanded */}
+              {expandedAudio === scene.id && (
+                <div className="px-2 pb-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <Volume2 className="w-3 h-3" /> URL de audio (narración)
+                  </label>
+                  <input
+                    type="url"
+                    value={scene.audioGuideUrl ?? ''}
+                    onChange={(e) => updateScene(scene.id, { audioGuideUrl: e.target.value || undefined })}
+                    placeholder="https://…/audio.mp3"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300 placeholder-gray-600 outline-none focus:border-blue-500"
+                  />
+                  <p className="text-[10px] text-gray-600">
+                    Se reproduce automáticamente al entrar a esta escena.
+                  </p>
+                </div>
+              )}
             </li>
           );
         })}

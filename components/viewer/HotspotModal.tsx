@@ -4,6 +4,7 @@ import { Hotspot } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { formatCurrency } from '@/lib/utils';
 import { X, Phone, Mail, Globe, ShoppingCart, ExternalLink } from 'lucide-react';
+import { UnitDetailModal } from './UnitDetailModal';
 
 interface HotspotModalProps {
   hotspot: Hotspot;
@@ -14,6 +15,22 @@ interface HotspotModalProps {
 
 export function HotspotModal({ hotspot, currentSceneId, onClose, onNavigate }: HotspotModalProps) {
   const addToCart = useTourStore((s) => s.addToCart);
+  const tour      = useTourStore((s) => s.tour);
+
+  // Unit hotspot — delegate to the dedicated modal
+  if (hotspot.type === 'unit' && hotspot.unitId && tour) {
+    const unit = tour.units?.find((u) => u.id === hotspot.unitId);
+    if (unit) {
+      return (
+        <UnitDetailModal
+          unit={unit}
+          tour={tour}
+          onClose={onClose}
+          onNavigate={onNavigate}
+        />
+      );
+    }
+  }
 
   return (
     <div
