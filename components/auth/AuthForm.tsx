@@ -30,21 +30,29 @@ export function AuthForm({ mode, onSubmit, isLoading = false }: AuthFormProps) {
     setSuccess(null);
     setPending(true);
 
-    const result = await onSubmit({
-      email,
-      password: mode !== 'reset' ? password : undefined,
-      fullName: mode === 'register' ? fullName : undefined,
-    });
+    try {
+      const result = await onSubmit({
+        email,
+        password: mode !== 'reset' ? password : undefined,
+        fullName: mode === 'register' ? fullName : undefined,
+      });
 
-    if (result.error) {
-      setError(result.error);
-    } else if (mode === 'reset') {
-      setSuccess('Revisa tu correo para restablecer tu contraseña.');
-    } else if (mode === 'register') {
-      setSuccess('Cuenta creada. Revisa tu correo para confirmarla.');
+      if (result.error) {
+        setError(result.error);
+      } else if (mode === 'reset') {
+        setSuccess('Revisa tu correo para restablecer tu contraseña.');
+      } else if (mode === 'register') {
+        setSuccess('Cuenta creada. Revisa tu correo para confirmarla.');
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error de conexión. Verifica tu internet e intenta de nuevo.'
+      );
+    } finally {
+      setPending(false);
     }
-
-    setPending(false);
   };
 
   return (

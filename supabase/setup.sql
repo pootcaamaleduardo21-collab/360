@@ -3,6 +3,49 @@
 -- Run this in: Supabase Dashboard → SQL Editor → New query
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- ── 0. Profiles table (auto-created on signup via trigger) ───────────────────
+-- Stores display name and plan. Readable ONLY by the owner.
+-- (If you already have a profiles table from schema.sql, skip this block.)
+CREATE TABLE IF NOT EXISTS profiles (
+  id         uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name  text,
+  avatar_url text,
+  plan       text NOT NULL DEFAULT 'free',  -- 'free' | 'pro' | 'enterprise'
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- ⚠️  Each user can ONLY read and update their own profile.
+--      The old "Profiles are publicly readable" policy in schema.sql is too broad
+--      and leaks full_name + plan to other users. Replace it with this:
+DROP POLICY IF EXISTS "Profiles are publicly readable" ON profiles;
+
+CREATE POLICY "profiles: owner read"
+  ON profiles FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "profiles: owner update"
+  ON profiles FOR UPDATE USING (auth.uid() = id);
+
+-- Auto-create profile on new user signup
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO profiles (id, full_name)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1))
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
 -- ── 1. Tours table ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tours (
   id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -68,11 +111,73 @@ CREATE POLICY "events: owner can read" ON tour_events
   );
 
 -- ── 5. Storage buckets ───────────────────────────────────────────────────────
--- Run separately in Supabase Dashboard → Storage if needed:
---
--- INSERT INTO storage.buckets (id, name, public) VALUES ('tour-scenes', 'tour-scenes', true);
--- INSERT INTO storage.buckets (id, name, public) VALUES ('tour-assets', 'tour-assets', true);
--- INSERT INTO storage.buckets (id, name, public) VALUES ('tour-thumbs', 'tour-thumbs', true);
+-- Creates the three public buckets required for image uploads.
+-- Safe to re-run: INSERT ... ON CONFLICT DO NOTHING
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  ('tour-scenes', 'tour-scenes', true, 52428800, ARRAY['image/jpeg','image/png','image/webp']),
+  ('tour-assets', 'tour-assets', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','audio/mpeg','audio/mp4','audio/wav']),
+  ('tour-thumbs', 'tour-thumbs', true, 5242880,  ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+-- ── 5a. Storage RLS policies ─────────────────────────────────────────────────
+-- Public read (images are served publicly)
+CREATE POLICY "storage: public read scenes"
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'tour-scenes' );
+
+CREATE POLICY "storage: public read assets"
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'tour-assets' );
+
+CREATE POLICY "storage: public read thumbs"
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'tour-thumbs' );
+
+-- Authenticated users can upload/update/delete only their own files
+-- Convention: files are stored under {user_id}/<filename>
+CREATE POLICY "storage: owner upload scenes"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'tour-scenes'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+CREATE POLICY "storage: owner upload assets"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'tour-assets'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+CREATE POLICY "storage: owner upload thumbs"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'tour-thumbs'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+CREATE POLICY "storage: owner delete scenes"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'tour-scenes'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+CREATE POLICY "storage: owner delete assets"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'tour-assets'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+CREATE POLICY "storage: owner delete thumbs"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'tour-thumbs'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
 
 -- ── 6. Set a user as super_admin ─────────────────────────────────────────────
 -- Replace 'tu@email.com' with your actual email, then run this query.

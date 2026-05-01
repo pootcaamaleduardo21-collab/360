@@ -53,7 +53,7 @@ export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUn
 
       {/* Panel */}
       {isOpen && (
-        <div className="absolute top-16 left-4 z-20 w-72 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div className="absolute top-16 left-4 z-20 w-[calc(100vw-2rem)] max-w-[288px] bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
             <h3 className="text-sm font-semibold text-gray-100">{niche.inventoryTitle}</h3>

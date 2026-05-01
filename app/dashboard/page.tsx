@@ -114,30 +114,32 @@ export default function DashboardPage() {
 
       {/* ── Top nav ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3 sm:gap-4">
 
           {/* Logo */}
           <Link href="/" className="text-lg font-black tracking-tight flex-shrink-0">
             Tour <span className="text-blue-400">360°</span>
           </Link>
 
-          {/* Role tabs */}
-          <nav className="hidden md:flex items-center gap-1 ml-6">
-            {roleTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors',
-                  activeTab === tab.id
-                    ? 'bg-gray-800 text-white'
-                    : 'text-gray-500 hover:text-gray-300'
-                )}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </nav>
+          {/* Role tabs — desktop */}
+          {roleTabs.length > 1 && (
+            <nav className="hidden md:flex items-center gap-1 ml-6">
+              {roleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors',
+                    activeTab === tab.id
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-500 hover:text-gray-300'
+                  )}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </nav>
+          )}
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -189,8 +191,30 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* ── Mobile tab bar (only shown on small screens when >1 tab) ────── */}
+      {roleTabs.length > 1 && (
+        <div className="md:hidden border-b border-gray-800 bg-gray-900/80 backdrop-blur-md">
+          <div className="flex overflow-x-auto scrollbar-none">
+            {roleTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0',
+                  activeTab === tab.id
+                    ? 'border-b-2 border-blue-500 text-white'
+                    : 'text-gray-500'
+                )}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
         {/* ── PLATFORM tab (super admin) ──────────────────────────────── */}
         {activeTab === 'platform' && role === 'super_admin' && (
@@ -223,22 +247,22 @@ export default function DashboardPage() {
 
                 {/* Stats row */}
                 {tours.length > 0 && (
-                  <div className="grid grid-cols-3 gap-4 mb-8">
-                    <StatMini label="Tours" value={statsRow.total} icon={<Globe className="w-4 h-4 text-blue-400" />} />
-                    <StatMini label="Publicados" value={statsRow.published} icon={<Building2 className="w-4 h-4 text-emerald-400" />} />
-                    <StatMini label="Vistas totales" value={statsRow.views} icon={<BarChart2 className="w-4 h-4 text-purple-400" />} />
+                  <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+                    <StatMini label="Tours"         value={statsRow.total}     icon={<Globe     className="w-4 h-4 text-blue-400"    />} />
+                    <StatMini label="Publicados"    value={statsRow.published} icon={<Building2 className="w-4 h-4 text-emerald-400" />} />
+                    <StatMini label="Vistas totales" value={statsRow.views}   icon={<BarChart2  className="w-4 h-4 text-purple-400"  />} />
                   </div>
                 )}
 
                 {/* Page header */}
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h1 className="text-2xl font-black text-gray-100">Mis tours</h1>
+                <div className="flex items-center justify-between mb-5 sm:mb-6 gap-3">
+                  <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-black text-gray-100">Mis tours</h1>
                     <p className="text-sm text-gray-500 mt-0.5">{tours.length} tour{tours.length !== 1 ? 's' : ''}</p>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex bg-gray-800 rounded-xl p-0.5 border border-gray-700">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    <div className="hidden sm:flex bg-gray-800 rounded-xl p-0.5 border border-gray-700">
                       {(['grid', 'list'] as const).map((mode) => (
                         <button
                           key={mode}
@@ -251,9 +275,10 @@ export default function DashboardPage() {
                     </div>
                     <button
                       onClick={handleNewTour}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-blue-600/20"
+                      className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-blue-600/20"
                     >
-                      <Plus className="w-4 h-4" /> Nuevo tour
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Nuevo tour</span>
                     </button>
                   </div>
                 </div>

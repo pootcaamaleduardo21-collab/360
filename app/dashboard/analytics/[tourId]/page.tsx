@@ -29,12 +29,16 @@ export default function AnalyticsPage({ params }: PageProps) {
     if (!user) { router.push('/auth/login'); return; }
 
     const load = async () => {
-      const [stats, tourRow] = await Promise.all([
-        getTourAnalytics(tourId),
-        getTourById(tourId).catch(() => null),
-      ]);
+      // ── SECURITY: verify tour belongs to current user before loading analytics
+      const tourRow = await getTourById(tourId).catch(() => null);
+      if (!tourRow || tourRow.user_id !== user.id) {
+        router.push('/dashboard');
+        return;
+      }
+
+      const stats = await getTourAnalytics(tourId);
       setAnalytics(stats);
-      setTourTitle(tourRow?.title ?? 'Tour');
+      setTourTitle(tourRow.title);
       setLoading(false);
     };
     load();

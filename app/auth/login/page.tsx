@@ -1,19 +1,23 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { AuthForm } from '@/components/auth/AuthForm';
 import { useAuth } from '@/hooks/useAuth';
 
 function LoginForm() {
   const { signIn } = useAuth();
-  const router     = useRouter();
   const params     = useSearchParams();
   const redirectTo = params.get('redirectTo') ?? '/dashboard';
 
   const handleSubmit = async ({ email, password }: { email: string; password?: string }) => {
     const result = await signIn(email, password!);
-    if (!result.error) router.replace(redirectTo);
+    if (!result.error) {
+      // Hard navigation: ensures the browser sends the fresh auth cookie to
+      // the Next.js middleware BEFORE it evaluates the protected route.
+      // router.replace() can race against @supabase/ssr writing the cookie.
+      window.location.replace(redirectTo);
+    }
     return result;
   };
 

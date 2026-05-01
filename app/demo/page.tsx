@@ -11,6 +11,7 @@ import { SalesPanel } from '@/components/viewer/SalesPanel';
 import { BookingModal } from '@/components/viewer/BookingModal';
 import { PropertyUnit } from '@/types/tour.types';
 import { Loader2, ArrowLeft, Sparkles, X } from 'lucide-react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const Viewer360 = dynamic(
   () => import('@/components/viewer/Viewer360').then((m) => m.Viewer360),
@@ -94,14 +95,16 @@ function DemoInner() {
       {/* ── Viewer + overlays in a shared positioned container ─────────── */}
       {/* InventoryOverlay is a sibling of Viewer360 — no pointer-event wrappers needed */}
       <div className="absolute inset-x-0 bottom-0" style={{ top: bannerH }}>
-        <Viewer360
-          tour={tour}
-          currentScene={currentScene}
-          config={{ ...viewerConfig, showTutorial: false }}
-          onNavigate={navigateTo}
-          onOpenSalesPanel={() => setSalesPanelOpen(true)}
-          onOpenBooking={() => setBookingOpen(true)}
-        />
+        <ErrorBoundary label="el visor 360°">
+          <Viewer360
+            tour={tour}
+            currentScene={currentScene}
+            config={{ ...viewerConfig, showTutorial: false }}
+            onNavigate={navigateTo}
+            onOpenSalesPanel={() => setSalesPanelOpen(true)}
+            onOpenBooking={() => setBookingOpen(true)}
+          />
+        </ErrorBoundary>
 
         <InventoryOverlay
           tour={tour}

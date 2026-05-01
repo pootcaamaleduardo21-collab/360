@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
+import type { FileRejection } from 'react-dropzone';
 import { useDropzone } from 'react-dropzone';
 import {
   Upload, X, CheckCircle, AlertCircle, Cloud, RefreshCw,
@@ -27,6 +28,9 @@ interface ImageUploaderProps {
   maxFiles?: number;
   className?: string;
 }
+
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_SIZE_LABEL = '50 MB';
 
 type FileStatus = 'pending' | 'detecting' | 'converting' | 'uploading' | 'ready' | 'error';
 
@@ -74,9 +78,17 @@ const CAMERA_GUIDES = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ImageUploader({ onImagesReady, maxFiles = 20, className }: ImageUploaderProps) {
-  const [files, setFiles]           = useState<FileItem[]>([]);
-  const [showGuide, setShowGuide]   = useState(false);
+  const [files,     setFiles]     = useState<FileItem[]>([]);
+  const [showGuide, setShowGuide] = useState(false);
+  const [rejErrors, setRejErrors] = useState<string[]>([]);
   const tour = useTourStore((s) => s.tour);
+
+  // Auto-dismiss rejection errors after 6 s
+  useEffect(() => {
+    if (rejErrors.length === 0) return;
+    const t = setTimeout(() => setRejErrors([]), 6000);
+    return () => clearTimeout(t);
+  }, [rejErrors]);
 
   const patch = (name: string, p: Partial<FileItem>) =>
     setFiles((prev) => prev.map((f) => f.file.name === name ? { ...f, ...p } : f));
@@ -179,8 +191,25 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
     [maxFiles, onImagesReady, tour]
   );
 
+  const handleRejected = useCallback((rejections: FileRejection[]) => {
+    const msgs: string[] = [];
+    for (const { file, errors } of rejections) {
+      const isTooLarge = errors.some((e) => e.code === 'file-too-large');
+      const isWrongType = errors.some((e) => e.code === 'file-invalid-type');
+      if (isTooLarge) {
+        msgs.push(`"${file.name}" excede el límite de ${MAX_FILE_SIZE_LABEL} (${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+      } else if (isWrongType) {
+        msgs.push(`"${file.name}" tiene un formato no permitido.`);
+      } else {
+        msgs.push(`"${file.name}" fue rechazado.`);
+      }
+    }
+    if (msgs.length) setRejErrors(msgs);
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected: handleRejected,
     accept: {
       'image/jpeg':               ['.jpg', '.jpeg', '.insp'],
       'image/png':                ['.png'],
@@ -189,6 +218,7 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
       'image/heif':               ['.heif'],
       'application/octet-stream': ['.insv', '.360', '.dng', '.arw', '.cr2', '.cr3', '.nef', '.orf', '.raf', '.rw2', '.raw'],
     },
+    maxSize: MAX_FILE_SIZE_BYTES,
     maxFiles,
     multiple: true,
   });
@@ -243,6 +273,18 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
           ))}
         </div>
       </div>
+
+      {/* ── Rejection errors ──────────────────────────────────────────────── */}
+      {rejErrors.length > 0 && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3 space-y-1">
+          {rejErrors.map((msg, i) => (
+            <p key={i} className="flex items-start gap-1.5 text-xs text-red-400">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+              {msg}
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* ── Camera guide toggle ────────────────────────────────────────────── */}
       <button

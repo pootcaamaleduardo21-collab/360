@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { useAuth } from '@/hooks/useAuth';
-import { getTourById } from '@/lib/db';
+import { getTourById, saveTour } from '@/lib/db';
 import { HotspotType } from '@/types/tour.types';
+import { ErrorBoundary }    from '@/components/ErrorBoundary';
 import { ImageUploader }    from '@/components/editor/ImageUploader';
 import { HotspotPanel }     from '@/components/editor/HotspotPanel';
 import { SceneManager }     from '@/components/editor/SceneManager';
@@ -19,7 +20,7 @@ import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
   Layers, Home, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
-  Loader2, Map, Building2, Palette,
+  Loader2, Map, Building2, Palette, Cloud, CloudOff, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -88,12 +89,26 @@ function EditorInner() {
   const navigateTo   = useTourStore((s) => s.navigateTo);
   const selectHotspot = useTourStore((s) => s.selectHotspot);
 
-  const [addingType, setAddingType] = useState<HotspotType | null>(null);
-  const [leftOpen,   setLeftOpen]   = useState(true);
-  const [rightOpen,  setRightOpen]  = useState(true);
-  const [leftTab,    setLeftTab]    = useState<LeftTab>('scenes');
-  const [rightTab,   setRightTab]   = useState<RightTab>('hotspot');
-  const [dbLoading,  setDbLoading]  = useState(false);
+  const [addingType,   setAddingType]   = useState<HotspotType | null>(null);
+  const [leftOpen,     setLeftOpen]     = useState(true);
+  const [rightOpen,    setRightOpen]    = useState(true);
+  const [leftTab,      setLeftTab]      = useState<LeftTab>('scenes');
+  const [rightTab,     setRightTab]     = useState<RightTab>('hotspot');
+  const [dbLoading,    setDbLoading]    = useState(false);
+  const [saveStatus,   setSaveStatus]   = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
+  const [isMobile,     setIsMobile]     = useState(false);
+
+  // ── Mobile detection ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Refs for auto-save debounce
+  const autoSaveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextSaveRef = useRef(true); // skip first render / initial DB load
 
   // ── Load tour from DB when ?id= is present ────────────────────────────────
   useEffect(() => {
@@ -101,16 +116,29 @@ function EditorInner() {
       if (!tour) initTour('Mi Tour 360°');
       return;
     }
+    // Wait until auth resolves before fetching
+    if (!user) return;
+
     setDbLoading(true);
     getTourById(tourId)
       .then((row) => {
-        if (row) loadTour(row.data);
-        else router.push('/dashboard');
+        if (!row) {
+          router.push('/dashboard');
+          return;
+        }
+        // ── SECURITY: reject if the tour belongs to another user ────────
+        if (row.user_id !== user.id) {
+          console.warn('[Editor] Unauthorized: tour belongs to another user');
+          router.push('/dashboard');
+          return;
+        }
+        skipNextSaveRef.current = true; // don't auto-save the data we just loaded
+        loadTour(row.data);
       })
       .catch(() => router.push('/dashboard'))
       .finally(() => setDbLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tourId]);
+  }, [tourId, user]);
 
   // ── Escape to cancel hotspot placement ───────────────────────────────────
   useEffect(() => {
@@ -120,6 +148,39 @@ function EditorInner() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // ── Auto-save (debounced 3 s) — only for tours that exist in DB ───────────
+  useEffect(() => {
+    // Don't auto-save brand-new tours or if not logged in
+    if (!tourId || !tour || !user) return;
+
+    // Skip the initial load/set (when loadTour is called from DB fetch)
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+
+    // Clear pending timer and mark as pending
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    setSaveStatus('pending');
+
+    autoSaveTimer.current = setTimeout(async () => {
+      setSaveStatus('saving');
+      try {
+        await saveTour(tour);
+        setSaveStatus('saved');
+        // Reset to idle after 2 s
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } catch {
+        setSaveStatus('error');
+      }
+    }, 3000);
+
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour]);
 
   const handleImagesReady = useCallback(
     (files: Array<{ name: string; url: string; thumbnailUrl?: string }>) => {
@@ -146,6 +207,28 @@ function EditorInner() {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-950">
         <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+      </div>
+    );
+  }
+
+  // ── Mobile gate — editor requires desktop ─────────────────────────────────
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6 text-center gap-6">
+        <div className="text-4xl">🖥️</div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-bold text-gray-100">Editor disponible en escritorio</h1>
+          <p className="text-sm text-gray-400 max-w-xs">
+            El editor 360° requiere una pantalla más grande para funcionar correctamente.
+            Ábrelo desde tu computadora.
+          </p>
+        </div>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors"
+        >
+          <LayoutDashboard className="w-4 h-4" /> Ir al dashboard
+        </Link>
       </div>
     );
   }
@@ -263,30 +346,55 @@ function EditorInner() {
               </button>
             ))}
           </div>
-          {addingType && (
-            <button
-              onClick={() => setAddingType(null)}
-              className="ml-auto text-xs text-gray-500 hover:text-white transition-colors"
-            >
-              Esc para cancelar
-            </button>
-          )}
+          {/* Right side: cancel hint + auto-save indicator */}
+          <div className="ml-auto flex items-center gap-3">
+            {addingType && (
+              <button
+                onClick={() => setAddingType(null)}
+                className="text-xs text-gray-500 hover:text-white transition-colors"
+              >
+                Esc para cancelar
+              </button>
+            )}
+
+            {/* Auto-save status — only shown when tour is persisted in DB */}
+            {tourId && saveStatus !== 'idle' && (
+              <span className={cn(
+                'flex items-center gap-1 text-xs transition-colors',
+                saveStatus === 'pending' && 'text-gray-500',
+                saveStatus === 'saving'  && 'text-blue-400',
+                saveStatus === 'saved'   && 'text-green-400',
+                saveStatus === 'error'   && 'text-red-400',
+              )}>
+                {saveStatus === 'pending' && <Cloud    className="w-3 h-3" />}
+                {saveStatus === 'saving'  && <Loader2  className="w-3 h-3 animate-spin" />}
+                {saveStatus === 'saved'   && <Check    className="w-3 h-3" />}
+                {saveStatus === 'error'   && <CloudOff className="w-3 h-3" />}
+                {saveStatus === 'pending' && 'Sin guardar'}
+                {saveStatus === 'saving'  && 'Guardando…'}
+                {saveStatus === 'saved'   && 'Guardado'}
+                {saveStatus === 'error'   && 'Error al guardar'}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Viewer */}
         <div className="flex-1 relative">
           {currentScene && tour ? (
-            <Viewer360
-              tour={tour}
-              currentScene={currentScene}
-              config={{ ...viewerConfig, showTutorial: false, showMinimap: false }}
-              isEditing
-              addHotspotType={addingType ?? undefined}
-              selectedHotspotId={selectedHotspotId}
-              onNavigate={navigateTo}
-              onHotspotAdded={handleHotspotAdded}
-              onHotspotSelected={selectHotspot}
-            />
+            <ErrorBoundary label="el visor 360°">
+              <Viewer360
+                tour={tour}
+                currentScene={currentScene}
+                config={{ ...viewerConfig, showTutorial: false, showMinimap: false }}
+                isEditing
+                addHotspotType={addingType ?? undefined}
+                selectedHotspotId={selectedHotspotId}
+                onNavigate={navigateTo}
+                onHotspotAdded={handleHotspotAdded}
+                onHotspotSelected={selectHotspot}
+              />
+            </ErrorBoundary>
           ) : (
             <EmptyState onUploadClick={() => { setLeftTab('upload'); setLeftOpen(true); }} />
           )}

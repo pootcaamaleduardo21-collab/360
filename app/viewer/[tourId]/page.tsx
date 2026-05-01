@@ -15,6 +15,7 @@ import { PasswordGate } from '@/components/viewer/PasswordGate';
 import { BookingModal } from '@/components/viewer/BookingModal';
 import { PropertyUnit } from '@/types/tour.types';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const Viewer360 = dynamic(
   () => import('@/components/viewer/Viewer360').then((m) => m.Viewer360),
@@ -69,6 +70,18 @@ function ViewerInner({ tourId }: { tourId: string }) {
           if (!row) {
             setNotFound(true);
           } else {
+            // ── SECURITY: UUID access to unpublished tours requires ownership
+            // getTourBySlug already enforces is_published=true.
+            // For raw UUID access, block if draft unless the viewer IS the owner.
+            if (isUuid && !row.is_published) {
+              const sb = (await import('@/lib/supabase')).getSupabase();
+              const { data: { user } } = await sb.auth.getUser();
+              if (!user || user.id !== row.user_id) {
+                setNotFound(true);
+                setIsLoading(false);
+                return;
+              }
+            }
             loadTour(row.data);
           }
         } catch {
@@ -137,14 +150,16 @@ function ViewerInner({ tourId }: { tourId: string }) {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
-      <Viewer360
-        tour={tour}
-        currentScene={currentScene}
-        config={viewerConfig}
-        onNavigate={navigateTo}
-        onOpenSalesPanel={units.length > 0 || tour.gallery?.length ? () => setSalesPanelOpen(true) : undefined}
-        onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => setBookingOpen(true) : undefined}
-      />
+      <ErrorBoundary label="el visor 360°">
+        <Viewer360
+          tour={tour}
+          currentScene={currentScene}
+          config={viewerConfig}
+          onNavigate={navigateTo}
+          onOpenSalesPanel={units.length > 0 || tour.gallery?.length ? () => setSalesPanelOpen(true) : undefined}
+          onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => setBookingOpen(true) : undefined}
+        />
+      </ErrorBoundary>
 
       {/* Inventory overlay (Real Estate) */}
       {units.length > 0 && (

@@ -138,9 +138,19 @@ export async function saveTour(tour: Tour): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-/** Delete a tour and its storage files. */
+/** Delete a tour — verifies ownership before deleting (defense-in-depth; RLS also enforces this). */
 export async function deleteTour(id: string): Promise<void> {
   const sb = getSupabase();
+
+  // App-level ownership check: fetch the tour first and confirm it belongs to the caller.
+  // Even if someone bypasses the UI, RLS on the DELETE will also block cross-user deletes.
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: row } = await sb.from('tours').select('user_id').eq('id', id).single();
+  if (!row) throw new Error('Tour not found');
+  if (row.user_id !== user.id) throw new Error('Forbidden: tour belongs to another user');
+
   const { error } = await sb.from('tours').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }

@@ -33,12 +33,18 @@ export function useAuth(): AuthState & AuthActions {
 
     const sb = getSupabase();
 
-    // Get initial session
-    sb.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setIsLoading(false);
-    });
+    // Get initial session — always resolve isLoading even if Supabase is unreachable
+    sb.auth.getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+      })
+      .catch(() => {
+        // Network error or invalid storage — treat as logged out, never block the UI
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
 
     // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
@@ -50,35 +56,57 @@ export function useAuth(): AuthState & AuthActions {
   }, [configured]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const sb = getSupabase();
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    try {
+      const sb = getSupabase();
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      return { error: error?.message ?? null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Error de conexión al iniciar sesión.' };
+    }
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
-    const sb = getSupabase();
-    const { error } = await sb.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${location.origin}/auth/callback`,
-      },
-    });
-    return { error: error?.message ?? null };
+    try {
+      const sb = getSupabase();
+      const { error } = await sb.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+          emailRedirectTo: `${location.origin}/auth/callback`,
+        },
+      });
+      return { error: error?.message ?? null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Error de conexión al registrarse.' };
+    }
   }, []);
 
   const signOut = useCallback(async () => {
     const sb = getSupabase();
     await sb.auth.signOut();
+    // ── SECURITY: clear user-specific persisted state on logout ────────────
+    // Prevents cart/items from a previous session leaking to the next user
+    // on the same browser.
+    try {
+      const { useTourStore } = await import('@/store/tourStore');
+      useTourStore.getState().clearCart();
+      useTourStore.setState({ tour: null, currentSceneId: null });
+    } catch {
+      // Store might not be initialized; safe to ignore
+    }
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    const sb = getSupabase();
-    const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: `${location.origin}/auth/callback?type=recovery`,
-    });
-    return { error: error?.message ?? null };
+    try {
+      const sb = getSupabase();
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: `${location.origin}/auth/callback?next=/auth/new-password`,
+      });
+      return { error: error?.message ?? null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Error de conexión.' };
+    }
   }, []);
 
   return {
