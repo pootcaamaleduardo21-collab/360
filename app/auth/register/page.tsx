@@ -14,7 +14,14 @@ export default function RegisterPage() {
     email: string;
     password?: string;
     fullName?: string;
-  }) => signUp(email, password!, fullName);
+  }) => {
+    const result = await signUp(email, password!, fullName);
+    if (!result.error && !result.needsConfirmation) {
+      // Email confirmation is disabled — session is ready; go straight to dashboard.
+      window.location.replace('/dashboard');
+    }
+    return { error: result.error };
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">

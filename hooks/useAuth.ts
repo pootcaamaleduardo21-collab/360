@@ -13,7 +13,7 @@ export interface AuthState {
 
 export interface AuthActions {
   signIn:   (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp:   (email: string, password: string, fullName?: string) => Promise<{ error: string | null }>;
+  signUp:   (email: string, password: string, fullName?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut:  () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
 }
@@ -68,7 +68,7 @@ export function useAuth(): AuthState & AuthActions {
   const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
     try {
       const sb = getSupabase();
-      const { error } = await sb.auth.signUp({
+      const { data, error } = await sb.auth.signUp({
         email,
         password,
         options: {
@@ -76,9 +76,13 @@ export function useAuth(): AuthState & AuthActions {
           emailRedirectTo: `${location.origin}/auth/callback`,
         },
       });
-      return { error: error?.message ?? null };
+      if (error) return { error: error.message, needsConfirmation: false };
+      // When email confirmation is disabled, Supabase returns a session immediately.
+      // When confirmation is required, session is null and the user gets an email.
+      const needsConfirmation = !data.session;
+      return { error: null, needsConfirmation };
     } catch (err: unknown) {
-      return { error: err instanceof Error ? err.message : 'Error de conexión al registrarse.' };
+      return { error: err instanceof Error ? err.message : 'Error de conexión al registrarse.', needsConfirmation: false };
     }
   }, []);
 

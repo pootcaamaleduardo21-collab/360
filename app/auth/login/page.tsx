@@ -8,7 +8,20 @@ import { useAuth } from '@/hooks/useAuth';
 function LoginForm() {
   const { signIn } = useAuth();
   const params     = useSearchParams();
-  const redirectTo = params.get('redirectTo') ?? '/dashboard';
+
+  // Validate redirectTo is a relative path to prevent open-redirect attacks.
+  // A URL like ?redirectTo=https://evil.com would otherwise forward the user there.
+  const raw        = params.get('redirectTo') ?? '/dashboard';
+  const redirectTo = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/dashboard';
+
+  // Surface errors forwarded by the auth callback (e.g. expired confirmation link)
+  const callbackError = params.get('error');
+  const callbackErrorMsg =
+    callbackError === 'auth_callback_failed'
+      ? 'El enlace de confirmación expiró o ya fue usado. Inicia sesión o solicita uno nuevo.'
+      : callbackError
+        ? 'Ocurrió un error en la autenticación. Intenta de nuevo.'
+        : null;
 
   const handleSubmit = async ({ email, password }: { email: string; password?: string }) => {
     const result = await signIn(email, password!);
@@ -21,7 +34,7 @@ function LoginForm() {
     return result;
   };
 
-  return <AuthForm mode="login" onSubmit={handleSubmit} />;
+  return <AuthForm mode="login" onSubmit={handleSubmit} initialError={callbackErrorMsg} />;
 }
 
 export default function LoginPage() {
