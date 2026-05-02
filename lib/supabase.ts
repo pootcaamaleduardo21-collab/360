@@ -30,9 +30,13 @@ export function getSupabase(): SupabaseClient {
 
   const { url, key } = getEnv();
   if (!url || !key) {
-    throw new Error(
-      '[Tour360] Supabase not configured. Copy .env.local.example → .env.local'
-    );
+    // Dev hint — never shown to end users
+    if (process.env.NODE_ENV === 'development') {
+      throw new Error(
+        '[Tour360] Supabase not configured. Copy .env.local.example → .env.local'
+      );
+    }
+    throw new Error('Servicio no disponible. Intenta de nuevo más tarde.');
   }
 
   // Use @supabase/ssr browser client so cookies are synced with middleware

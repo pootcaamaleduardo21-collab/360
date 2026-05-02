@@ -59,9 +59,18 @@ export function useAuth(): AuthState & AuthActions {
     try {
       const sb = getSupabase();
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      return { error: error?.message ?? null };
-    } catch (err: unknown) {
-      return { error: err instanceof Error ? err.message : 'Error de conexión al iniciar sesión.' };
+      if (!error) return { error: null };
+      // Map Supabase English errors → Spanish user-friendly messages
+      const msg = error.message.toLowerCase();
+      if (msg.includes('invalid login') || msg.includes('invalid credentials'))
+        return { error: 'Correo o contraseña incorrectos.' };
+      if (msg.includes('email not confirmed'))
+        return { error: 'Confirma tu correo antes de iniciar sesión.' };
+      if (msg.includes('too many requests'))
+        return { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' };
+      return { error: error.message };
+    } catch {
+      return { error: 'Error de conexión. Verifica tu internet e intenta de nuevo.' };
     }
   }, []);
 
@@ -76,13 +85,20 @@ export function useAuth(): AuthState & AuthActions {
           emailRedirectTo: `${location.origin}/auth/callback`,
         },
       });
-      if (error) return { error: error.message, needsConfirmation: false };
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('already registered') || msg.includes('user already'))
+          return { error: 'Ya existe una cuenta con ese correo. Intenta iniciar sesión.', needsConfirmation: false };
+        if (msg.includes('password'))
+          return { error: 'La contraseña debe tener al menos 8 caracteres.', needsConfirmation: false };
+        return { error: error.message, needsConfirmation: false };
+      }
       // When email confirmation is disabled, Supabase returns a session immediately.
       // When confirmation is required, session is null and the user gets an email.
       const needsConfirmation = !data.session;
       return { error: null, needsConfirmation };
-    } catch (err: unknown) {
-      return { error: err instanceof Error ? err.message : 'Error de conexión al registrarse.', needsConfirmation: false };
+    } catch {
+      return { error: 'Error de conexión al registrarse.', needsConfirmation: false };
     }
   }, []);
 
@@ -108,8 +124,8 @@ export function useAuth(): AuthState & AuthActions {
         redirectTo: `${location.origin}/auth/callback?next=/auth/new-password`,
       });
       return { error: error?.message ?? null };
-    } catch (err: unknown) {
-      return { error: err instanceof Error ? err.message : 'Error de conexión.' };
+    } catch {
+      return { error: 'Error de conexión. Verifica tu internet e intenta de nuevo.' };
     }
   }, []);
 
