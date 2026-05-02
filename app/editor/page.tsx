@@ -16,11 +16,12 @@ import { InventoryPanel }   from '@/components/editor/InventoryPanel';
 import { EmbedPanel }       from '@/components/editor/EmbedPanel';
 import { FloorPlanEditor }  from '@/components/editor/FloorPlanEditor';
 import { BrandingPanel }    from '@/components/editor/BrandingPanel';
+import { SecurityPanel }    from '@/components/editor/SecurityPanel';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
   Layers, Home, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
-  Loader2, Map, Building2, Palette, Cloud, CloudOff, Check,
+  Loader2, Map, Building2, Palette, Cloud, CloudOff, Check, Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +43,7 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'branding' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'branding' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
 const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
@@ -51,6 +52,7 @@ const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
   { id: 'floorplan', label: 'Plano',    icon: <Map     className="w-3 h-3" /> },
   { id: 'inventory', label: 'Ventas',   icon: <Home    className="w-3 h-3" /> },
   { id: 'branding',  label: 'Marca',    icon: <Palette className="w-3 h-3" /> },
+  { id: 'security',  label: 'Acceso',   icon: <Lock    className="w-3 h-3" /> },
   { id: 'publish',   label: 'Publicar', icon: <Globe   className="w-3 h-3" /> },
 ];
 
@@ -269,7 +271,7 @@ function EditorInner() {
           </div>
 
           {/* Tab nav */}
-          <div className="grid grid-cols-6 border-b border-gray-800 flex-shrink-0">
+          <div className="grid grid-cols-7 border-b border-gray-800 flex-shrink-0">
             {LEFT_TABS.map(({ id, label, icon }) => (
               <button
                 key={id}
@@ -307,6 +309,9 @@ function EditorInner() {
             )}
             {leftTab === 'branding' && tour && (
               <BrandingPanel tour={tour} />
+            )}
+            {leftTab === 'security' && tour && (
+              <SecurityPanel tour={tour} />
             )}
             {leftTab === 'publish' && tour && (
               <EmbedPanel tour={tour} />

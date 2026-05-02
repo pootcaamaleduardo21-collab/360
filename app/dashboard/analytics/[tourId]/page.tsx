@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getTourAnalytics, TourAnalytics } from '@/lib/analytics';
+import { getTourAnalytics, getHotspotAnalytics, TourAnalytics, HotspotStat } from '@/lib/analytics';
 import { getTourById } from '@/lib/db';
+import type { Tour } from '@/types/tour.types';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Eye, Users, MousePointerClick,
@@ -21,6 +22,8 @@ export default function AnalyticsPage({ params }: PageProps) {
   const router = useRouter();
 
   const [analytics,   setAnalytics]   = useState<TourAnalytics | null>(null);
+  const [hotspots,    setHotspots]    = useState<HotspotStat[]>([]);
+  const [tourData,    setTourData]    = useState<Tour | null>(null);
   const [tourTitle,   setTourTitle]   = useState('');
   const [loading,     setLoading]     = useState(true);
 
@@ -36,8 +39,13 @@ export default function AnalyticsPage({ params }: PageProps) {
         return;
       }
 
-      const stats = await getTourAnalytics(tourId);
+      const [stats, hotspotStats] = await Promise.all([
+        getTourAnalytics(tourId),
+        getHotspotAnalytics(tourId),
+      ]);
       setAnalytics(stats);
+      setHotspots(hotspotStats);
+      setTourData(tourRow.data);
       setTourTitle(tourRow.title);
       setLoading(false);
     };
@@ -160,6 +168,44 @@ export default function AnalyticsPage({ params }: PageProps) {
             </ul>
           </section>
         )}
+
+        {/* Hotspot analytics */}
+        {hotspots.length > 0 && (() => {
+          // Build a label map: hotspotId → label
+          const labelMap = new Map<string, string>();
+          tourData?.scenes.forEach((s) => {
+            s.hotspots.forEach((h) => labelMap.set(h.id, h.label || h.type));
+          });
+          const maxClicks = hotspots[0]?.count ?? 1;
+          return (
+            <section className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+                <MousePointerClick className="w-4 h-4 text-teal-400" /> Hotspots más clickeados (30 días)
+              </h2>
+              <ul className="space-y-2">
+                {hotspots.map((h, i) => (
+                  <li key={h.hotspotId} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-600 w-4 text-right flex-shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs text-gray-300 truncate font-medium">
+                          {labelMap.get(h.hotspotId) ?? h.hotspotId.slice(0, 16) + '…'}
+                        </span>
+                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{h.count} clicks</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-teal-500 rounded-full"
+                          style={{ width: `${(h.count / maxClicks) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })()}
 
         {/* Note about table */}
         <p className="text-xs text-gray-700 text-center pb-4">

@@ -20,6 +20,8 @@ import { getSupabase } from './supabase';
 
 export type AnalyticsEvent =
   | 'scene_view'
+  | 'scene_exit'
+  | 'hotspot_click'
   | 'unit_click'
   | 'cta_click'
   | 'booking_request'
@@ -32,6 +34,7 @@ interface TrackPayload {
   event: AnalyticsEvent;
   sceneId?: string;
   unitId?: string;
+  hotspotId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -42,9 +45,10 @@ export async function trackEvent(payload: TrackPayload): Promise<void> {
     await sb.from('tour_events').insert({
       tour_id:    payload.tourId,
       event_type: payload.event,
-      scene_id:   payload.sceneId ?? null,
-      unit_id:    payload.unitId  ?? null,
-      metadata:   payload.metadata ?? null,
+      scene_id:   payload.sceneId    ?? null,
+      unit_id:    payload.unitId     ?? null,
+      hotspot_id: payload.hotspotId  ?? null,
+      metadata:   payload.metadata   ?? null,
     });
   } catch {
     // Silently ignore — table may not exist yet
@@ -127,14 +131,46 @@ export async function getTourAnalytics(tourId: string): Promise<TourAnalytics> {
 
 function emptyEventCounts(): Record<AnalyticsEvent, number> {
   return {
-    scene_view:       0,
-    unit_click:       0,
-    cta_click:        0,
-    booking_request:  0,
+    scene_view:        0,
+    scene_exit:        0,
+    hotspot_click:     0,
+    unit_click:        0,
+    cta_click:         0,
+    booking_request:   0,
     brochure_download: 0,
-    gallery_open:     0,
-    share_click:      0,
+    gallery_open:      0,
+    share_click:       0,
   };
+}
+
+// ─── Hotspot analytics ────────────────────────────────────────────────────────
+
+export interface HotspotStat { hotspotId: string; count: number }
+
+export async function getHotspotAnalytics(tourId: string): Promise<HotspotStat[]> {
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await getSupabase()
+      .from('tour_events')
+      .select('hotspot_id')
+      .eq('tour_id', tourId)
+      .eq('event_type', 'hotspot_click')
+      .gte('created_at', since)
+      .not('hotspot_id', 'is', null);
+
+    if (error || !data) return [];
+
+    const counts: Record<string, number> = {};
+    for (const row of data) {
+      if (row.hotspot_id) counts[row.hotspot_id] = (counts[row.hotspot_id] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([hotspotId, count]) => ({ hotspotId, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  } catch {
+    return [];
+  }
 }
 
 function emptyAnalytics(): TourAnalytics {

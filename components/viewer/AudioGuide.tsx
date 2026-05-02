@@ -6,11 +6,17 @@ import { cn } from '@/lib/utils';
 
 interface AudioGuideProps {
   audioUrl: string;
+  audioUrls?: Record<string, string>; // multi-language map
   sceneLabel?: string;
 }
 
-export function AudioGuide({ audioUrl, sceneLabel }: AudioGuideProps) {
+export function AudioGuide({ audioUrl, audioUrls, sceneLabel }: AudioGuideProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Resolve available languages
+  const langs = audioUrls ? Object.keys(audioUrls) : ['es'];
+  const [lang,      setLang]      = useState(langs[0]);
+  const resolvedUrl = audioUrls?.[lang] ?? audioUrl;
 
   const [playing,   setPlaying]   = useState(false);
   const [muted,     setMuted]     = useState(false);
@@ -18,13 +24,15 @@ export function AudioGuide({ audioUrl, sceneLabel }: AudioGuideProps) {
   const [duration,  setDuration]  = useState(0);
   const [dismissed, setDismissed] = useState(false);
 
-  // Auto-play on mount
+  // Auto-play / restart when URL changes (new scene or language switch)
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
+    setProgress(0);
+    setDuration(0);
     el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     return () => { el.pause(); };
-  }, [audioUrl]);
+  }, [resolvedUrl]);
 
   const togglePlay = () => {
     const el = audioRef.current;
@@ -66,7 +74,7 @@ export function AudioGuide({ audioUrl, sceneLabel }: AudioGuideProps) {
       {/* Hidden native audio element */}
       <audio
         ref={audioRef}
-        src={audioUrl}
+        src={resolvedUrl}
         onTimeUpdate={() => {
           const el = audioRef.current;
           if (el && el.duration) setProgress(el.currentTime / el.duration);
@@ -81,6 +89,23 @@ export function AudioGuide({ audioUrl, sceneLabel }: AudioGuideProps) {
         <span className="flex-1 text-xs font-semibold text-white truncate">
           {sceneLabel ? `Guía — ${sceneLabel}` : 'Guía de audio'}
         </span>
+        {/* Language selector — only shown when multiple languages available */}
+        {langs.length > 1 && (
+          <div className="flex gap-0.5">
+            {langs.map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                className={cn(
+                  'px-1.5 py-0.5 rounded text-[10px] font-bold uppercase transition-colors',
+                  lang === l ? 'bg-blue-500 text-white' : 'text-gray-500 hover:text-gray-300'
+                )}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           onClick={() => { audioRef.current?.pause(); setDismissed(true); }}
           className="text-gray-500 hover:text-white transition-colors"

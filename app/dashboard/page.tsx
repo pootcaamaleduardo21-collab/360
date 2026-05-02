@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { TourCard } from '@/components/dashboard/TourCard';
 import { SuperAdminView } from '@/components/dashboard/SuperAdminView';
 import { AdvisorView } from '@/components/dashboard/AdvisorView';
+import { LeadsPanel } from '@/components/dashboard/LeadsPanel';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRole, ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
 import { listUserTours, deleteTour, type TourSummary } from '@/lib/db';
@@ -13,16 +14,19 @@ import { useTourStore } from '@/store/tourStore';
 import {
   Plus, LogOut, Loader2, Globe, LayoutGrid, List,
   Shield, Users, Building2, BarChart2, Settings,
-  Play, ChevronDown, Bell,
+  Play, ChevronDown, Bell, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Role-tab config ──────────────────────────────────────────────────────────
 
-type DashTab = 'tours' | 'platform' | 'team';
+type DashTab = 'tours' | 'leads' | 'platform' | 'team';
 
 function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
-  const base = [{ id: 'tours' as DashTab, label: 'Mis tours', icon: <Globe className="w-4 h-4" /> }];
+  const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'tours', label: 'Mis tours', icon: <Globe         className="w-4 h-4" /> },
+    { id: 'leads', label: 'Leads',     icon: <MessageSquare className="w-4 h-4" /> },
+  ];
   if (role === 'super_admin') base.push({ id: 'platform', label: 'Plataforma', icon: <Shield className="w-4 h-4" /> });
   if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
   return base;
@@ -219,6 +223,11 @@ export default function DashboardPage() {
         {/* ── PLATFORM tab (super admin) ──────────────────────────────── */}
         {activeTab === 'platform' && role === 'super_admin' && (
           <SuperAdminView />
+        )}
+
+        {/* ── LEADS tab ───────────────────────────────────────────────── */}
+        {activeTab === 'leads' && (
+          <LeadsPanel />
         )}
 
         {/* ── TEAM tab ────────────────────────────────────────────────── */}

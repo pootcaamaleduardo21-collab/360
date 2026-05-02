@@ -13,8 +13,10 @@ import { UnitDetailModal } from '@/components/viewer/UnitDetailModal';
 import { SalesPanel } from '@/components/viewer/SalesPanel';
 import { PasswordGate } from '@/components/viewer/PasswordGate';
 import { BookingModal } from '@/components/viewer/BookingModal';
+import { LeadCaptureModal } from '@/components/viewer/LeadCaptureModal';
+import { ComparisonViewer } from '@/components/viewer/ComparisonViewer';
 import { PropertyUnit } from '@/types/tour.types';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, Columns2 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const Viewer360 = dynamic(
@@ -46,16 +48,20 @@ function ViewerInner({ tourId }: { tourId: string }) {
   const currentScene   = useTourStore(selectCurrentScene);
   const currentSceneId = useTourStore((s) => s.currentSceneId);
   const viewerConfig   = useTourStore((s) => s.viewerConfig);
-  const navigateTo     = useTourStore((s) => s.navigateTo);
-  const loadTour       = useTourStore((s) => s.loadTour);
-  const isCartOpen     = useTourStore((s) => s.isCartOpen);
+  const navigateTo          = useTourStore((s) => s.navigateTo);
+  const loadTour            = useTourStore((s) => s.loadTour);
+  const isCartOpen          = useTourStore((s) => s.isCartOpen);
+  const comparisonSceneId   = useTourStore((s) => s.comparisonSceneId);
+  const setComparisonScene  = useTourStore((s) => s.setComparisonScene);
 
-  const [isLoading,      setIsLoading]      = useState(true);
-  const [notFound,       setNotFound]       = useState(false);
-  const [unlocked,       setUnlocked]       = useState(false);
-  const [activeUnit,     setActiveUnit]     = useState<PropertyUnit | null>(null);
-  const [salesPanelOpen, setSalesPanelOpen] = useState(false);
-  const [bookingOpen,    setBookingOpen]    = useState(false);
+  const [isLoading,        setIsLoading]        = useState(true);
+  const [notFound,         setNotFound]         = useState(false);
+  const [unlocked,         setUnlocked]         = useState(false);
+  const [activeUnit,       setActiveUnit]       = useState<PropertyUnit | null>(null);
+  const [salesPanelOpen,   setSalesPanelOpen]   = useState(false);
+  const [bookingOpen,      setBookingOpen]      = useState(false);
+  const [leadCaptureOpen,  setLeadCaptureOpen]  = useState(false);
+  const [comparisonMode,   setComparisonMode]   = useState(false);
 
   // ── Load tour ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -148,17 +154,61 @@ function ViewerInner({ tourId }: { tourId: string }) {
 
   const units = tour.units ?? [];
 
+  // Resolve comparison scene (default to 2nd scene if available)
+  const comparisonScene = tour.scenes.find((s) => s.id === comparisonSceneId)
+    ?? tour.scenes.find((s) => s.id !== currentSceneId)
+    ?? currentScene;
+
+  const handleToggleComparison = () => {
+    if (!comparisonMode) {
+      // Set default comparison scene on first open
+      if (!comparisonSceneId) {
+        const defaultB = tour.scenes.find((s) => s.id !== currentSceneId);
+        if (defaultB) setComparisonScene(defaultB.id);
+      }
+    }
+    setComparisonMode((v) => !v);
+  };
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
+
+      {/* Comparison mode toggle button (top-left) */}
+      {tour.scenes.length >= 2 && (
+        <button
+          onClick={handleToggleComparison}
+          className={`absolute top-4 left-4 z-30 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold shadow-lg transition-colors ${
+            comparisonMode
+              ? 'bg-blue-600 text-white'
+              : 'bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70'
+          }`}
+        >
+          <Columns2 className="w-4 h-4" />
+          {comparisonMode ? 'Salir comparación' : 'Comparar'}
+        </button>
+      )}
+
       <ErrorBoundary label="el visor 360°">
-        <Viewer360
-          tour={tour}
-          currentScene={currentScene}
-          config={viewerConfig}
-          onNavigate={navigateTo}
-          onOpenSalesPanel={units.length > 0 || tour.gallery?.length ? () => setSalesPanelOpen(true) : undefined}
-          onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => setBookingOpen(true) : undefined}
-        />
+        {comparisonMode ? (
+          <ComparisonViewer
+            tour={tour}
+            sceneA={currentScene}
+            sceneB={comparisonScene}
+            config={viewerConfig}
+            onNavigateA={navigateTo}
+            onNavigateB={(sceneId) => setComparisonScene(sceneId)}
+          />
+        ) : (
+          <Viewer360
+            tour={tour}
+            currentScene={currentScene}
+            config={viewerConfig}
+            onNavigate={navigateTo}
+            onOpenSalesPanel={units.length > 0 || tour.gallery?.length ? () => setSalesPanelOpen(true) : undefined}
+            onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => setBookingOpen(true) : undefined}
+            onOpenLeadCapture={tour.leadCaptureEnabled ? () => { setLeadCaptureOpen(true); trackEvent({ tourId: tour.id, event: 'cta_click', sceneId: currentSceneId ?? undefined }); } : undefined}
+          />
+        )}
       </ErrorBoundary>
 
       {/* Inventory overlay (Real Estate) */}
@@ -208,6 +258,19 @@ function ViewerInner({ tourId }: { tourId: string }) {
           bookingConfig={tour.bookingConfig}
           onClose={() => setBookingOpen(false)}
           onBooked={() => trackEvent({ tourId: tour.id, event: 'booking_request' })}
+        />
+      )}
+
+      {/* Lead capture modal */}
+      {leadCaptureOpen && (
+        <LeadCaptureModal
+          tourId={tour.id}
+          sceneId={currentSceneId ?? undefined}
+          brandColor={tour.brandColor}
+          logoUrl={tour.logoUrl}
+          tourTitle={tour.title}
+          ctaLabel={tour.leadCaptureLabel}
+          onClose={() => setLeadCaptureOpen(false)}
         />
       )}
 

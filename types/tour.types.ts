@@ -81,7 +81,8 @@ export interface Scene {
   originalImageUrl?: string;  // Pre-patch URL — used to restore or re-apply with new settings
   initialYaw?: number;    // Starting camera direction
   initialPitch?: number;
-  audioGuideUrl?: string; // Auto-play narration when entering this scene
+  audioGuideUrl?: string;                   // Auto-play narration when entering this scene
+  audioGuideUrls?: Record<string, string>;  // Multi-language: { es: '...', en: '...' }
 }
 
 // ─── Floor plan / Minimap ─────────────────────────────────────────────────────
@@ -240,6 +241,10 @@ export interface Tour {
   // Access control
   passwordEnabled?: boolean;
   passwordHash?: string;   // SHA-256 hex of the access password
+
+  // Lead capture
+  leadCaptureEnabled?: boolean;
+  leadCaptureLabel?: string;   // CTA button label override (default: "Solicitar información")
 
   // Booking / appointment scheduling
   bookingEnabled?: boolean;

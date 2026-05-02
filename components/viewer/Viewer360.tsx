@@ -11,6 +11,7 @@ import { FloorPlanWidget } from './FloorPlanWidget';
 import { TutorialOverlay } from './TutorialOverlay';
 import { AudioGuide } from './AudioGuide';
 import { useTourStore } from '@/store/tourStore';
+import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import {
   ZoomIn,
@@ -43,6 +44,9 @@ interface Viewer360Props {
   selectedHotspotId?: string | null;
   onOpenSalesPanel?: () => void;
   onOpenBooking?: () => void;
+  onOpenLeadCapture?: () => void;
+  /** When true, hides CTAs that don't belong in split-screen panels */
+  isComparisonPanel?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -59,6 +63,8 @@ export function Viewer360({
   selectedHotspotId,
   onOpenSalesPanel,
   onOpenBooking,
+  onOpenLeadCapture,
+  isComparisonPanel = false,
 }: Viewer360Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
@@ -69,10 +75,29 @@ export function Viewer360({
   const cartItemCount        = useTourStore((s) => s.items.reduce((a, i) => a + i.quantity, 0));
   const toggleCart           = useTourStore((s) => s.toggleCart);
 
+  // Track time spent per scene
+  const sceneEnteredAt = useRef<number>(Date.now());
+  const prevSceneId    = useRef<string>(currentScene.id);
+
   // Hide tutorial if user has already dismissed it globally
   useEffect(() => {
     if (tutorialDismissed) setShowTutorial(false);
   }, [tutorialDismissed]);
+
+  // Scene duration tracking — fires scene_exit on navigation
+  useEffect(() => {
+    if (!isEditing && currentScene.id !== prevSceneId.current) {
+      const durationMs = Date.now() - sceneEnteredAt.current;
+      trackEvent({
+        tourId: tour.id,
+        event: 'scene_exit',
+        sceneId: prevSceneId.current,
+        metadata: { durationMs },
+      });
+      prevSceneId.current    = currentScene.id;
+      sceneEnteredAt.current = Date.now();
+    }
+  }, [currentScene.id, isEditing, tour.id]);
 
   const handleAddHotspot = useCallback(
     (yaw: number, pitch: number) => {
@@ -87,6 +112,13 @@ export function Viewer360({
         onHotspotSelected?.(hotspot.id);
         return;
       }
+      // Track hotspot click
+      trackEvent({
+        tourId: tour.id,
+        event: 'hotspot_click',
+        sceneId: currentScene.id,
+        hotspotId: hotspot.id,
+      });
       // Navigation hotspots go immediately
       if (hotspot.type === 'navigation' && hotspot.targetSceneId) {
         onNavigate(hotspot.targetSceneId);
@@ -94,7 +126,7 @@ export function Viewer360({
       }
       setActiveHotspot(hotspot);
     },
-    [isEditing, onHotspotSelected, onNavigate]
+    [isEditing, onHotspotSelected, onNavigate, tour.id, currentScene.id]
   );
 
   // Apply CSS color filters to the Three.js canvas
@@ -262,16 +294,29 @@ export function Viewer360({
       )}
 
       {/* Audio guide — auto-plays when scene has audio, resets on scene change */}
-      {!isEditing && currentScene.audioGuideUrl && (
+      {!isEditing && (currentScene.audioGuideUrl || currentScene.audioGuideUrls) && (
         <AudioGuide
           key={currentScene.id}
-          audioUrl={currentScene.audioGuideUrl}
+          audioUrl={currentScene.audioGuideUrl ?? Object.values(currentScene.audioGuideUrls ?? {})[0] ?? ''}
+          audioUrls={currentScene.audioGuideUrls}
           sceneLabel={currentScene.name}
         />
       )}
 
+      {/* Lead capture button (bottom-left) */}
+      {!isEditing && !isComparisonPanel && onOpenLeadCapture && (
+        <button
+          onClick={onOpenLeadCapture}
+          className="absolute bottom-4 left-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
+          style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
+        >
+          <Plus className="w-4 h-4" />
+          <span className="text-sm">{tour.leadCaptureLabel ?? 'Solicitar información'}</span>
+        </button>
+      )}
+
       {/* Booking button (bottom-right, above sales panel) */}
-      {!isEditing && onOpenBooking && (
+      {!isEditing && !isComparisonPanel && onOpenBooking && (
         <button
           onClick={onOpenBooking}
           className={cn(
@@ -286,7 +331,7 @@ export function Viewer360({
       )}
 
       {/* Sales panel toggle (bottom-right, only in viewer mode) */}
-      {!isEditing && onOpenSalesPanel && (
+      {!isEditing && !isComparisonPanel && onOpenSalesPanel && (
         <button
           onClick={onOpenSalesPanel}
           className="absolute bottom-4 right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
@@ -298,7 +343,7 @@ export function Viewer360({
       )}
 
       {/* Cart button (bottom-right, shift up when sales button present) */}
-      {!isEditing && cartItemCount > 0 && (
+      {!isEditing && !isComparisonPanel && cartItemCount > 0 && (
         <button
           onClick={toggleCart}
           className={cn(

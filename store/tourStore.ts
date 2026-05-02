@@ -48,10 +48,12 @@ interface EditorState {
 interface ViewerState {
   currentSceneId: string | null;
   previousSceneId: string | null;
+  comparisonSceneId: string | null;
   viewerConfig: ViewerConfig;
   tutorialDismissed: boolean;
 
   navigateTo: (sceneId: string) => void;
+  setComparisonScene: (sceneId: string | null) => void;
   updateViewerConfig: (patch: Partial<ViewerConfig>) => void;
   dismissTutorial: () => void;
 }
@@ -276,7 +278,8 @@ export const useTourStore = create<TourStore>()(
 
         // ── Viewer ─────────────────────────────────────────────────────────
 
-        previousSceneId: null,
+        previousSceneId:   null,
+        comparisonSceneId: null,
         viewerConfig: DEFAULT_VIEWER_CONFIG,
         tutorialDismissed: false,
 
@@ -286,6 +289,8 @@ export const useTourStore = create<TourStore>()(
             currentSceneId: sceneId,
             selectedHotspotId: null,
           })),
+
+        setComparisonScene: (sceneId) => set({ comparisonSceneId: sceneId }),
 
         updateViewerConfig: (patch) =>
           set((s) => ({ viewerConfig: { ...s.viewerConfig, ...patch } })),
