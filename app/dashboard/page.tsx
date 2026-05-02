@@ -7,6 +7,8 @@ import { TourCard } from '@/components/dashboard/TourCard';
 import { SuperAdminView } from '@/components/dashboard/SuperAdminView';
 import { AdvisorView } from '@/components/dashboard/AdvisorView';
 import { LeadsPanel } from '@/components/dashboard/LeadsPanel';
+import { OnboardingWelcome } from '@/components/dashboard/OnboardingWelcome';
+import { TeamPanel } from '@/components/dashboard/TeamPanel';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRole, ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
 import { listUserTours, deleteTour, type TourSummary } from '@/lib/db';
@@ -43,13 +45,14 @@ export default function DashboardPage() {
   const role     = getUserRole(user);
   const roleTabs = getRoleTabs(role);
 
-  const [tours,      setTours]      = useState<TourSummary[]>([]);
-  const [isLoading,  setIsLoading]  = useState(true);
-  const [error,      setError]      = useState<string | null>(null);
-  const [viewMode,   setViewMode]   = useState<'grid' | 'list'>('grid');
-  const [deleteId,   setDeleteId]   = useState<string | null>(null);
-  const [activeTab,  setActiveTab]  = useState<DashTab>('tours');
-  const [menuOpen,   setMenuOpen]   = useState(false);
+  const [tours,            setTours]            = useState<TourSummary[]>([]);
+  const [isLoading,        setIsLoading]        = useState(true);
+  const [error,            setError]            = useState<string | null>(null);
+  const [viewMode,         setViewMode]         = useState<'grid' | 'list'>('grid');
+  const [deleteId,         setDeleteId]         = useState<string | null>(null);
+  const [activeTab,        setActiveTab]        = useState<DashTab>('tours');
+  const [menuOpen,         setMenuOpen]         = useState(false);
+  const [onboardingDone,   setOnboardingDone]   = useState(false);
 
   const fetchTours = useCallback(async () => {
     try {
@@ -232,16 +235,7 @@ export default function DashboardPage() {
 
         {/* ── TEAM tab ────────────────────────────────────────────────── */}
         {activeTab === 'team' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black text-gray-100">Equipo</h2>
-            </div>
-            <div className="p-10 rounded-2xl bg-gray-900 border border-gray-800 text-center text-gray-600">
-              <Users className="w-10 h-10 mx-auto mb-3 text-gray-700" />
-              <p className="text-sm">Gestión de equipo — próximamente.</p>
-              <p className="text-xs mt-1">Invita asesores y controla qué tours pueden ver y compartir.</p>
-            </div>
-          </div>
+          <TeamPanel />
         )}
 
         {/* ── TOURS tab ───────────────────────────────────────────────── */}
@@ -253,6 +247,14 @@ export default function DashboardPage() {
             ) : (
               <>
                 {/* Admin / Super admin tours view */}
+
+                {/* Onboarding welcome — shown only on first visit (0 tours) */}
+                {!isLoading && tours.length === 0 && !onboardingDone && (
+                  <OnboardingWelcome
+                    userName={userName}
+                    onDismiss={() => setOnboardingDone(true)}
+                  />
+                )}
 
                 {/* Stats row */}
                 {tours.length > 0 && (

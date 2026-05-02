@@ -58,10 +58,38 @@ CREATE INDEX IF NOT EXISTS tour_events_hotspot_idx
   WHERE hotspot_id IS NOT NULL;
 
 
+-- ─── Migration 3: Team invitations (Feature: Team Panel) ─────────────────────
+--
+-- Registra invitaciones enviadas por administradores a sus asesores.
+-- El callback de auth (/auth/callback) actualiza el status a 'accepted'
+-- cuando el asesor acepta la invitación y crea su cuenta.
+
+CREATE TABLE IF NOT EXISTS team_invites (
+  id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  admin_id   uuid        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  email      text        NOT NULL,
+  status     text        NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending', 'accepted')),
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(admin_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS team_invites_admin_idx
+  ON team_invites(admin_id, created_at DESC);
+
+ALTER TABLE team_invites ENABLE ROW LEVEL SECURITY;
+
+-- Solo el admin dueño puede ver y gestionar sus invitaciones
+DROP POLICY IF EXISTS "team_invites: admin can manage" ON team_invites;
+CREATE POLICY "team_invites: admin can manage"
+  ON team_invites FOR ALL
+  USING (admin_id = auth.uid());
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public';
 --
--- Deberías ver: tours, profiles, tour_events, leads
+-- Deberías ver: tours, profiles, tour_events, leads, team_invites
