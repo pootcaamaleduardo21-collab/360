@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Produces a standalone server bundle — required for the Docker image
-  output: 'standalone',
+  // 'standalone' produces a self-contained server bundle for Docker.
+  // On Vercel (process.env.VERCEL is set automatically) we skip it so
+  // Vercel's own bundler handles the output correctly.
+  ...(process.env.VERCEL ? {} : { output: 'standalone' }),
+
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
@@ -9,6 +12,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com' },
     ],
   },
+
   // Required for Three.js to bundle correctly
   transpilePackages: ['three'],
 };
