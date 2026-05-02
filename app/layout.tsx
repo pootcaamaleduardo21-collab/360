@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -9,6 +9,14 @@ export const metadata: Metadata = {
     description: 'Tours virtuales inmersivos para bienes raíces y arquitectura.',
     type: 'website',
   },
+};
+
+// ⚠️ Critical for mobile: without this, browsers render the page at ~980px
+// and scale it down, making everything tiny and unusable on phones.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,  // allow pinch-zoom for accessibility
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

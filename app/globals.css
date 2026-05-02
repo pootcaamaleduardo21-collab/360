@@ -46,4 +46,14 @@
     background-color: theme('colors.gray.700');
     border-radius: 9999px;
   }
+
+  /* Hide scrollbar while keeping scroll functionality */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

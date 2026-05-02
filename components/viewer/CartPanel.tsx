@@ -15,7 +15,7 @@ export function CartPanel() {
   const currency = items[0]?.product.currency ?? 'MXN';
 
   return (
-    <div className="absolute inset-y-0 right-0 z-40 w-80 flex flex-col bg-gray-900 border-l border-gray-800 shadow-2xl animate-slide-up">
+    <div className="absolute inset-y-0 right-0 z-40 w-full sm:w-80 flex flex-col bg-gray-900 border-l border-gray-800 shadow-2xl animate-slide-up">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <div className="flex items-center gap-2">

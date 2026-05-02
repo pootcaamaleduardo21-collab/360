@@ -148,24 +148,24 @@ export default function HomePage() {
             style={{ backgroundImage: 'linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)', backgroundSize: '60px 60px' }} />
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-6 pt-24 pb-16">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-12 sm:pb-16">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
 
             {/* Left — copy */}
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold mb-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold mb-5 sm:mb-6">
                 <Zap className="w-3 h-3" />
                 10 nichos · Listo para producción
               </div>
 
-              <h1 className="text-5xl lg:text-6xl font-black leading-[1.08] tracking-tight mb-6">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.08] tracking-tight mb-5 sm:mb-6">
                 Tours virtuales
                 <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
                   360° que venden
                 </span>
               </h1>
 
-              <p className="text-lg text-gray-400 leading-relaxed mb-8 max-w-lg">
+              <p className="text-base sm:text-lg text-gray-400 leading-relaxed mb-7 sm:mb-8 max-w-lg">
                 Crea, personaliza y publica tours inmersivos en minutos. Con hotspots,
                 inventario, analytics, booking y guía de audio integrados.
               </p>
@@ -267,7 +267,7 @@ export default function HomePage() {
 
       {/* ── Niche strip ──────────────────────────────────────────────────── */}
       <section id="niches" className="border-y border-gray-800/50 py-8 bg-gray-900/30">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <p className="text-center text-xs font-semibold text-gray-600 uppercase tracking-widest mb-6">
             Funciona para cualquier industria
           </p>
@@ -285,10 +285,10 @@ export default function HomePage() {
       </section>
 
       {/* ── Features ─────────────────────────────────────────────────────── */}
-      <section id="features" className="py-24 max-w-7xl mx-auto px-6">
+      <section id="features" className="py-24 max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-14">
           <span className="text-xs font-semibold text-blue-400 uppercase tracking-widest">Plataforma completa</span>
-          <h2 className="text-4xl font-black mt-2 mb-4">Todo lo que necesitas, ya incluido</h2>
+          <h2 className="text-3xl sm:text-4xl font-black mt-2 mb-4">Todo lo que necesitas, ya incluido</h2>
           <p className="text-gray-400 max-w-xl mx-auto">
             Sin plugins, sin configuración. Cada función está lista desde el primer día.
           </p>
@@ -309,10 +309,10 @@ export default function HomePage() {
 
       {/* ── How it works ─────────────────────────────────────────────────── */}
       <section className="py-20 bg-gray-900/40 border-y border-gray-800/50">
-        <div className="max-w-5xl mx-auto px-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <span className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">Tan simple como parece</span>
-            <h2 className="text-4xl font-black mt-2">De cero a publicado en minutos</h2>
+            <h2 className="text-3xl sm:text-4xl font-black mt-2">De cero a publicado en minutos</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {STEPS.map(({ n, title, desc }, i) => (
@@ -342,10 +342,10 @@ export default function HomePage() {
       </section>
 
       {/* ── Testimonials ─────────────────────────────────────────────────── */}
-      <section className="py-24 max-w-7xl mx-auto px-6">
+      <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-14">
           <span className="text-xs font-semibold text-amber-400 uppercase tracking-widest">Lo que dicen nuestros clientes</span>
-          <h2 className="text-4xl font-black mt-2">Resultados reales</h2>
+          <h2 className="text-3xl sm:text-4xl font-black mt-2">Resultados reales</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {TESTIMONIALS.map(({ name, role, avatar, text }) => (
@@ -373,10 +373,10 @@ export default function HomePage() {
 
       {/* ── Pricing ──────────────────────────────────────────────────────── */}
       <section id="pricing" className="py-24 bg-gray-900/40 border-y border-gray-800/50">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <span className="text-xs font-semibold text-purple-400 uppercase tracking-widest">Precios transparentes</span>
-            <h2 className="text-4xl font-black mt-2 mb-4">Elige tu plan</h2>
+            <h2 className="text-3xl sm:text-4xl font-black mt-2 mb-4">Elige tu plan</h2>
             <p className="text-gray-400">Sin contratos. Cancela cuando quieras.</p>
           </div>
 
@@ -416,12 +416,12 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA banner ───────────────────────────────────────────────────── */}
-      <section className="py-24 max-w-4xl mx-auto px-6 text-center">
-        <div className="relative p-12 rounded-3xl bg-gradient-to-br from-blue-600/20 to-indigo-600/10 border border-blue-500/20 overflow-hidden">
+      <section className="py-24 max-w-4xl mx-auto px-4 sm:px-6 text-center">
+        <div className="relative p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-blue-600/20 to-indigo-600/10 border border-blue-500/20 overflow-hidden">
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.2) 0%, transparent 60%)' }} />
           <div className="relative">
-            <h2 className="text-4xl font-black mb-4">
+            <h2 className="text-3xl sm:text-4xl font-black mb-4">
               Tu primer tour en<br />
               <span className="text-blue-400">menos de 10 minutos</span>
             </h2>
@@ -447,7 +447,7 @@ export default function HomePage() {
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className="border-t border-gray-800 bg-gray-900/50">
-        <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
           <div className="grid md:grid-cols-4 gap-8 mb-10">
             <div className="md:col-span-2">
               <span className="text-xl font-black">Tour <span className="text-blue-400">360°</span></span>
