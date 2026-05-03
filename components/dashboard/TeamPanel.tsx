@@ -8,9 +8,23 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const ROLE_CONFIG = {
+  advisor: {
+    label: 'Asesor',
+    desc:  'Solo puede ver y compartir tours publicados. Sin acceso al editor.',
+    color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  },
+  admin: {
+    label: 'Administrador',
+    desc:  'Acceso completo al editor, branding e inventario. No puede invitar super admins.',
+    color: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  },
+} as const;
+
 export function TeamPanel() {
   const [invites,  setInvites]  = useState<TeamInvite[]>([]);
   const [email,    setEmail]    = useState('');
+  const [role,     setRole]     = useState<'advisor' | 'admin'>('advisor');
   const [loading,  setLoading]  = useState(true);
   const [sending,  setSending]  = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
@@ -29,7 +43,7 @@ export function TeamPanel() {
     setSending(true);
     setFeedback(null);
 
-    const result = await inviteAdvisor(trimmed);
+    const result = await inviteAdvisor(trimmed, role);
 
     if (result.error) {
       setFeedback({ type: 'error', msg: result.error });
@@ -72,8 +86,31 @@ export function TeamPanel() {
       {/* Invite form */}
       <form onSubmit={handleInvite} className="space-y-3">
         <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-          Invitar nuevo asesor
+          Invitar al equipo
         </label>
+
+        {/* Role selector */}
+        <div className="grid grid-cols-2 gap-2">
+          {(['advisor', 'admin'] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRole(r)}
+              className={cn(
+                'flex flex-col gap-1 p-3 rounded-xl border text-left transition-colors',
+                role === r
+                  ? 'bg-gray-800 border-blue-500/50 ring-1 ring-blue-500/30'
+                  : 'bg-gray-900 border-gray-700 hover:border-gray-600'
+              )}
+            >
+              <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border w-fit', ROLE_CONFIG[r].color)}>
+                {ROLE_CONFIG[r].label}
+              </span>
+              <span className="text-[10px] text-gray-500 leading-snug">{ROLE_CONFIG[r].desc}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -81,7 +118,7 @@ export function TeamPanel() {
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setFeedback(null); }}
-              placeholder="correo@asesor.com"
+              placeholder="correo@ejemplo.com"
               className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-600 outline-none focus:border-blue-500 transition-colors"
             />
           </div>
@@ -145,7 +182,15 @@ export function TeamPanel() {
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-200 truncate">{invite.email}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-200 truncate">{invite.email}</p>
+                <span className={cn(
+                  'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0',
+                  ROLE_CONFIG[invite.role ?? 'advisor'].color
+                )}>
+                  {ROLE_CONFIG[invite.role ?? 'advisor'].label}
+                </span>
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 {invite.status === 'accepted' ? (
                   <span className="flex items-center gap-1 text-[11px] text-emerald-400">

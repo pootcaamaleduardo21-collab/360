@@ -27,9 +27,13 @@ function getServiceRoleClient() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const body = await request.json();
+    const { email, role = 'advisor' } = body as { email: string; role?: 'admin' | 'advisor' };
     if (!email || typeof email !== 'string') {
       return NextResponse.json({ error: 'Email requerido.' }, { status: 400 });
+    }
+    if (!['admin', 'advisor'].includes(role)) {
+      return NextResponse.json({ error: 'Rol inválido.' }, { status: 400 });
     }
 
     // 1. Verify caller is authenticated
@@ -41,8 +45,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Verify caller is admin (not advisor)
-    const role = user.user_metadata?.role as string | undefined;
-    if (role === 'advisor') {
+    const callerRole = user.user_metadata?.role as string | undefined;
+    if (callerRole === 'advisor') {
       return NextResponse.json({ error: 'Solo administradores pueden invitar asesores.' }, { status: 403 });
     }
 
@@ -64,6 +68,7 @@ export async function POST(request: NextRequest) {
     await adminClient.from('team_invites').insert({
       admin_id: user.id,
       email:    email.toLowerCase(),
+      role,
       status:   'pending',
     });
 
@@ -72,7 +77,7 @@ export async function POST(request: NextRequest) {
     const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${appUrl}/auth/callback?next=/dashboard`,
       data: {
-        role:       'advisor',
+        role,
         invited_by: user.id,
       },
     });

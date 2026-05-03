@@ -86,6 +86,15 @@ CREATE POLICY "team_invites: admin can manage"
   USING (admin_id = auth.uid());
 
 
+-- ─── Migration 4: Add role column to team_invites ────────────────────────────
+--
+-- Stores whether an invited user should become an admin or an advisor.
+
+ALTER TABLE team_invites
+  ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'advisor'
+    CHECK (role IN ('admin', 'advisor'));
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --

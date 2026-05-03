@@ -256,7 +256,7 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
           {isDragActive ? 'Suelta aquí' : 'Arrastra tus fotos 360°'}
         </p>
         <p className="text-xs text-gray-500 mb-3">
-          JPEG · PNG · WebP · <span className="text-orange-400 font-medium">.insp</span> (Insta360) — Máx. {maxFiles}
+          JPEG · PNG · WebP · HEIC · RAW · <span className="text-orange-400 font-medium">.insp</span> (Insta360) — Máx. {maxFiles} archivos · {MAX_FILE_SIZE_LABEL} por foto
         </p>
 
         {/* Camera brand pills */}

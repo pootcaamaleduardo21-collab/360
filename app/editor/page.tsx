@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { useAuth } from '@/hooks/useAuth';
+import { getUserRole } from '@/lib/roles';
 import { getTourById, saveTour } from '@/lib/db';
 import { HotspotType } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
@@ -49,16 +50,16 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'medidas' | 'media' | 'branding' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
-const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
+const ALL_LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode; minRole?: 'admin' | 'super_admin' }[] = [
   { id: 'scenes',    label: 'Escenas',  icon: <Layers  className="w-3 h-3" /> },
-  { id: 'upload',    label: 'Subir',    icon: <Upload  className="w-3 h-3" /> },
-  { id: 'floorplan', label: 'Plano',    icon: <Map     className="w-3 h-3" /> },
-  { id: 'inventory', label: 'Ventas',   icon: <Home    className="w-3 h-3" /> },
-  { id: 'medidas',   label: 'Medidas',  icon: <Ruler   className="w-3 h-3" /> },
-  { id: 'media',     label: 'Medios',   icon: <Film    className="w-3 h-3" /> },
-  { id: 'branding',  label: 'Marca',    icon: <Palette className="w-3 h-3" /> },
-  { id: 'security',  label: 'Acceso',   icon: <Lock    className="w-3 h-3" /> },
-  { id: 'publish',   label: 'Publicar', icon: <Globe   className="w-3 h-3" /> },
+  { id: 'upload',    label: 'Subir',    icon: <Upload  className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'floorplan', label: 'Plano',    icon: <Map     className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'inventory', label: 'Ventas',   icon: <Home    className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'medidas',   label: 'Medidas',  icon: <Ruler   className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'media',     label: 'Medios',   icon: <Film    className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'branding',  label: 'Marca',    icon: <Palette className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'security',  label: 'Acceso',   icon: <Lock    className="w-3 h-3" />, minRole: 'admin' },
+  { id: 'publish',   label: 'Compartir', icon: <Globe  className="w-3 h-3" /> },
 ];
 
 // ─── Editor page ──────────────────────────────────────────────────────────────
@@ -81,6 +82,13 @@ function EditorInner() {
   const tourId       = searchParams.get('id');
 
   const { user } = useAuth();
+  const role = getUserRole(user);
+  const isAdvisor = role === 'advisor';
+
+  // Filter tabs by role — advisors only see Scenes (read) + Compartir
+  const LEFT_TABS = ALL_LEFT_TABS.filter((t) =>
+    !t.minRole || role === 'super_admin' || role === 'admin'
+  );
 
   const tour              = useTourStore((s) => s.tour);
   const currentScene      = useTourStore(selectCurrentScene);
@@ -345,23 +353,31 @@ function EditorInner() {
 
         {/* Hotspot toolbar */}
         <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800 bg-gray-900 flex-shrink-0">
-          <span className="text-xs text-gray-500 font-medium hidden sm:block">Hotspot:</span>
-          <div className="flex gap-1.5 flex-wrap">
-            {HOTSPOT_TYPES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setAddingType((prev) => (prev === t.value ? null : t.value))}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-all',
-                  t.color,
-                  addingType === t.value ? 'ring-2 ring-white/50 scale-105' : 'opacity-75 hover:opacity-100'
-                )}
-              >
-                {t.icon}
-                <span className="hidden sm:inline">{t.label}</span>
-              </button>
-            ))}
-          </div>
+          {isAdvisor ? (
+            <span className="text-xs text-amber-400/80 font-medium flex items-center gap-1.5">
+              <Lock className="w-3 h-3" /> Vista de asesor — solo lectura
+            </span>
+          ) : (
+            <>
+              <span className="text-xs text-gray-500 font-medium hidden sm:block">Hotspot:</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {HOTSPOT_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setAddingType((prev) => (prev === t.value ? null : t.value))}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-all',
+                      t.color,
+                      addingType === t.value ? 'ring-2 ring-white/50 scale-105' : 'opacity-75 hover:opacity-100'
+                    )}
+                  >
+                    {t.icon}
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {/* Right side: cancel hint + auto-save indicator */}
           <div className="ml-auto flex items-center gap-3">
             {addingType && (

@@ -6,6 +6,8 @@ import { POI_CONFIG } from '@/lib/poiTypes';
 import { NicheType } from '@/lib/niches';
 import { NicheSelector } from '@/components/editor/NicheSelector';
 import { useTourStore } from '@/store/tourStore';
+import { useAuth } from '@/hooks/useAuth';
+import { getUserRole } from '@/lib/roles';
 import { uploadAsset } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 import {
@@ -85,19 +87,24 @@ export function BrandingPanel({ tour }: { tour: Tour }) {
 
 function BrandTab({ tour, updateTour }: { tour: Tour; updateTour: (p: Partial<Omit<Tour, 'id' | 'scenes'>>) => void }) {
   const social = tour.socialLinks ?? {};
+  const { user } = useAuth();
+  const role = getUserRole(user);
+  const canEditNiche = role === 'super_admin' || role === 'admin';
 
   const updateSocial = (patch: Partial<SocialLinks>) =>
     updateTour({ socialLinks: { ...social, ...patch } });
 
   return (
     <div className="space-y-3">
-      {/* Niche selector — controls all vocabulary across the tour */}
-      <div className="rounded-xl bg-gray-800/50 border border-gray-700/50 p-3">
-        <NicheSelector
-          value={tour.niche}
-          onChange={(niche: NicheType) => updateTour({ niche })}
-        />
-      </div>
+      {/* Niche selector — only for admins and super_admins */}
+      {canEditNiche && (
+        <div className="rounded-xl bg-gray-800/50 border border-gray-700/50 p-3">
+          <NicheSelector
+            value={tour.niche}
+            onChange={(niche: NicheType) => updateTour({ niche })}
+          />
+        </div>
+      )}
 
       <div className="border-t border-gray-800 pt-3" />
 
