@@ -9,6 +9,7 @@ import { AdvisorView } from '@/components/dashboard/AdvisorView';
 import { LeadsPanel } from '@/components/dashboard/LeadsPanel';
 import { OnboardingWelcome } from '@/components/dashboard/OnboardingWelcome';
 import { TeamPanel } from '@/components/dashboard/TeamPanel';
+import { AnalyticsOverview } from '@/components/dashboard/AnalyticsOverview';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRole, ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
 import { listUserTours, deleteTour, type TourSummary } from '@/lib/db';
@@ -22,12 +23,13 @@ import { cn } from '@/lib/utils';
 
 // ─── Role-tab config ──────────────────────────────────────────────────────────
 
-type DashTab = 'tours' | 'leads' | 'platform' | 'team';
+type DashTab = 'tours' | 'leads' | 'analytics' | 'platform' | 'team';
 
 function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
   const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'tours', label: 'Mis tours', icon: <Globe         className="w-4 h-4" /> },
-    { id: 'leads', label: 'Leads',     icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'tours',     label: 'Mis tours',  icon: <Globe     className="w-4 h-4" /> },
+    { id: 'leads',     label: 'Leads',      icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'analytics', label: 'Analytics',  icon: <BarChart2 className="w-4 h-4" /> },
   ];
   if (role === 'super_admin') base.push({ id: 'platform', label: 'Plataforma', icon: <Shield className="w-4 h-4" /> });
   if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
@@ -254,6 +256,11 @@ export default function DashboardPage() {
 
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+
+        {/* ── ANALYTICS tab ───────────────────────────────────────────── */}
+        {activeTab === 'analytics' && (
+          <AnalyticsOverview />
+        )}
 
         {/* ── PLATFORM tab (super admin) ──────────────────────────────── */}
         {activeTab === 'platform' && role === 'super_admin' && (
