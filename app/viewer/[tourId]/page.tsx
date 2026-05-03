@@ -274,6 +274,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
       {/* Booking modal */}
       {bookingOpen && tour.bookingConfig && (
         <BookingModal
+          tourId={tour.id}
           tourTitle={tour.title}
           brandColor={tour.brandColor}
           logoUrl={tour.logoUrl}

@@ -6,6 +6,7 @@ import { X, Calendar, Phone, Mail, MessageCircle, User, ExternalLink, Check } fr
 import { cn } from '@/lib/utils';
 
 interface BookingModalProps {
+  tourId?: string;           // needed for email notification
   tourTitle: string;
   brandColor?: string;
   logoUrl?: string;
@@ -25,7 +26,7 @@ interface FormData {
 const EMPTY: FormData = { name: '', phone: '', email: '', date: '', message: '' };
 
 export function BookingModal({
-  tourTitle, brandColor, logoUrl, bookingConfig, onClose, onBooked,
+  tourId, tourTitle, brandColor, logoUrl, bookingConfig, onClose, onBooked,
 }: BookingModalProps) {
   const [form,    setForm]    = useState<FormData>(EMPTY);
   const [sent,    setSent]    = useState(false);
@@ -61,10 +62,27 @@ export function BookingModal({
         break;
       }
       case 'email': {
-        const recipient = bookingConfig.email ?? '';
-        const subject   = encodeURIComponent(`Solicitud de cita — ${tourTitle}`);
-        const body      = encodeURIComponent(lines.replace(/\*/g, ''));
-        window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank');
+        // Send structured email via server route (includes notification to owner)
+        if (tourId) {
+          fetch('/api/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tourId,
+              visitorName:   form.name,
+              visitorPhone:  form.phone  || undefined,
+              visitorEmail:  form.email  || undefined,
+              preferredDate: form.date   || undefined,
+              notes:         form.message || undefined,
+            }),
+          }).catch(() => {/* silent */});
+        } else {
+          // Fallback: open mailto if no tourId
+          const recipient = bookingConfig.email ?? '';
+          const subject   = encodeURIComponent(`Solicitud de cita — ${tourTitle}`);
+          const body      = encodeURIComponent(lines.replace(/\*/g, ''));
+          window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank');
+        }
         break;
       }
       case 'calendly': {

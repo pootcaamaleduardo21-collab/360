@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { X, Send, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
-import { submitLead } from '@/lib/leads';
+// submitLead kept as fallback; primary submission goes through /api/leads for email notifications
 import { cn } from '@/lib/utils';
 
 interface LeadCaptureModalProps {
@@ -41,7 +41,22 @@ export function LeadCaptureModal({
 
     setSending(true);
     setError('');
-    await submitLead({ tourId, sceneId, name: name.trim(), phone: phone.trim() || undefined, email: email.trim() || undefined, message: message.trim() || undefined });
+    try {
+      // POST to server route → inserts lead + sends email notification to owner/advisor
+      await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tourId, sceneId,
+          name:    name.trim(),
+          phone:   phone.trim()   || undefined,
+          email:   email.trim()   || undefined,
+          message: message.trim() || undefined,
+        }),
+      });
+    } catch {
+      // fail silently — never block the visitor
+    }
     setSending(false);
     setSent(true);
   }, [tourId, sceneId, name, phone, email, message]);
