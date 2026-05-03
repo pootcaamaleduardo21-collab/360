@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRole } from '@/lib/roles';
-import { getTourById, saveTour } from '@/lib/db';
+import { getTourById, saveTour, createTour } from '@/lib/db';
 import { HotspotType } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
 import { ImageUploader }    from '@/components/editor/ImageUploader';
@@ -164,10 +164,13 @@ function EditorInner() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // ── Auto-save (debounced 3 s) — only for tours that exist in DB ───────────
+  // ── Auto-save (debounced 3 s) — works for both existing and new tours ───────
+  // Ref so the timeout callback can read the latest tourId without stale closure
+  const tourIdRef = useRef(tourId);
+  useEffect(() => { tourIdRef.current = tourId; }, [tourId]);
+
   useEffect(() => {
-    // Don't auto-save brand-new tours or if not logged in
-    if (!tourId || !tour || !user) return;
+    if (!tour || !user) return;
 
     // Skip the initial load/set (when loadTour is called from DB fetch)
     if (skipNextSaveRef.current) {
@@ -175,16 +178,25 @@ function EditorInner() {
       return;
     }
 
-    // Clear pending timer and mark as pending
+    // Only start tracking changes once the tour has at least one scene
+    if (tour.scenes.length === 0) return;
+
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     setSaveStatus('pending');
 
     autoSaveTimer.current = setTimeout(async () => {
       setSaveStatus('saving');
       try {
-        await saveTour(tour);
+        if (tourIdRef.current) {
+          // Existing tour — just upsert
+          await saveTour(tour);
+        } else {
+          // Brand-new tour — create in DB and update URL so future saves use upsert
+          const newId = await createTour(tour);
+          router.replace(`/editor?id=${newId}`);
+          // tourIdRef.current will update via the useEffect above after re-render
+        }
         setSaveStatus('saved');
-        // Reset to idle after 2 s
         setTimeout(() => setSaveStatus('idle'), 2000);
       } catch {
         setSaveStatus('error');
@@ -389,8 +401,8 @@ function EditorInner() {
               </button>
             )}
 
-            {/* Auto-save status — only shown when tour is persisted in DB */}
-            {tourId && saveStatus !== 'idle' && (
+            {/* Auto-save status */}
+            {saveStatus !== 'idle' && (
               <span className={cn(
                 'flex items-center gap-1 text-xs transition-colors',
                 saveStatus === 'pending' && 'text-gray-500',

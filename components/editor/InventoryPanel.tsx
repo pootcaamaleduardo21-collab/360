@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import Papa from 'papaparse';
 import {
   Tour, PropertyUnit, PropertyStatus,
   UnitPrototype, UnitAmenity, SalesAdvisor,
@@ -13,8 +14,67 @@ import { formatCurrency } from '@/lib/utils';
 import {
   Plus, Trash2, Home, CheckCircle, XCircle, Clock, AlertCircle,
   Building2, User, ChevronDown, ChevronUp, Upload, Loader2, X,
+  FileSpreadsheet, Download, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+const STATUS_ALIASES: Record<string, PropertyStatus> = {
+  disponible: 'available', available: 'available', libre: 'available',
+  reservado: 'reserved',   reserved: 'reserved',
+  vendido: 'sold',         sold: 'sold', vendida: 'sold',
+  proceso: 'in-process',   'in-process': 'in-process', 'en proceso': 'in-process',
+};
+
+function normalizeStatus(raw: string): PropertyStatus {
+  return STATUS_ALIASES[raw.toLowerCase().trim()] ?? 'available';
+}
+
+function num(v: string | undefined): number | undefined {
+  if (!v || v.trim() === '') return undefined;
+  const n = parseFloat(v.replace(/[^0-9.]/g, ''));
+  return isNaN(n) ? undefined : n;
+}
+
+function csvToUnits(rows: Record<string, string>[]): PropertyUnit[] {
+  return rows
+    .filter((r) => Object.values(r).some((v) => v.trim()))
+    .map((row) => {
+      // Normalize keys: lowercase + remove spaces/underscores
+      const r: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row)) {
+        r[k.toLowerCase().replace(/[\s_]+/g, '')] = v;
+      }
+      return {
+        id:          uuidv4(),
+        label:       r['label'] ?? r['nombre'] ?? r['unidad'] ?? r['unit'] ?? 'Unidad',
+        status:      normalizeStatus(r['status'] ?? r['estado'] ?? ''),
+        price:       num(r['price'] ?? r['precio']),
+        area:        num(r['area'] ?? r['m2'] ?? r['metros']),
+        bedrooms:    num(r['bedrooms'] ?? r['recamaras'] ?? r['rec']),
+        bathrooms:   num(r['bathrooms'] ?? r['banos'] ?? r['baños']),
+        parking:     num(r['parking'] ?? r['estacionamiento'] ?? r['auto']),
+        floor:       num(r['floor'] ?? r['piso']),
+        orientation: (r['orientation'] ?? r['orientacion'] ?? r['orientación'] ?? '').trim() || undefined,
+        description: (r['description'] ?? r['descripcion'] ?? r['descripción'] ?? '').trim() || undefined,
+      } as PropertyUnit;
+    });
+}
+
+const CSV_TEMPLATE = `label,status,price,area,bedrooms,bathrooms,parking,floor,orientation,description
+Apto 101,disponible,2500000,75,2,2,1,1,Norte,Vista al jardín
+Apto 102,reservado,2600000,80,2,2,1,1,Sur,
+Apto 103,vendido,3100000,110,3,2,2,2,Oriente,
+Apto 201,disponible,2550000,75,2,2,1,2,Norte,`;
+
+function downloadTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'plantilla_unidades.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -73,9 +133,39 @@ export function InventoryPanel({ tour }: Props) {
 function UnitsTab({ tour, updateTour }: { tour: Tour; updateTour: (p: any) => void }) {
   const niche = getNiche(tour);
   const units = tour.units ?? [];
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded,  setExpanded]  = useState<string | null>(null);
+  const [csvPreview, setCsvPreview] = useState<PropertyUnit[] | null>(null);
+  const [csvError,   setCsvError]   = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const setUnits = (next: PropertyUnit[]) => updateTour({ units: next });
+
+  // ── CSV import ──────────────────────────────────────────────────────────────
+  const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvError(null);
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        if (!result.data.length) { setCsvError('El archivo está vacío o no tiene filas de datos.'); return; }
+        try {
+          setCsvPreview(csvToUnits(result.data));
+        } catch {
+          setCsvError('No se pudo procesar el CSV. Verifica que tenga las columnas correctas.');
+        }
+      },
+      error: () => setCsvError('Error al leer el archivo. Asegúrate de que sea un CSV válido.'),
+    });
+    if (e.target) e.target.value = '';
+  };
+
+  const confirmCsvImport = (replace: boolean) => {
+    if (!csvPreview) return;
+    setUnits(replace ? csvPreview : [...units, ...csvPreview]);
+    setCsvPreview(null);
+  };
 
   const addUnit = () => {
     const unit: PropertyUnit = { id: uuidv4(), label: `Unidad ${units.length + 1}`, status: 'available' };
@@ -100,6 +190,101 @@ function UnitsTab({ tour, updateTour }: { tour: Tour; updateTour: (p: any) => vo
 
   return (
     <div className="p-4 space-y-4">
+
+      {/* ── CSV Preview Modal ─────────────────────────────────────────────── */}
+      {csvPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                <span className="font-semibold text-white text-sm">Vista previa — {csvPreview.length} unidades</span>
+              </div>
+              <button onClick={() => setCsvPreview(null)} className="p-1 text-gray-500 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Preview table */}
+            <div className="overflow-y-auto flex-1 p-3">
+              <div className="space-y-1.5">
+                {csvPreview.slice(0, 30).map((u) => {
+                  const cfg = STATUS_STYLE[u.status];
+                  return (
+                    <div key={u.id} className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg text-xs">
+                      <span className="flex-1 text-gray-200 font-medium truncate">{u.label}</span>
+                      <span className={cn('flex-shrink-0 px-1.5 py-0.5 rounded-full border text-[10px]', cfg.bg, cfg.color)}>{u.status}</span>
+                      {u.price    != null && <span className="text-gray-500 flex-shrink-0">${u.price.toLocaleString()}</span>}
+                      {u.area     != null && <span className="text-gray-500 flex-shrink-0">{u.area}m²</span>}
+                      {u.bedrooms != null && <span className="text-gray-500 flex-shrink-0">{u.bedrooms}rec</span>}
+                    </div>
+                  );
+                })}
+                {csvPreview.length > 30 && (
+                  <p className="text-center text-xs text-gray-600 py-1">…y {csvPreview.length - 30} más</p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-800 space-y-2">
+              {units.length > 0 && (
+                <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  Ya tienes {units.length} unidades. ¿Reemplazar o agregar al final?
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                {units.length > 0 && (
+                  <button
+                    onClick={() => confirmCsvImport(false)}
+                    className="py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold transition-colors"
+                  >
+                    Agregar al final
+                  </button>
+                )}
+                <button
+                  onClick={() => confirmCsvImport(true)}
+                  className={cn(
+                    'py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors',
+                    units.length === 0 && 'col-span-2'
+                  )}
+                >
+                  {units.length > 0 ? 'Reemplazar todo' : `Importar ${csvPreview.length} unidades`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV error toast */}
+      {csvError && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>{csvError}</span>
+          <button onClick={() => setCsvError(null)} className="ml-auto flex-shrink-0"><X className="w-3 h-3" /></button>
+        </div>
+      )}
+
+      {/* CSV import bar */}
+      <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
+        <FileSpreadsheet className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+        <span className="text-xs text-gray-400 flex-1">Importa tu inventario desde Excel/CSV</span>
+        <button
+          onClick={downloadTemplate}
+          className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+          title="Descargar plantilla CSV"
+        >
+          <Download className="w-3.5 h-3.5" /> Plantilla
+        </button>
+        <button
+          onClick={() => csvInputRef.current?.click()}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
+        >
+          <Upload className="w-3.5 h-3.5" /> Importar
+        </button>
+        <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvFile} />
+      </div>
 
       {/* Currency + listing type */}
       <div className="grid grid-cols-2 gap-2">

@@ -176,3 +176,93 @@ export async function getHotspotAnalytics(tourId: string): Promise<HotspotStat[]
 function emptyAnalytics(): TourAnalytics {
   return { totalViews: 0, last30Days: [], topScenes: [], eventCounts: emptyEventCounts() };
 }
+
+// ─── Unit engagement ──────────────────────────────────────────────────────────
+
+export interface UnitStat { unitId: string; count: number }
+
+/** Returns unit_click counts per unit_id for the last 30 days. */
+export async function getUnitAnalytics(tourId: string): Promise<UnitStat[]> {
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await getSupabase()
+      .from('tour_events')
+      .select('unit_id')
+      .eq('tour_id', tourId)
+      .eq('event_type', 'unit_click')
+      .gte('created_at', since)
+      .not('unit_id', 'is', null);
+
+    if (error || !data) return [];
+
+    const counts: Record<string, number> = {};
+    for (const row of data) {
+      if (row.unit_id) counts[row.unit_id] = (counts[row.unit_id] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([unitId, count]) => ({ unitId, count }))
+      .sort((a, b) => b.count - a.count);
+  } catch {
+    return [];
+  }
+}
+
+// ─── Conversion funnel ────────────────────────────────────────────────────────
+
+export interface FunnelStep { label: string; count: number; event: AnalyticsEvent | 'total_views' }
+
+/** Returns a conversion funnel for the last 30 days. */
+export async function getConversionFunnel(tourId: string): Promise<FunnelStep[]> {
+  try {
+    const sb    = getSupabase();
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [eventsResult, tourRow] = await Promise.all([
+      sb.from('tour_events')
+        .select('event_type')
+        .eq('tour_id', tourId)
+        .gte('created_at', since),
+      sb.from('tours').select('view_count').eq('id', tourId).single(),
+    ]);
+
+    const rows  = eventsResult.data ?? [];
+    const views = tourRow.data?.view_count ?? 0;
+
+    const count = (ev: AnalyticsEvent) => rows.filter((r) => r.event_type === ev).length;
+
+    return [
+      { label: 'Visitas al tour',    count: views,                      event: 'total_views'    },
+      { label: 'Escenas visitadas',  count: count('scene_view'),        event: 'scene_view'     },
+      { label: 'Hotspots tocados',   count: count('hotspot_click'),     event: 'hotspot_click'  },
+      { label: 'Unidades vistas',    count: count('unit_click'),        event: 'unit_click'     },
+      { label: 'CTAs / Contacto',    count: count('cta_click') + count('booking_request'), event: 'cta_click' },
+    ];
+  } catch {
+    return [];
+  }
+}
+
+// ─── Hotspot-type breakdown ───────────────────────────────────────────────────
+
+export interface HotspotTypeStat { type: string; count: number }
+
+/**
+ * Groups hotspot_click events by hotspot type.
+ * Requires the tour's hotspot metadata to resolve hotspot_id → type.
+ */
+export function groupHotspotsByType(
+  hotspotStats: HotspotStat[],
+  tourScenes: { hotspots: { id: string; type: string }[] }[]
+): HotspotTypeStat[] {
+  const typeMap = new Map<string, string>();
+  tourScenes.forEach((s) => s.hotspots.forEach((h) => typeMap.set(h.id, h.type)));
+
+  const counts: Record<string, number> = {};
+  for (const { hotspotId, count } of hotspotStats) {
+    const type = typeMap.get(hotspotId) ?? 'unknown';
+    counts[type] = (counts[type] ?? 0) + count;
+  }
+  return Object.entries(counts)
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+}

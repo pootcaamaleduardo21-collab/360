@@ -6,7 +6,19 @@ export type HotspotType =
   | 'media'      // Image / video / audio modal
   | 'agent'      // Real estate agent card
   | 'product'    // E-commerce tag (quote cart)
-  | 'unit';      // Property/sales unit (real estate, hotels, coworking…)
+  | 'unit'       // Property/sales unit (real estate, hotels, coworking…)
+  | 'map';       // Point of interest → opens Google Maps
+
+/** Visual presentation of the hotspot marker */
+export type HotspotStyle =
+  | 'bubble'      // Default circular button
+  | 'floor'       // Flat perspective ring on the floor (animated ripple)
+  | 'wall'        // Icon badge + text label (for walls / facades)
+  | 'label'       // Google Maps–style text pin (always-visible label)
+  | 'icon-badge'; // Large rounded-square card with big icon
+
+/** Idle animation applied to the marker */
+export type HotspotAnimation = 'ping' | 'pulse' | 'glow' | 'none';
 
 export interface HotspotMedia {
   type: 'image' | 'video' | 'audio';
@@ -52,9 +64,19 @@ export interface Hotspot {
   product?: ProductTag;    // 'product'
   unitId?: string;         // 'unit' → references PropertyUnit.id
 
+  // 'map' type — Point of interest
+  mapAddress?: string;     // Address or place name for Google Maps search
+  mapLat?: number;         // Precise latitude
+  mapLng?: number;         // Precise longitude
+  mapDistance?: string;    // Human-readable distance, e.g. "5 min · 2.3 km"
+
   // Visual overrides
-  iconColor?: string;
+  iconColor?: string;      // CSS hex color that overrides the type default
   iconSize?: 'sm' | 'md' | 'lg';
+  style?: HotspotStyle;           // Marker presentation style
+  animation?: HotspotAnimation;   // Idle animation
+  showLabel?: 'always' | 'hover' | 'never'; // Label visibility
+  customIcon?: string;            // Emoji or single symbol shown instead of type icon
 }
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
@@ -260,6 +282,14 @@ export interface Tour {
   // Booking / appointment scheduling
   bookingEnabled?: boolean;
   bookingConfig?: BookingConfig;
+
+  // AI Chat assistant (text — Claude Haiku)
+  aiChatEnabled?: boolean;     // Shows chat bubble in viewer
+  aiChatWelcome?: string;      // First message the bot sends (default auto-generated)
+
+  // AI Voice agent (ElevenLabs Conversational AI)
+  elevenLabsEnabled?: boolean;       // Shows microphone button in viewer
+  elevenLabsFirstMessage?: string;   // Override the agent's opening line
 
   // Meta
   createdAt: string;
