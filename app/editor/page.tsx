@@ -16,12 +16,15 @@ import { InventoryPanel }   from '@/components/editor/InventoryPanel';
 import { EmbedPanel }       from '@/components/editor/EmbedPanel';
 import { FloorPlanEditor }  from '@/components/editor/FloorPlanEditor';
 import { BrandingPanel }    from '@/components/editor/BrandingPanel';
-import { SecurityPanel }    from '@/components/editor/SecurityPanel';
+import { SecurityPanel }      from '@/components/editor/SecurityPanel';
+import { MeasurementsPanel }  from '@/components/editor/MeasurementsPanel';
+import { MediaPanel }         from '@/components/editor/MediaPanel';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
   Layers, Home, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
   Loader2, Map, Building2, Palette, Cloud, CloudOff, Check, Lock,
+  Ruler, Film,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -43,7 +46,7 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'branding' | 'security' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'medidas' | 'media' | 'branding' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
 const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
@@ -51,6 +54,8 @@ const LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
   { id: 'upload',    label: 'Subir',    icon: <Upload  className="w-3 h-3" /> },
   { id: 'floorplan', label: 'Plano',    icon: <Map     className="w-3 h-3" /> },
   { id: 'inventory', label: 'Ventas',   icon: <Home    className="w-3 h-3" /> },
+  { id: 'medidas',   label: 'Medidas',  icon: <Ruler   className="w-3 h-3" /> },
+  { id: 'media',     label: 'Medios',   icon: <Film    className="w-3 h-3" /> },
   { id: 'branding',  label: 'Marca',    icon: <Palette className="w-3 h-3" /> },
   { id: 'security',  label: 'Acceso',   icon: <Lock    className="w-3 h-3" /> },
   { id: 'publish',   label: 'Publicar', icon: <Globe   className="w-3 h-3" /> },
@@ -306,6 +311,12 @@ function EditorInner() {
             )}
             {leftTab === 'inventory' && tour && (
               <InventoryPanel tour={tour} />
+            )}
+            {leftTab === 'medidas' && (
+              <MeasurementsPanel />
+            )}
+            {leftTab === 'media' && tour && (
+              <MediaPanel tour={tour} />
             )}
             {leftTab === 'branding' && tour && (
               <BrandingPanel tour={tour} />

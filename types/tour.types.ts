@@ -67,6 +67,16 @@ export interface ColorAdjustments {
   vignette?: number;    // 0 (none) to 100 (strong dark edges)
 }
 
+// ─── Scene measurements ───────────────────────────────────────────────────────
+
+export interface SceneMeasurements {
+  width?: number;    // meters
+  length?: number;   // meters
+  height?: number;   // meters (ceiling height)
+  area?: number;     // m² — can be set manually or auto-calculated from width × length
+  label?: string;    // e.g. "Recámara principal", "Suite Deluxe"
+}
+
 export interface Scene {
   id: string;
   name: string;
@@ -83,6 +93,7 @@ export interface Scene {
   initialPitch?: number;
   audioGuideUrl?: string;                   // Auto-play narration when entering this scene
   audioGuideUrls?: Record<string, string>;  // Multi-language: { es: '...', en: '...' }
+  measurements?: SceneMeasurements;         // Room/space dimensions shown in viewer
 }
 
 // ─── Floor plan / Minimap ─────────────────────────────────────────────────────

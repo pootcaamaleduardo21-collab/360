@@ -15,6 +15,7 @@ import { PasswordGate } from '@/components/viewer/PasswordGate';
 import { BookingModal } from '@/components/viewer/BookingModal';
 import { LeadCaptureModal } from '@/components/viewer/LeadCaptureModal';
 import { ComparisonViewer } from '@/components/viewer/ComparisonViewer';
+import { MediaGallery } from '@/components/viewer/MediaGallery';
 import { PropertyUnit } from '@/types/tour.types';
 import { Loader2, AlertTriangle, Columns2 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -62,6 +63,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
   const [bookingOpen,      setBookingOpen]      = useState(false);
   const [leadCaptureOpen,  setLeadCaptureOpen]  = useState(false);
   const [comparisonMode,   setComparisonMode]   = useState(false);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
 
   // ── Load tour ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -207,6 +209,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
             onOpenSalesPanel={units.length > 0 || tour.gallery?.length ? () => setSalesPanelOpen(true) : undefined}
             onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => setBookingOpen(true) : undefined}
             onOpenLeadCapture={tour.leadCaptureEnabled ? () => { setLeadCaptureOpen(true); trackEvent({ tourId: tour.id, event: 'cta_click', sceneId: currentSceneId ?? undefined }); } : undefined}
+            onOpenMediaGallery={(tour.gallery?.length || tour.brochureUrl) ? () => setMediaGalleryOpen(true) : undefined}
           />
         )}
       </ErrorBoundary>
@@ -271,6 +274,17 @@ function ViewerInner({ tourId }: { tourId: string }) {
           tourTitle={tour.title}
           ctaLabel={tour.leadCaptureLabel}
           onClose={() => setLeadCaptureOpen(false)}
+        />
+      )}
+
+      {/* Media gallery modal */}
+      {mediaGalleryOpen && (
+        <MediaGallery
+          items={tour.gallery ?? []}
+          brochureUrl={tour.brochureUrl}
+          brochureFilename={tour.brochureFilename}
+          brandColor={tour.brandColor}
+          onClose={() => setMediaGalleryOpen(false)}
         />
       )}
 

@@ -16,7 +16,7 @@ import { useTourStore } from '@/store/tourStore';
 import {
   Plus, LogOut, Loader2, Globe, LayoutGrid, List,
   Shield, Users, Building2, BarChart2, Settings,
-  Play, ChevronDown, Bell, MessageSquare,
+  Play, ChevronDown, Bell, MessageSquare, UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -185,6 +185,14 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-500 truncate">{user?.email}</p>
                 </div>
                 <div className="py-1">
+                  <Link
+                    href="/settings/profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                  >
+                    <UserCog className="w-3.5 h-3.5" /> Configuración de cuenta
+                  </Link>
+                  <div className="my-1 border-t border-gray-800" />
                   <button
                     onClick={() => { setMenuOpen(false); handleSignOut(); }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"

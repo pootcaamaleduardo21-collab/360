@@ -10,6 +10,8 @@ import { MinimapWidget } from './MinimapWidget';
 import { FloorPlanWidget } from './FloorPlanWidget';
 import { TutorialOverlay } from './TutorialOverlay';
 import { AudioGuide } from './AudioGuide';
+import { MeasurementsOverlay } from './MeasurementsOverlay';
+import { MediaGallery, MediaGalleryButton } from './MediaGallery';
 import { useTourStore } from '@/store/tourStore';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -47,6 +49,8 @@ interface Viewer360Props {
   onOpenLeadCapture?: () => void;
   /** When true, hides CTAs that don't belong in split-screen panels */
   isComparisonPanel?: boolean;
+  /** Show media gallery button + overlay */
+  onOpenMediaGallery?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -65,6 +69,7 @@ export function Viewer360({
   onOpenBooking,
   onOpenLeadCapture,
   isComparisonPanel = false,
+  onOpenMediaGallery,
 }: Viewer360Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
@@ -301,6 +306,25 @@ export function Viewer360({
           audioUrls={currentScene.audioGuideUrls}
           sceneLabel={currentScene.name}
         />
+      )}
+
+      {/* Measurements overlay — bottom-left, above lead-capture */}
+      {!isEditing && currentScene.measurements && (
+        <div className="absolute bottom-16 left-4 z-20 pointer-events-none">
+          <MeasurementsOverlay measurements={currentScene.measurements} />
+        </div>
+      )}
+
+      {/* Media gallery button — top-left (non-comparison) */}
+      {!isEditing && !isComparisonPanel && onOpenMediaGallery && (
+        <div className="absolute top-4 left-4 z-20">
+          <MediaGalleryButton
+            itemCount={tour.gallery?.length ?? 0}
+            hasBrochure={!!tour.brochureUrl}
+            brandColor={tour.brandColor}
+            onClick={onOpenMediaGallery}
+          />
+        </div>
       )}
 
       {/* Lead capture button (bottom-left) */}
