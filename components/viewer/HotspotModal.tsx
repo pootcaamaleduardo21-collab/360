@@ -3,7 +3,7 @@
 import { Hotspot } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { formatCurrency } from '@/lib/utils';
-import { X, Phone, Mail, Globe, ShoppingCart, ExternalLink } from 'lucide-react';
+import { X, Phone, Mail, Globe, ShoppingCart, ExternalLink, MapPin, Navigation } from 'lucide-react';
 import { UnitDetailModal } from './UnitDetailModal';
 
 interface HotspotModalProps {
@@ -166,6 +166,46 @@ export function HotspotModal({ hotspot, currentSceneId, onClose, onNavigate }: H
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {hotspot.type === 'map' && (
+          <div className="p-6">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                {hotspot.customIcon
+                  ? <span className="text-2xl leading-none">{hotspot.customIcon}</span>
+                  : <MapPin className="w-5 h-5 text-red-500" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-base leading-tight">{hotspot.label}</h3>
+                {hotspot.mapAddress && (
+                  <p className="text-sm text-gray-500 mt-0.5 leading-snug">{hotspot.mapAddress}</p>
+                )}
+                {hotspot.mapDistance && (
+                  <p className="text-sm font-semibold text-blue-600 mt-1.5 flex items-center gap-1">
+                    <Navigation className="w-3.5 h-3.5" />
+                    {hotspot.mapDistance}
+                  </p>
+                )}
+              </div>
+            </div>
+            <a
+              href={(() => {
+                if (hotspot.mapLat && hotspot.mapLng) {
+                  return `https://www.google.com/maps/search/?api=1&query=${hotspot.mapLat},${hotspot.mapLng}`;
+                }
+                const q = hotspot.mapAddress || hotspot.label;
+                return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+              })()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors"
+            >
+              <MapPin className="w-4 h-4" />
+              Ver en Google Maps
+            </a>
           </div>
         )}
 

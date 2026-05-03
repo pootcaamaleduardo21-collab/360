@@ -1,8 +1,13 @@
 'use client';
 
-import { Hotspot, HotspotType, Scene, PropertyStatus } from '@/types/tour.types';
+import {
+  Hotspot, HotspotType, HotspotStyle, HotspotAnimation,
+  Scene, PropertyStatus,
+} from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
-import { Trash2, ArrowRight, Info, Image, User, ShoppingCart, Building2 } from 'lucide-react';
+import {
+  Trash2, ArrowRight, Info, Image, User, ShoppingCart, Building2, MapPin,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TYPE_OPTIONS: { value: HotspotType; label: string; icon: React.ReactNode }[] = [
@@ -12,6 +17,22 @@ const TYPE_OPTIONS: { value: HotspotType; label: string; icon: React.ReactNode }
   { value: 'agent',      label: 'Agente',      icon: <User         className="w-3.5 h-3.5" /> },
   { value: 'product',    label: 'Producto',    icon: <ShoppingCart className="w-3.5 h-3.5" /> },
   { value: 'unit',       label: 'Unidad',      icon: <Building2    className="w-3.5 h-3.5" /> },
+  { value: 'map',        label: 'Mapa / POI',  icon: <MapPin       className="w-3.5 h-3.5" /> },
+];
+
+const STYLE_OPTIONS: { value: HotspotStyle; label: string; emoji: string; desc: string }[] = [
+  { value: 'bubble',     label: 'Burbuja',     emoji: '⭕', desc: 'Círculo flotante' },
+  { value: 'floor',      label: 'Piso',        emoji: '🔵', desc: 'Anillo perspectiva' },
+  { value: 'wall',       label: 'Pared',       emoji: '🔲', desc: 'Badge rectangular' },
+  { value: 'label',      label: 'Etiqueta',    emoji: '📍', desc: 'Pin tipo Maps' },
+  { value: 'icon-badge', label: 'Ícono',       emoji: '🟦', desc: 'Tarjeta grande' },
+];
+
+const ANIM_OPTIONS: { value: HotspotAnimation; label: string }[] = [
+  { value: 'ping',  label: 'Ping' },
+  { value: 'pulse', label: 'Pulso' },
+  { value: 'glow',  label: 'Brillo' },
+  { value: 'none',  label: 'Ninguna' },
 ];
 
 const UNIT_STATUS_LABELS: Record<PropertyStatus, string> = {
@@ -221,6 +242,184 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
           </Field>
         </>
       )}
+
+      {selected.type === 'map' && (
+        <>
+          <Field label="Lugar / Nombre del POI">
+            <input
+              type="text"
+              value={selected.label}
+              onChange={(e) => update({ label: e.target.value })}
+              className="input-dark"
+              placeholder="Colegio Americano, Hospital Central…"
+            />
+          </Field>
+          <Field label="Dirección">
+            <input
+              type="text"
+              value={selected.mapAddress ?? ''}
+              onChange={(e) => update({ mapAddress: e.target.value })}
+              className="input-dark"
+              placeholder="Av. Insurgentes Sur 123, CDMX"
+            />
+          </Field>
+          <Field label="Distancia / tiempo">
+            <input
+              type="text"
+              value={selected.mapDistance ?? ''}
+              onChange={(e) => update({ mapDistance: e.target.value })}
+              className="input-dark"
+              placeholder="5 min caminando · 2.3 km"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Latitud">
+              <input
+                type="number"
+                value={selected.mapLat ?? ''}
+                onChange={(e) => update({ mapLat: e.target.value ? Number(e.target.value) : undefined })}
+                className="input-dark"
+                placeholder="19.4326"
+                step="any"
+              />
+            </Field>
+            <Field label="Longitud">
+              <input
+                type="number"
+                value={selected.mapLng ?? ''}
+                onChange={(e) => update({ mapLng: e.target.value ? Number(e.target.value) : undefined })}
+                className="input-dark"
+                placeholder="-99.1332"
+                step="any"
+              />
+            </Field>
+          </div>
+          <p className="text-[11px] text-gray-600 leading-snug">
+            Al tocar el hotspot se abrirá Google Maps con esta ubicación. El estilo <strong className="text-gray-400">Etiqueta</strong> es ideal para vistas aéreas.
+          </p>
+        </>
+      )}
+
+      {/* ─── Apariencia ─────────────────────────────────────────────────────── */}
+      <div className="pt-3 border-t border-gray-700/50 space-y-4">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Apariencia</p>
+
+        {/* Style */}
+        <Field label="Estilo visual">
+          <div className="grid grid-cols-3 gap-1.5">
+            {STYLE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => update({ style: opt.value })}
+                className={cn(
+                  'flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-colors',
+                  (selected.style ?? 'bubble') === opt.value
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                )}
+              >
+                <span className="text-xl">{opt.emoji}</span>
+                <span className="text-[10px] font-semibold leading-tight">{opt.label}</span>
+                <span className="text-[9px] text-gray-600 leading-tight">{opt.desc}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* Animation */}
+        <Field label="Animación">
+          <div className="grid grid-cols-4 gap-1">
+            {ANIM_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => update({ animation: opt.value })}
+                className={cn(
+                  'py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                  (selected.animation ?? 'ping') === opt.value
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* Show label */}
+        <Field label="Mostrar etiqueta">
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              { value: 'always', label: 'Siempre' },
+              { value: 'hover',  label: 'Al pasar' },
+              { value: 'never',  label: 'Nunca' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => update({ showLabel: opt.value })}
+                className={cn(
+                  'py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                  (selected.showLabel ?? 'hover') === opt.value
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* Custom icon */}
+        <Field label="Ícono personalizado (emoji)">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={selected.customIcon ?? ''}
+              onChange={(e) => {
+                const val = [...e.target.value].slice(0, 2).join('');
+                update({ customIcon: val || undefined });
+              }}
+              className="input-dark w-14 text-center text-xl"
+              placeholder="🏠"
+            />
+            {selected.customIcon && (
+              <button
+                type="button"
+                onClick={() => update({ customIcon: undefined })}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              >
+                Quitar
+              </button>
+            )}
+            <span className="text-[10px] text-gray-600">Vacío = ícono por tipo</span>
+          </div>
+        </Field>
+
+        {/* Color */}
+        <Field label="Color">
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={selected.iconColor ?? '#3b82f6'}
+              onChange={(e) => update({ iconColor: e.target.value })}
+              className="w-8 h-8 rounded cursor-pointer border border-gray-600 bg-transparent"
+            />
+            {selected.iconColor && (
+              <button
+                type="button"
+                onClick={() => update({ iconColor: undefined })}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              >
+                Restaurar predeterminado
+              </button>
+            )}
+          </div>
+        </Field>
+      </div>
 
       {/* Coordinates (read-only info) */}
       <div className="pt-2 border-t border-gray-700/50">
