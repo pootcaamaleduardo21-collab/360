@@ -154,10 +154,17 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
         logoScale:      0.60,
       });
 
-      const uploaded = await uploadSceneDataUrl(tour!.id, patchResult.dataUrl, 'jpg');
+      let patchedImageUrl: string;
+      try {
+        const uploaded = await uploadSceneDataUrl(tour!.id, patchResult.dataUrl, 'jpg');
+        patchedImageUrl = uploaded.url;
+      } catch (uploadErr) {
+        console.warn('[NadirPatch] Supabase upload failed, using local data URL:', uploadErr);
+        patchedImageUrl = patchResult.dataUrl;
+      }
 
       updateScene(sc.id, {
-        imageUrl:         uploaded.url,
+        imageUrl:         patchedImageUrl,
         nadirEnabled:     true,
         nadirLogoUrl:     logoUrl,
         nadirPatchColor:  effectiveColor,
@@ -179,9 +186,19 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
       setNadirError(null);
 
       try {
-        // 1. Upload logo asset once
-        const logoResult = await uploadAsset(tour.id, file);
-        const logoUrl    = logoResult.url;
+        // 1. Upload logo asset — fallback to data URL if Supabase is unavailable
+        let logoUrl: string;
+        try {
+          const logoResult = await uploadAsset(tour.id, file);
+          logoUrl = logoResult.url;
+        } catch (uploadErr) {
+          console.warn('[NadirPatch] Logo upload failed, using local data URL:', uploadErr);
+          logoUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }
         setLogoPreview(logoUrl);
 
         setNadirStatus('processing');

@@ -62,6 +62,15 @@ export function useViewer360({
   onAddHotspot,
   onHotspotClick,
 }: UseViewer360Options) {
+  // Refs to avoid stale closures — assigned synchronously every render
+  const isEditingRef     = useRef(isEditing);
+  const onAddHotspotRef  = useRef(onAddHotspot);
+  isEditingRef.current    = isEditing;
+  onAddHotspotRef.current = onAddHotspot;
+
+  // Ref to always call the latest handleClick from the first useEffect
+  const handleClickRef = useRef<(e: PointerEvent) => void>(() => {});
+
   const rendererRef        = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef          = useRef<THREE.PerspectiveCamera | null>(null);
   const threeSceneRef      = useRef<THREE.Scene | null>(null);
@@ -170,7 +179,7 @@ export function useViewer360({
       // Only treat as a click if the pointer barely moved (not a drag)
       const dx = Math.abs(e.clientX - clickStartPos.current.x);
       const dy = Math.abs(e.clientY - clickStartPos.current.y);
-      if (dx < 5 && dy < 5) handleClick(e);
+      if (dx < 5 && dy < 5) handleClickRef.current(e);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -291,7 +300,7 @@ export function useViewer360({
     const w = container.clientWidth;
     const h = container.clientHeight;
 
-    const positions = scene.hotspots.map((hotspot) => {
+    const positions = (scene.hotspots ?? []).map((hotspot) => {
       // World-space position on the sphere
       const worldPos = sphericalToVector3(hotspot.yaw, hotspot.pitch)
         .multiplyScalar(SPHERE_RADIUS);
@@ -335,12 +344,15 @@ export function useViewer360({
       const point = hits[0].point.normalize();
       const { yaw, pitch } = vector3ToSpherical(point);
 
-      if (isEditing && onAddHotspot) {
-        onAddHotspot(yaw, pitch);
+      if (isEditingRef.current && onAddHotspotRef.current) {
+        onAddHotspotRef.current(yaw, pitch);
       }
     },
-    [isEditing, onAddHotspot, containerRef]
+    [containerRef] // only containerRef is stable — isEditing and onAddHotspot come from refs
   );
+
+  // Keep handleClickRef in sync with the latest handleClick
+  handleClickRef.current = handleClick;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 

@@ -19,6 +19,7 @@ import { BrandingPanel }    from '@/components/editor/BrandingPanel';
 import { SecurityPanel }      from '@/components/editor/SecurityPanel';
 import { MeasurementsPanel }  from '@/components/editor/MeasurementsPanel';
 import { MediaPanel }         from '@/components/editor/MediaPanel';
+import { NavPanelEditor }     from '@/components/editor/NavPanelEditor';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
@@ -46,7 +47,7 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'branding' | 'security' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'branding' | 'navpanel' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
 // Grouped tabs: content group + config group
@@ -68,6 +69,7 @@ const TAB_GROUPS: {
     label: 'Configuración',
     tabs: [
       { id: 'branding',  label: 'Marca',     icon: <Palette className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'navpanel',  label: 'Panel Nav', icon: <Layers  className="w-4 h-4" />, minRole: 'admin' },
       { id: 'security',  label: 'Acceso / IA', icon: <Lock  className="w-4 h-4" />, minRole: 'admin' },
       { id: 'publish',   label: 'Compartir', icon: <Globe   className="w-4 h-4" /> },
     ],
@@ -400,6 +402,9 @@ function EditorInner() {
             )}
             {leftTab === 'branding' && tour && (
               <BrandingPanel tour={tour} />
+            )}
+            {leftTab === 'navpanel' && tour && (
+              <NavPanelEditor tour={tour} />
             )}
             {leftTab === 'security' && tour && (
               <SecurityPanel tour={tour} />

@@ -308,6 +308,9 @@ export interface Tour {
   elevenLabsEnabled?: boolean;       // Shows microphone button in viewer
   elevenLabsFirstMessage?: string;   // Override the agent's opening line
 
+  // Side navigation panel
+  navPanel?: NavPanel;
+
   // Meta
   createdAt: string;
   updatedAt: string;
@@ -345,3 +348,22 @@ export const DEFAULT_VIEWER_CONFIG: ViewerConfig = {
   showMinimap: true,
   showTutorial: true,
 };
+
+// ─── Side Navigation Panel ────────────────────────────────────────────────────
+
+export interface NavPanelItem {
+  id: string;
+  label: string;
+  /** 'scene' navigates within the tour; 'external' opens a URL in a new tab */
+  type: 'scene' | 'external';
+  sceneId?: string;     // for type: 'scene'
+  url?: string;         // for type: 'external' (e.g., link to another tour)
+  icon?: string;        // emoji or symbol
+  children?: NavPanelItem[];
+}
+
+export interface NavPanel {
+  enabled: boolean;
+  title?: string;       // Panel header title (e.g., "Real Valencia")
+  items: NavPanelItem[];
+}

@@ -12,6 +12,7 @@ import { TutorialOverlay } from './TutorialOverlay';
 import { AudioGuide } from './AudioGuide';
 import { MeasurementsOverlay } from './MeasurementsOverlay';
 import { MediaGallery, MediaGalleryButton } from './MediaGallery';
+import { NavigationPanel } from './NavigationPanel';
 import { useTourStore } from '@/store/tourStore';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -179,6 +180,15 @@ export function Viewer360({
     >
       {/* Three.js canvas mount point */}
       <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Side navigation panel */}
+      {!isEditing && (
+        <NavigationPanel
+          tour={tour}
+          currentSceneId={currentScene.id}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {/* Vignette overlay */}
       {(currentScene.colorAdjustments?.vignette ?? 0) > 0 && (

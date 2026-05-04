@@ -111,7 +111,11 @@ function ViewerInner({ tourId }: { tourId: string }) {
                 return;
               }
             }
-            loadTour(row.data);
+            if (row.data) {
+              loadTour(row.data);
+            } else {
+              setNotFound(true);
+            }
           }
         } catch {
           if (!tour || tour.id !== tourId) setNotFound(true);
