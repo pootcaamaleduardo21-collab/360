@@ -2,11 +2,11 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Tour 360° | Plataforma de Tours Virtuales',
-  description: 'Crea y comparte tours virtuales 360° para Real Estate, arquitectura y locales comerciales.',
+  title: 'Eleva360 | Tours Virtuales 360° que Venden',
+  description: 'Crea y publica tours virtuales 360° con hotspots, IA de voz, analytics y booking integrados.',
   openGraph: {
-    title: 'Tour 360° Platform',
-    description: 'Tours virtuales inmersivos para bienes raíces y arquitectura.',
+    title: 'Eleva360 — Tours Virtuales 360°',
+    description: 'Tours virtuales inmersivos con IA de texto, voz, analytics y booking integrados.',
     type: 'website',
   },
 };

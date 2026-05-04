@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
           {/* Logo */}
           <Link href="/" className="text-lg font-black tracking-tight flex-shrink-0">
-            Tour <span className="text-blue-400">360°</span>
+            Eleva<span className="text-blue-400">360</span>
           </Link>
 
           {/* Role tabs — desktop */}

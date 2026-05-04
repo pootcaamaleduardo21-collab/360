@@ -52,7 +52,7 @@ function layout(body: string, subject: string): string {
                 background:${BRAND_COLOR};
                 display:inline-block;line-height:36px;text-align:center;
                 font-size:20px;">🌐</span>
-              <span style="font-size:18px;font-weight:700;color:#f1f5f9;letter-spacing:-0.5px;">Tour 360°</span>
+              <span style="font-size:18px;font-weight:700;color:#f1f5f9;letter-spacing:-0.5px;">Eleva360</span>
             </span>
           </td>
         </tr>
@@ -70,7 +70,7 @@ function layout(body: string, subject: string): string {
         <tr>
           <td align="center" style="padding-top:24px;">
             <p style="margin:0;font-size:11px;color:#475569;">
-              Tour 360° · No respondas a este correo automático.
+              Eleva360 · No respondas a este correo automático.
             </p>
           </td>
         </tr>

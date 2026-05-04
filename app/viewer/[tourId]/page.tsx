@@ -18,6 +18,8 @@ import { ComparisonViewer } from '@/components/viewer/ComparisonViewer';
 import { MediaGallery } from '@/components/viewer/MediaGallery';
 import { AIChatBubble } from '@/components/viewer/AIChatBubble';
 import { ElevenLabsAgent } from '@/components/viewer/ElevenLabsAgent';
+import { LangSwitcher } from '@/components/viewer/LangSwitcher';
+import { useViewerLang } from '@/hooks/useViewerLang';
 import { PropertyUnit } from '@/types/tour.types';
 import { Loader2, AlertTriangle, Columns2, Share2, MessageCircle, Copy, Check, X } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -71,6 +73,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
   const [shareOpen,        setShareOpen]        = useState(false);
   const [linkCopied,       setLinkCopied]       = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
+  const { lang, setLang, t } = useViewerLang();
 
   // Close share panel on outside click
   useEffect(() => {
@@ -205,9 +208,16 @@ function ViewerInner({ tourId }: { tourId: string }) {
           }`}
         >
           <Columns2 className="w-4 h-4" />
-          {comparisonMode ? 'Salir comparación' : 'Comparar'}
+          {comparisonMode ? t('exitCompare') : t('compare')}
         </button>
       )}
+
+      {/* Language switcher — bottom-left, above AI bubble area */}
+      <LangSwitcher
+        lang={lang}
+        onChangeLang={setLang}
+        className="bottom-20 left-4"
+      />
 
       <ErrorBoundary label="el visor 360°">
         {comparisonMode ? (
@@ -335,16 +345,16 @@ function ViewerInner({ tourId }: { tourId: string }) {
         <button
           onClick={() => setShareOpen((v) => !v)}
           className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white/80 hover:text-white text-xs font-medium border border-white/10 transition-all shadow-lg"
-          title="Compartir tour"
+          title={t('share')}
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Compartir</span>
+          <span className="hidden sm:inline">{t('share')}</span>
         </button>
 
         {shareOpen && (
           <div className="bg-gray-950/95 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-sm overflow-hidden w-56 animate-fade-in">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-              <span className="text-xs font-semibold text-white">Compartir</span>
+              <span className="text-xs font-semibold text-white">{t('share')}</span>
               <button onClick={() => setShareOpen(false)} className="text-gray-500 hover:text-white transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -362,7 +372,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/30 text-[#25D366] text-xs font-semibold transition-colors"
               >
                 <MessageCircle className="w-4 h-4" />
-                Enviar por WhatsApp
+                {t('sendWhatsapp')}
               </button>
 
               {/* Copy link */}
@@ -381,7 +391,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
                 )}
               >
                 {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {linkCopied ? '¡Enlace copiado!' : 'Copiar enlace'}
+                {linkCopied ? t('linkCopied') : t('copyLink')}
               </button>
             </div>
           </div>
