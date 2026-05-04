@@ -233,6 +233,21 @@ export function useViewer360({
     loader.load(
       scene.imageUrl,
       (texture) => {
+        // ── Guard: validate equirectangular aspect ratio (2:1 ± 20 %) ─────────
+        // This catches images that bypassed upload validation (imports, direct DB edits).
+        const { naturalWidth: imgW, naturalHeight: imgH } = texture.image as HTMLImageElement;
+        if (imgW && imgH) {
+          const ratio = imgW / imgH;
+          if (ratio < 1.6 || ratio > 2.4) {
+            setError(
+              `La imagen no es equirectangular (relación ${ratio.toFixed(2)}:1 — se requiere ~2:1). ` +
+              `El recorrido se verá distorsionado. Sube una imagen 360° correcta.`
+            );
+            setIsLoading(false);
+            return;
+          }
+        }
+
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.minFilter  = THREE.LinearFilter;
         texture.magFilter  = THREE.LinearFilter;
@@ -252,7 +267,7 @@ export function useViewer360({
       },
       undefined,
       () => {
-        setError('No se pudo cargar la imagen 360°. Verifica el formato (JPEG/PNG equirectangular).');
+        setError('No se pudo cargar la imagen 360°. Verifica que el archivo sea un JPEG/PNG equirectangular accesible.');
         setIsLoading(false);
       }
     );
