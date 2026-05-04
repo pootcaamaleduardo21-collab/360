@@ -10,26 +10,28 @@ import { LeadsPanel } from '@/components/dashboard/LeadsPanel';
 import { OnboardingWelcome } from '@/components/dashboard/OnboardingWelcome';
 import { TeamPanel } from '@/components/dashboard/TeamPanel';
 import { AnalyticsOverview } from '@/components/dashboard/AnalyticsOverview';
+import { CRMPanel } from '@/components/dashboard/CRMPanel';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRole, ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
 import { listUserTours, deleteTour, type TourSummary } from '@/lib/db';
 import { useTourStore } from '@/store/tourStore';
 import {
   Plus, LogOut, Loader2, Globe, LayoutGrid, List,
-  Shield, Users, Building2, BarChart2, Settings,
+  Shield, Users, Building2, BarChart2,
   Play, ChevronDown, Bell, MessageSquare, UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Role-tab config ──────────────────────────────────────────────────────────
 
-type DashTab = 'tours' | 'leads' | 'analytics' | 'platform' | 'team';
+type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team';
 
 function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
   const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'tours',     label: 'Mis tours',  icon: <Globe     className="w-4 h-4" /> },
+    { id: 'tours',     label: 'Mis tours',  icon: <Globe         className="w-4 h-4" /> },
     { id: 'leads',     label: 'Leads',      icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'analytics', label: 'Analytics',  icon: <BarChart2 className="w-4 h-4" /> },
+    { id: 'crm',       label: 'CRM',        icon: <Building2     className="w-4 h-4" /> },
+    { id: 'analytics', label: 'Analytics',  icon: <BarChart2     className="w-4 h-4" /> },
   ];
   if (role === 'super_admin') base.push({ id: 'platform', label: 'Plataforma', icon: <Shield className="w-4 h-4" /> });
   if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
@@ -256,6 +258,11 @@ export default function DashboardPage() {
 
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+
+        {/* ── CRM tab ─────────────────────────────────────────────────── */}
+        {activeTab === 'crm' && (
+          <CRMPanel />
+        )}
 
         {/* ── ANALYTICS tab ───────────────────────────────────────────── */}
         {activeTab === 'analytics' && (

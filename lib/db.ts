@@ -93,6 +93,33 @@ export async function getTourBySlug(slug: string): Promise<TourRow | null> {
   return data as TourRow;
 }
 
+/** CRM record — a unit enriched with its tour name and id for the CRM panel. */
+export interface CRMUnit {
+  tourId: string;
+  tourTitle: string;
+  unit: import('@/types/tour.types').PropertyUnit;
+}
+
+/** Fetch all tours and extract every unit, keyed by tour. Used in the CRM dashboard panel. */
+export async function listToursWithUnits(): Promise<CRMUnit[]> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('tours')
+    .select('id, title, data')
+    .order('updated_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const result: CRMUnit[] = [];
+  for (const row of data ?? []) {
+    const units: import('@/types/tour.types').PropertyUnit[] = row.data?.units ?? [];
+    for (const unit of units) {
+      result.push({ tourId: row.id, tourTitle: row.title, unit });
+    }
+  }
+  return result;
+}
+
 // ─── Write ────────────────────────────────────────────────────────────────────
 
 /** Create a new tour row. Returns the generated UUID. */
