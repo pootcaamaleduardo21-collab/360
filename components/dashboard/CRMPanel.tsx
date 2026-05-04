@@ -15,8 +15,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { listToursWithUnits, getTourById, saveTour, type CRMUnit } from '@/lib/db';
 import { PropertyStatus } from '@/types/tour.types';
 import {
-  Loader2, Search, Filter, Download, Upload, ChevronDown,
-  Building2, AlertCircle, RefreshCw, Check, X, FileText,
+  Loader2, Search, Download, Upload, ChevronDown,
+  Building2, AlertCircle, RefreshCw, Check, X, FileText, Hotel,
+  Briefcase, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -55,6 +56,74 @@ const STANDARD_FIELDS = [
   { key: '__tour__',     label: '🗂 Nombre del tour (para distribución multi-tour)' },
   { key: '__skip__',     label: '— Ignorar columna' },
 ];
+
+// ─── Niche templates ──────────────────────────────────────────────────────────
+
+interface NicheTemplate {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  headers: string[];
+  example: string[];
+}
+
+const NICHE_TEMPLATES: NicheTemplate[] = [
+  {
+    id: 'real_estate',
+    label: 'Inmobiliario',
+    description: 'Casas, depto, condominios',
+    icon: <Building2 className="w-4 h-4" />,
+    headers: ['tour', 'label', 'status', 'price', 'currency', 'area', 'bedrooms', 'bathrooms', 'parking', 'floor', 'orientation', 'description'],
+    example: ['Torre Residencial Norte', 'Depto 3A', 'available', '3500000', 'MXN', '85', '2', '2', '1', '3', 'Norte', 'Vista al parque'],
+  },
+  {
+    id: 'hotel',
+    label: 'Hotel / Resort',
+    description: 'Habitaciones y suites',
+    icon: <Hotel className="w-4 h-4" />,
+    headers: ['tour', 'label', 'status', 'price', 'currency', 'area', 'bedrooms', 'bathrooms', 'floor', 'orientation', 'description'],
+    example: ['Grand Hotel Cancún', 'Suite 502', 'available', '4500', 'MXN', '65', '1', '1', '5', 'Vista al mar', 'King bed · Balcón privado'],
+  },
+  {
+    id: 'coworking',
+    label: 'Coworking / Oficinas',
+    description: 'Espacios de trabajo',
+    icon: <Briefcase className="w-4 h-4" />,
+    headers: ['tour', 'label', 'status', 'price', 'currency', 'area', 'parking', 'floor', 'description'],
+    example: ['WeWork Centro', 'Oficina 12', 'available', '18000', 'MXN', '42', '1', '2', 'Privada · 6 personas · Sala incluida'],
+  },
+  {
+    id: 'commercial',
+    label: 'Comercial / Retail',
+    description: 'Locales y plazas',
+    icon: <Store className="w-4 h-4" />,
+    headers: ['tour', 'label', 'status', 'price', 'currency', 'area', 'floor', 'orientation', 'description'],
+    example: ['Plaza Las Américas', 'Local B-14', 'available', '55000', 'MXN', '120', '1', 'Frente principal', 'Esquina · Alta afluencia'],
+  },
+];
+
+function downloadTemplate(template: NicheTemplate) {
+  // Two example rows so users see the pattern clearly
+  const example2 = [...template.example];
+  // Tweak first column (tour) and label for the second row
+  example2[0] = template.example[0]; // same tour
+  example2[1] = template.id === 'real_estate' ? 'Depto 4B'
+    : template.id === 'hotel'     ? 'Habitación 301'
+    : template.id === 'coworking' ? 'Sala Magna'
+    : 'Local C-05';
+  example2[2] = 'reserved';
+
+  const rows = [template.headers, template.example, example2];
+  const csv  = rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `plantilla_crm_${template.id}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -97,6 +166,65 @@ function parseCSV(text: string): { headers: string[]; rows: string[][] } {
   const headers = parse(lines[0]);
   const rows    = lines.slice(1).filter((l) => l.trim()).map(parse);
   return { headers, rows };
+}
+
+// ─── Sub: template download dropdown ─────────────────────────────────────────
+
+function TemplateDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors border border-gray-700 text-sm font-medium"
+      >
+        <Download className="w-4 h-4" />
+        Plantilla
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform text-gray-500', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-800">
+            <p className="text-xs font-bold text-gray-200">Descargar plantilla CSV</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Elige tu nicho — incluye 2 filas de ejemplo</p>
+          </div>
+          <div className="p-2 space-y-1">
+            {NICHE_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => { downloadTemplate(tpl); setOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-gray-800 transition-colors group"
+              >
+                <span className="w-8 h-8 rounded-lg bg-gray-800 group-hover:bg-gray-700 flex items-center justify-center text-blue-400 flex-shrink-0 transition-colors">
+                  {tpl.icon}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-200">{tpl.label}</p>
+                  <p className="text-[11px] text-gray-500">{tpl.description}</p>
+                </div>
+                <Download className="w-3.5 h-3.5 text-gray-600 group-hover:text-blue-400 transition-colors flex-shrink-0 ml-auto" />
+              </button>
+            ))}
+          </div>
+          <div className="px-4 py-3 border-t border-gray-800 bg-gray-800/40">
+            <p className="text-[11px] text-gray-600">
+              💡 La columna <span className="font-mono text-gray-400">tour</span> distribuye las filas al tour correcto al importar.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Sub: status pill with inline dropdown ────────────────────────────────────
@@ -528,18 +656,21 @@ export function CRMPanel() {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          {/* Download niche template */}
+          <TemplateDropdown />
+          {/* Export current data */}
           <button
             onClick={() => exportToCSV(filtered)}
             disabled={filtered.length === 0}
             className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors border border-gray-700 text-sm font-medium disabled:opacity-40"
           >
-            <Download className="w-4 h-4" /> Exportar CSV
+            <Download className="w-4 h-4" /> Exportar
           </button>
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors text-sm shadow-lg shadow-blue-600/20"
           >
-            <Upload className="w-4 h-4" /> Importar
+            <Upload className="w-4 h-4" /> Importar CSV
           </button>
         </div>
       </div>

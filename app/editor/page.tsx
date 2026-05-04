@@ -13,7 +13,6 @@ import { ImageUploader }    from '@/components/editor/ImageUploader';
 import { HotspotPanel }     from '@/components/editor/HotspotPanel';
 import { SceneManager }     from '@/components/editor/SceneManager';
 import { RetouchPanel }     from '@/components/editor/RetouchPanel';
-import { InventoryPanel }   from '@/components/editor/InventoryPanel';
 import { EmbedPanel }       from '@/components/editor/EmbedPanel';
 import { FloorPlanEditor }  from '@/components/editor/FloorPlanEditor';
 import { BrandingPanel }    from '@/components/editor/BrandingPanel';
@@ -23,9 +22,9 @@ import { MediaPanel }         from '@/components/editor/MediaPanel';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
-  Layers, Home, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
+  Layers, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
   Loader2, Map, Building2, Palette, Cloud, CloudOff, Check, Lock,
-  Ruler, Film,
+  Ruler, Film, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,20 +46,36 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'inventory' | 'medidas' | 'media' | 'branding' | 'security' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'branding' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
-const ALL_LEFT_TABS: { id: LeftTab; label: string; icon: React.ReactNode; minRole?: 'admin' | 'super_admin' }[] = [
-  { id: 'scenes',    label: 'Escenas',  icon: <Layers  className="w-3 h-3" /> },
-  { id: 'upload',    label: 'Subir',    icon: <Upload  className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'floorplan', label: 'Plano',    icon: <Map     className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'inventory', label: 'Ventas',   icon: <Home    className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'medidas',   label: 'Medidas',  icon: <Ruler   className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'media',     label: 'Medios',   icon: <Film    className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'branding',  label: 'Marca',    icon: <Palette className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'security',  label: 'Acceso',   icon: <Lock    className="w-3 h-3" />, minRole: 'admin' },
-  { id: 'publish',   label: 'Compartir', icon: <Globe  className="w-3 h-3" /> },
+// Grouped tabs: content group + config group
+const TAB_GROUPS: {
+  label: string;
+  tabs: { id: LeftTab; label: string; icon: React.ReactNode; minRole?: 'admin' | 'super_admin' }[];
+}[] = [
+  {
+    label: 'Contenido',
+    tabs: [
+      { id: 'scenes',    label: 'Escenas',   icon: <Layers  className="w-4 h-4" /> },
+      { id: 'upload',    label: 'Subir',     icon: <Upload  className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'floorplan', label: 'Plano',     icon: <Map     className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'medidas',   label: 'Medidas',   icon: <Ruler   className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'media',     label: 'Galería',   icon: <Film    className="w-4 h-4" />, minRole: 'admin' },
+    ],
+  },
+  {
+    label: 'Configuración',
+    tabs: [
+      { id: 'branding',  label: 'Marca',     icon: <Palette className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'security',  label: 'Acceso / IA', icon: <Lock  className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'publish',   label: 'Compartir', icon: <Globe   className="w-4 h-4" /> },
+    ],
+  },
 ];
+
+// Flat list for filter / lookup
+const ALL_LEFT_TABS = TAB_GROUPS.flatMap((g) => g.tabs);
 
 // ─── Editor page ──────────────────────────────────────────────────────────────
 
@@ -86,8 +101,8 @@ function EditorInner() {
   const isAdvisor = role === 'advisor';
 
   // Filter tabs by role — advisors only see Scenes (read) + Compartir
-  const LEFT_TABS = ALL_LEFT_TABS.filter((t) =>
-    !t.minRole || role === 'super_admin' || role === 'admin'
+  const LEFT_TABS = ALL_LEFT_TABS.filter(
+    (t) => !t.minRole || role === 'super_admin' || role === 'admin'
   );
 
   const tour              = useTourStore((s) => s.tour);
@@ -265,54 +280,102 @@ function EditorInner() {
 
       {/* ── Left sidebar ─────────────────────────────────────────────────────── */}
       <aside className={cn(
-        'flex flex-col border-r border-gray-800 bg-gray-900 transition-all duration-300 overflow-hidden',
-        leftOpen ? 'w-64' : 'w-0'
+        'flex flex-col border-r border-gray-800 bg-gray-900 transition-all duration-300 overflow-hidden flex-shrink-0',
+        leftOpen ? 'w-72' : 'w-0'
       )}>
-        <div className="flex flex-col h-full min-w-64">
+        <div className="flex flex-col h-full min-w-72">
 
           {/* Tour header */}
-          <div className="p-3 border-b border-gray-800 space-y-2">
+          <div className="px-4 pt-3 pb-3 border-b border-gray-800/80 space-y-2.5">
             <div className="flex items-center justify-between">
               {user ? (
                 <Link
                   href="/dashboard"
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors font-medium"
                 >
                   <LayoutDashboard className="w-3 h-3" /> Mis tours
                 </Link>
               ) : (
-                <Link href="/" className="text-sm font-bold text-gray-300">
-                  Tour <span className="text-blue-400">360°</span>
-                </Link>
+                <span className="text-sm font-black text-gray-300">
+                  Eleva<span className="text-blue-400">360</span>
+                </span>
+              )}
+              {/* Save status inline */}
+              {saveStatus !== 'idle' && (
+                <span className={cn(
+                  'flex items-center gap-1 text-[11px] transition-colors',
+                  saveStatus === 'pending' && 'text-gray-500',
+                  saveStatus === 'saving'  && 'text-blue-400',
+                  saveStatus === 'saved'   && 'text-emerald-400',
+                  saveStatus === 'error'   && 'text-red-400',
+                )}>
+                  {saveStatus === 'pending' && <Cloud    className="w-3 h-3" />}
+                  {saveStatus === 'saving'  && <Loader2  className="w-3 h-3 animate-spin" />}
+                  {saveStatus === 'saved'   && <Check    className="w-3 h-3" />}
+                  {saveStatus === 'error'   && <CloudOff className="w-3 h-3" />}
+                  {saveStatus === 'pending' && 'Sin guardar'}
+                  {saveStatus === 'saving'  && 'Guardando…'}
+                  {saveStatus === 'saved'   && 'Guardado'}
+                  {saveStatus === 'error'   && 'Error'}
+                </span>
               )}
             </div>
             <input
               type="text"
               value={tour?.title ?? ''}
               onChange={(e) => useTourStore.getState().updateTour({ title: e.target.value })}
-              className="input-dark font-semibold"
+              className="w-full bg-gray-800/60 border border-gray-700 rounded-xl px-3 py-2 text-sm font-semibold text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
               placeholder="Título del tour"
             />
           </div>
 
-          {/* Tab nav */}
-          <div className="grid grid-cols-7 border-b border-gray-800 flex-shrink-0">
-            {LEFT_TABS.map(({ id, label, icon }) => (
-              <button
-                key={id}
-                onClick={() => setLeftTab(id)}
-                className={cn(
-                  'flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
-                  leftTab === id
-                    ? 'bg-gray-800 text-white border-b-2 border-blue-500'
-                    : 'text-gray-500 hover:text-gray-300'
-                )}
-              >
-                {icon}
-                <span className="text-[10px]">{label}</span>
-              </button>
-            ))}
-          </div>
+          {/* Tab nav — grouped vertical list */}
+          <nav className="flex-shrink-0 px-2 py-2 border-b border-gray-800/80 space-y-0.5">
+            {LEFT_TABS.filter((t) => !t.minRole || role === 'super_admin' || role === 'admin').reduce<React.ReactNode[]>((acc, tab, i, arr) => {
+              // Insert group label before first tab of each group
+              const groupForTab = TAB_GROUPS.find((g) => g.tabs.some((t) => t.id === tab.id));
+              const isFirstInGroup = groupForTab?.tabs[0].id === tab.id;
+              const prevTab = arr[i - 1];
+              const groupForPrev = prevTab ? TAB_GROUPS.find((g) => g.tabs.some((t) => t.id === prevTab.id)) : null;
+              const isNewGroup = isFirstInGroup && groupForTab !== groupForPrev;
+
+              if (isNewGroup && i > 0) {
+                acc.push(<div key={`div-${tab.id}`} className="my-1.5 border-t border-gray-800" />);
+              }
+              if (isFirstInGroup) {
+                acc.push(
+                  <p key={`label-${tab.id}`} className="px-3 pt-1 pb-0.5 text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                    {groupForTab?.label}
+                  </p>
+                );
+              }
+
+              acc.push(
+                <button
+                  key={tab.id}
+                  onClick={() => setLeftTab(tab.id)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left',
+                    leftTab === tab.id
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/40'
+                  )}
+                >
+                  <span className={cn(
+                    'flex-shrink-0 transition-colors',
+                    leftTab === tab.id ? 'text-blue-400' : 'text-gray-600'
+                  )}>
+                    {tab.icon}
+                  </span>
+                  {tab.label}
+                  {leftTab === tab.id && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+                  )}
+                </button>
+              );
+              return acc;
+            }, [])}
+          </nav>
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
@@ -328,9 +391,6 @@ function EditorInner() {
             )}
             {leftTab === 'floorplan' && tour && (
               <FloorPlanEditor tour={tour} />
-            )}
-            {leftTab === 'inventory' && tour && (
-              <InventoryPanel tour={tour} />
             )}
             {leftTab === 'medidas' && (
               <MeasurementsPanel />
@@ -355,7 +415,7 @@ function EditorInner() {
       <button
         onClick={() => setLeftOpen((v) => !v)}
         className="absolute top-1/2 -translate-y-1/2 z-30 w-5 h-10 bg-gray-800 border border-gray-700 rounded-r-lg flex items-center justify-center text-gray-400 hover:text-white transition-colors"
-        style={{ left: leftOpen ? 256 : 0 }}
+        style={{ left: leftOpen ? 288 : 0 }}
       >
         {leftOpen ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
       </button>
@@ -390,35 +450,16 @@ function EditorInner() {
               </div>
             </>
           )}
-          {/* Right side: cancel hint + auto-save indicator */}
+          {/* Right side: cancel hint */}
           <div className="ml-auto flex items-center gap-3">
             {addingType && (
               <button
                 onClick={() => setAddingType(null)}
-                className="text-xs text-gray-500 hover:text-white transition-colors"
+                className="text-xs text-gray-500 hover:text-white transition-colors flex items-center gap-1"
               >
-                Esc para cancelar
+                <span className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-[10px] font-mono">Esc</span>
+                cancelar
               </button>
-            )}
-
-            {/* Auto-save status */}
-            {saveStatus !== 'idle' && (
-              <span className={cn(
-                'flex items-center gap-1 text-xs transition-colors',
-                saveStatus === 'pending' && 'text-gray-500',
-                saveStatus === 'saving'  && 'text-blue-400',
-                saveStatus === 'saved'   && 'text-green-400',
-                saveStatus === 'error'   && 'text-red-400',
-              )}>
-                {saveStatus === 'pending' && <Cloud    className="w-3 h-3" />}
-                {saveStatus === 'saving'  && <Loader2  className="w-3 h-3 animate-spin" />}
-                {saveStatus === 'saved'   && <Check    className="w-3 h-3" />}
-                {saveStatus === 'error'   && <CloudOff className="w-3 h-3" />}
-                {saveStatus === 'pending' && 'Sin guardar'}
-                {saveStatus === 'saving'  && 'Guardando…'}
-                {saveStatus === 'saved'   && 'Guardado'}
-                {saveStatus === 'error'   && 'Error al guardar'}
-              </span>
             )}
           </div>
         </div>
@@ -501,20 +542,45 @@ function EditorInner() {
 
 function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center p-8">
-      <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mb-4">
-        <Upload className="w-9 h-9 text-gray-600" />
+    <div className="flex flex-col items-center justify-center h-full text-center p-10">
+      {/* Illustration */}
+      <div className="relative mb-8">
+        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-blue-600/20 to-indigo-600/10 border border-blue-500/20 flex items-center justify-center">
+          <Upload className="w-12 h-12 text-blue-500/60" />
+        </div>
+        {/* Floating badge */}
+        <div className="absolute -top-2 -right-2 w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
+          <Sparkles className="w-4 h-4 text-white" />
+        </div>
       </div>
-      <h2 className="text-xl font-semibold text-gray-300 mb-2">Sin escenas aún</h2>
-      <p className="text-sm text-gray-600 max-w-xs mb-6">
-        Sube tus fotos 360° equirectangulares para construir el tour.
+
+      <h2 className="text-2xl font-black text-gray-200 mb-2">Crea tu tour 360°</h2>
+      <p className="text-sm text-gray-500 max-w-sm mb-8 leading-relaxed">
+        Sube tus fotos equirectangulares (2:1) para empezar.<br />
+        Luego agrega hotspots, plano y mucho más.
       </p>
+
+      {/* Steps */}
+      <div className="grid grid-cols-3 gap-4 max-w-md mb-8 text-left">
+        {[
+          { n: '1', text: 'Sube imágenes 360°', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+          { n: '2', text: 'Agrega hotspots', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
+          { n: '3', text: 'Publica y comparte', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+        ].map(({ n, text, color }) => (
+          <div key={n} className={`rounded-2xl border p-3 ${color}`}>
+            <span className="text-xs font-black opacity-60">Paso {n}</span>
+            <p className="text-xs font-semibold mt-1 leading-snug">{text}</p>
+          </div>
+        ))}
+      </div>
+
       <button
         onClick={onUploadClick}
-        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors"
+        className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-2xl transition-colors shadow-lg shadow-blue-600/25 text-sm"
       >
-        <Plus className="w-4 h-4" /> Subir imágenes
+        <Upload className="w-4 h-4" /> Subir imágenes 360°
       </button>
+      <p className="text-xs text-gray-600 mt-3">JPG · PNG · Equirectangular 2:1</p>
     </div>
   );
 }
