@@ -142,7 +142,9 @@ export default function ProfilePage() {
   }
 
   const role    = getUserRole(user);
-  const plan    = (user?.user_metadata?.plan ?? 'starter') as PlanKey;
+  // super_admin always gets Enterprise view; admins without explicit plan → starter
+  const rawPlan = user?.user_metadata?.plan as PlanKey | undefined;
+  const plan: PlanKey = rawPlan ?? (role === 'super_admin' ? 'enterprise' : 'starter');
   const planCfg = PLANS[plan] ?? PLANS.starter;
 
   const memberSince = user?.created_at

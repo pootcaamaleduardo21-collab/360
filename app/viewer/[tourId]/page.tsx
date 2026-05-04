@@ -16,8 +16,7 @@ import { BookingModal } from '@/components/viewer/BookingModal';
 import { LeadCaptureModal } from '@/components/viewer/LeadCaptureModal';
 import { ComparisonViewer } from '@/components/viewer/ComparisonViewer';
 import { MediaGallery } from '@/components/viewer/MediaGallery';
-import { AIChatBubble } from '@/components/viewer/AIChatBubble';
-import { ElevenLabsAgent } from '@/components/viewer/ElevenLabsAgent';
+import { AIAssistant } from '@/components/viewer/AIAssistant';
 import { LangSwitcher } from '@/components/viewer/LangSwitcher';
 import { useViewerLang } from '@/hooks/useViewerLang';
 import { PropertyUnit } from '@/types/tour.types';
@@ -321,22 +320,15 @@ function ViewerInner({ tourId }: { tourId: string }) {
       {/* Shopping cart panel */}
       {isCartOpen && <CartPanel />}
 
-      {/* ── AI Chat Bubble (text — Claude Haiku) ──────────────────────────── */}
-      {tour.aiChatEnabled && (
-        <AIChatBubble
+      {/* ── Unified AI Assistant (text + voice) ───────────────────────────── */}
+      {(tour.aiChatEnabled || tour.elevenLabsEnabled) && (
+        <AIAssistant
           tourId={tour.id}
           tourTitle={tour.title}
           brandColor={tour.brandColor}
           welcomeMessage={tour.aiChatWelcome}
-        />
-      )}
-
-      {/* ── ElevenLabs Voice Agent ─────────────────────────────────────────── */}
-      {tour.elevenLabsEnabled && (
-        <ElevenLabsAgent
-          tourId={tour.id}
-          tourTitle={tour.title}
-          brandColor={tour.brandColor}
+          textEnabled={tour.aiChatEnabled}
+          voiceEnabled={tour.elevenLabsEnabled}
         />
       )}
 

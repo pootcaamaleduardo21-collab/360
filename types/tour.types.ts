@@ -227,7 +227,21 @@ export interface PropertyUnit {
   amenities?: UnitAmenity[]; // overrides prototype amenities
   prototypeId?: string;  // links to UnitPrototype
   sceneId?: string;      // links to interior 360° scene
+
+  // CRM master import — arbitrary columns from the client's own spreadsheet
+  customFields?: Record<string, string | number>;
 }
+
+// ─── CRM column visibility config (per tour) ─────────────────────────────────
+
+/** Which columns from the unit data are shown in the 360° viewer unit detail */
+export interface CRMColumnConfig {
+  field: string;        // standard field name OR custom field key
+  label: string;        // display label
+  visible: boolean;     // shown in viewer unit detail card
+  type: 'standard' | 'custom';
+}
+
 
 // Sales advisor contact — used for WhatsApp CTAs
 export interface SalesAdvisor {
@@ -282,6 +296,9 @@ export interface Tour {
   // Booking / appointment scheduling
   bookingEnabled?: boolean;
   bookingConfig?: BookingConfig;
+
+  // CRM column visibility
+  crmColumns?: CRMColumnConfig[];   // which fields are shown in the viewer unit detail
 
   // AI Chat assistant (text — Claude Haiku)
   aiChatEnabled?: boolean;     // Shows chat bubble in viewer
