@@ -145,44 +145,58 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
         // ── 3. Upload ──────────────────────────────────────────────────────
         patch(name, { status: 'uploading', uploadProgress: 5 });
 
+        // Helper — normalise uploadBlob to a File with .jpg extension
+        const toJpgFile = (blob: File | Blob): File =>
+          blob instanceof File
+            ? new File([blob], blob.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })
+            : new File([blob], name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+
         try {
-          let url: string;
+          let url = '';
           let thumbnailUrl: string | undefined;
 
+          // ── Try Supabase (permanent URL) ───────────────────────────────
+          let supabaseOk = false;
           if (tour?.id && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-            if (uploadBlob instanceof File) {
-              const result = await uploadSceneImage(tour.id, uploadBlob, (pct) =>
-                patch(name, { uploadProgress: 5 + pct * 0.75 })
-              );
-              url = result.url;
-            } else {
-              patch(name, { uploadProgress: 30 });
-              const dataUrl = await blobToDataUrl(uploadBlob);
-              const result  = await uploadSceneDataUrl(tour.id, dataUrl, 'jpg');
-              url = result.url;
-              patch(name, { uploadProgress: 80 });
-            }
+            try {
+              if (uploadBlob instanceof File) {
+                const result = await uploadSceneImage(tour.id, uploadBlob, (pct) =>
+                  patch(name, { uploadProgress: 5 + pct * 0.75 })
+                );
+                url = result.url;
+              } else {
+                patch(name, { uploadProgress: 30 });
+                const dataUrl = await blobToDataUrl(uploadBlob);
+                const result  = await uploadSceneDataUrl(tour.id, dataUrl, 'jpg');
+                url = result.url;
+                patch(name, { uploadProgress: 80 });
+              }
 
-            patch(name, { uploadProgress: 85 });
-            const srcFile    = uploadBlob instanceof File
-              ? uploadBlob
-              : new File([uploadBlob], name.replace(/\.insp$/i, '.jpg'), { type: 'image/jpeg' });
-            const dataUrl    = await readFileAsDataURL(srcFile);
-            const thumbUrl   = await generateThumbnail(dataUrl, 320, 160);
-            const thumbResult = await uploadThumbnail(tour.id, thumbUrl);
-            thumbnailUrl = thumbResult.url;
-          } else {
-            const srcFile = uploadBlob instanceof File
-              ? uploadBlob
-              : new File([uploadBlob], name.replace(/\.insp$/i, '.jpg'), { type: 'image/jpeg' });
-            url = await readFileAsDataURL(srcFile);
+              // Thumbnail
+              patch(name, { uploadProgress: 85 });
+              const srcFile    = toJpgFile(uploadBlob);
+              const dataUrl    = await readFileAsDataURL(srcFile);
+              const thumbUrl   = await generateThumbnail(dataUrl, 320, 160);
+              const thumbResult = await uploadThumbnail(tour.id, thumbUrl);
+              thumbnailUrl = thumbResult.url;
+              supabaseOk = true;
+            } catch (supabaseErr) {
+              // Supabase failed — fall through to local data URL fallback
+              console.warn('[Upload] Supabase failed, using local data URL:', supabaseErr);
+            }
+          }
+
+          // ── Fallback: local data URL (works in current browser session) ─
+          if (!supabaseOk) {
+            const localFile = toJpgFile(uploadBlob);
+            url = await readFileAsDataURL(localFile);
           }
 
           patch(name, { status: 'ready', uploadProgress: 100 });
           ready.push({ name, url, thumbnailUrl });
         } catch (err) {
           console.error(err);
-          patch(name, { status: 'error', error: 'Error al subir el archivo' });
+          patch(name, { status: 'error', error: 'Error al procesar el archivo. Intenta con otro formato.' });
         }
       }
 
