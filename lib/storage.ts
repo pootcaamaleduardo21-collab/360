@@ -45,8 +45,11 @@ export async function uploadSceneImage(
   file: File,
   onProgress?: (percent: number) => void
 ): Promise<UploadResult> {
-  const ext  = file.name.split('.').pop() ?? 'jpg';
-  const path = `${tourId}/${uuidv4()}.${ext}`;
+  // Always upload scene images as .jpg — browsers and Supabase handle JPEG best.
+  // .insp files are JPEGs under the hood; other formats are already converted before reaching here.
+  const rawExt = (file.name.split('.').pop() ?? 'jpg').toLowerCase();
+  const ext    = rawExt === 'insp' ? 'jpg' : rawExt;
+  const path   = `${tourId}/${uuidv4()}.${ext}`;
 
   // Supabase JS v2 doesn't expose XHR progress, so we simulate via two-step for UX
   onProgress?.(10);

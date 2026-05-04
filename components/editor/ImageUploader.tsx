@@ -341,7 +341,7 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-200 truncate">{item.file.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <StatusLabel status={item.status} />
+                    <StatusLabel status={item.status} formatInfo={item.formatInfo} />
 
                     {/* Resolution badge */}
                     {item.formatInfo?.width && item.status !== 'error' && (
@@ -435,14 +435,17 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatusLabel({ status }: { status: FileStatus }) {
+function StatusLabel({ status, formatInfo }: { status: FileStatus; formatInfo?: import('@/lib/imageConverter').FormatInfo }) {
+  const converting = status === 'converting';
+  const isStitching = converting && formatInfo?.action === 'stitch-fisheye';
+
   const map: Record<FileStatus, { text: string; cls: string }> = {
-    pending:    { text: 'En espera',     cls: 'text-gray-500'  },
-    detecting:  { text: 'Detectando…',  cls: 'text-gray-400'  },
-    converting: { text: 'Convirtiendo…', cls: 'text-amber-400' },
-    uploading:  { text: 'Subiendo…',    cls: 'text-blue-400'  },
-    ready:      { text: 'Listo',         cls: 'text-green-400' },
-    error:      { text: 'Error',         cls: 'text-red-400'   },
+    pending:    { text: 'En espera',      cls: 'text-gray-500'  },
+    detecting:  { text: 'Detectando…',   cls: 'text-gray-400'  },
+    converting: { text: isStitching ? 'Uniendo lentes…' : 'Convirtiendo…', cls: 'text-amber-400' },
+    uploading:  { text: 'Subiendo…',     cls: 'text-blue-400'  },
+    ready:      { text: 'Listo',          cls: 'text-green-400' },
+    error:      { text: 'Error',          cls: 'text-red-400'   },
   };
   const { text, cls } = map[status];
   return <span className={cn('text-[10px] font-semibold', cls)}>{text}</span>;
@@ -450,9 +453,9 @@ function StatusLabel({ status }: { status: FileStatus }) {
 
 function InstructionPanel({ ext }: { ext: string }) {
   const key =
-    RAW_EXTS.has(ext) ? 'dng' :
+    RAW_EXTS.has(ext)              ? 'dng' :
     (ext === 'heic' || ext === 'heif') ? 'heic' :
-    ext in FORMAT_INSTRUCTIONS ? ext : null;
+    ext in FORMAT_INSTRUCTIONS     ? ext : null;
 
   if (!key) {
     return (
