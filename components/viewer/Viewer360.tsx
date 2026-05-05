@@ -76,10 +76,12 @@ export function Viewer360({
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
   const [showTutorial,       setShowTutorial]       = useState(config.showTutorial);
   const [isFullscreen,       setIsFullscreen]       = useState(false);
+  const [draggingHotspotId,  setDraggingHotspotId]  = useState<string | null>(null);
   const tutorialDismissed    = useTourStore((s) => s.tutorialDismissed);
   const dismissTutorial      = useTourStore((s) => s.dismissTutorial);
   const cartItemCount        = useTourStore((s) => s.items.reduce((a, i) => a + i.quantity, 0));
   const toggleCart           = useTourStore((s) => s.toggleCart);
+  const updateHotspot        = useTourStore((s) => s.updateHotspot);
 
   // Track time spent per scene
   const sceneEnteredAt = useRef<number>(Date.now());
@@ -138,7 +140,7 @@ export function Viewer360({
   // Apply CSS color filters to the Three.js canvas
   useColorFilter(containerRef, currentScene.colorAdjustments);
 
-  const { isLoading, error, hotspotPositions, lookAt } = useViewer360({
+  const { isLoading, error, hotspotPositions, lookAt, screenToSpherical } = useViewer360({
     containerRef,
     scene: currentScene,
     config,
@@ -158,6 +160,30 @@ export function Viewer360({
     lookAt(currentScene.initialYaw ?? 0, currentScene.initialPitch ?? 0);
   };
 
+  // ── Hotspot drag ─────────────────────────────────────────────────────────
+  const handleHotspotDragStart = useCallback(
+    (hotspotId: string, _e: React.PointerEvent) => {
+      if (!isEditing) return;
+      setDraggingHotspotId(hotspotId);
+      onHotspotSelected?.(hotspotId);
+    },
+    [isEditing, onHotspotSelected]
+  );
+
+  const handleWrapperPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingHotspotId || !screenToSpherical) return;
+      const result = screenToSpherical(e.clientX, e.clientY);
+      if (!result) return;
+      updateHotspot(currentScene.id, draggingHotspotId, { yaw: result.yaw, pitch: result.pitch });
+    },
+    [draggingHotspotId, screenToSpherical, updateHotspot, currentScene.id]
+  );
+
+  const handleWrapperPointerUp = useCallback(() => {
+    setDraggingHotspotId(null);
+  }, []);
+
   // ── Fullscreen ───────────────────────────────────────────────────────────
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -175,20 +201,21 @@ export function Viewer360({
     <div
       className={cn(
         'relative w-full h-full bg-gray-950 overflow-hidden select-none',
+        draggingHotspotId ? 'cursor-grabbing' :
         isEditing && addHotspotType ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
       )}
+      onPointerMove={handleWrapperPointerMove}
+      onPointerUp={handleWrapperPointerUp}
     >
       {/* Three.js canvas mount point */}
       <div ref={containerRef} className="absolute inset-0" />
 
-      {/* Side navigation panel */}
-      {!isEditing && (
-        <NavigationPanel
-          tour={tour}
-          currentSceneId={currentScene.id}
-          onNavigate={onNavigate}
-        />
-      )}
+      {/* Side navigation panel — visible in both viewer and editor for live preview */}
+      <NavigationPanel
+        tour={tour}
+        currentSceneId={currentScene.id}
+        onNavigate={onNavigate}
+      />
 
       {/* Vignette overlay */}
       {(currentScene.colorAdjustments?.vignette ?? 0) > 0 && (
@@ -243,6 +270,9 @@ export function Viewer360({
         const unitStatus = hotspot.type === 'unit' && hotspot.unitId
           ? tour.units?.find((u) => u.id === hotspot.unitId)?.status
           : undefined;
+        const targetSceneName = hotspot.type === 'navigation' && hotspot.targetSceneId
+          ? tour.scenes.find((s) => s.id === hotspot.targetSceneId)?.name
+          : undefined;
         return (
           <HotspotMarker
             key={id}
@@ -253,6 +283,8 @@ export function Viewer360({
             isEditing={isEditing}
             onClick={handleHotspotClick}
             unitStatus={unitStatus}
+            targetSceneName={targetSceneName}
+            onDragStart={isEditing ? handleHotspotDragStart : undefined}
           />
         );
       })}

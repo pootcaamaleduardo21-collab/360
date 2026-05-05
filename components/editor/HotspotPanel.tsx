@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback, useRef } from 'react';
 import {
   Hotspot, HotspotType, HotspotStyle, HotspotAnimation,
   Scene, PropertyStatus,
@@ -7,8 +8,46 @@ import {
 import { useTourStore } from '@/store/tourStore';
 import {
   Trash2, ArrowRight, Info, Image, User, ShoppingCart, Building2, MapPin,
+  Search, Loader2, Navigation,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// ─── Haversine distance ───────────────────────────────────────────────────────
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R  = 6371;
+  const dL = (lat2 - lat1) * Math.PI / 180;
+  const dG = (lng2 - lng1) * Math.PI / 180;
+  const a  =
+    Math.sin(dL / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dG / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toFixed(1)} km`;
+}
+
+function formatWalkTime(km: number): string {
+  const min = Math.round((km / 5) * 60); // avg 5 km/h
+  if (min < 60) return `${min} min caminando`;
+  return `${Math.floor(min / 60)}h ${min % 60}min caminando`;
+}
+
+// ─── Nominatim geocoder ───────────────────────────────────────────────────────
+
+interface NominatimResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+async function geocodeAddress(query: string): Promise<NominatimResult[]> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=0`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+  return res.json();
+}
 
 const TYPE_OPTIONS: { value: HotspotType; label: string; icon: React.ReactNode }[] = [
   { value: 'navigation', label: 'Navegación',  icon: <ArrowRight   className="w-3.5 h-3.5" /> },
@@ -53,6 +92,8 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
   const removeHotspot  = useTourStore((s) => s.removeHotspot);
   const selectHotspot  = useTourStore((s) => s.selectHotspot);
   const tourUnits      = useTourStore((s) => s.tour?.units ?? []);
+  const propertyLat    = useTourStore((s) => s.tour?.propertyLat);
+  const propertyLng    = useTourStore((s) => s.tour?.propertyLng);
 
   const selected = scene.hotspots.find((h) => h.id === selectedHotspotId) ?? null;
 
@@ -244,60 +285,12 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
       )}
 
       {selected.type === 'map' && (
-        <>
-          <Field label="Lugar / Nombre del POI">
-            <input
-              type="text"
-              value={selected.label}
-              onChange={(e) => update({ label: e.target.value })}
-              className="input-dark"
-              placeholder="Colegio Americano, Hospital Central…"
-            />
-          </Field>
-          <Field label="Dirección">
-            <input
-              type="text"
-              value={selected.mapAddress ?? ''}
-              onChange={(e) => update({ mapAddress: e.target.value })}
-              className="input-dark"
-              placeholder="Av. Insurgentes Sur 123, CDMX"
-            />
-          </Field>
-          <Field label="Distancia / tiempo">
-            <input
-              type="text"
-              value={selected.mapDistance ?? ''}
-              onChange={(e) => update({ mapDistance: e.target.value })}
-              className="input-dark"
-              placeholder="5 min caminando · 2.3 km"
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Latitud">
-              <input
-                type="number"
-                value={selected.mapLat ?? ''}
-                onChange={(e) => update({ mapLat: e.target.value ? Number(e.target.value) : undefined })}
-                className="input-dark"
-                placeholder="19.4326"
-                step="any"
-              />
-            </Field>
-            <Field label="Longitud">
-              <input
-                type="number"
-                value={selected.mapLng ?? ''}
-                onChange={(e) => update({ mapLng: e.target.value ? Number(e.target.value) : undefined })}
-                className="input-dark"
-                placeholder="-99.1332"
-                step="any"
-              />
-            </Field>
-          </div>
-          <p className="text-[11px] text-gray-600 leading-snug">
-            Al tocar el hotspot se abrirá Google Maps con esta ubicación. El estilo <strong className="text-gray-400">Etiqueta</strong> es ideal para vistas aéreas.
-          </p>
-        </>
+        <POIFields
+          selected={selected}
+          update={update}
+          propertyLat={propertyLat}
+          propertyLng={propertyLng}
+        />
       )}
 
       {/* ─── Apariencia ─────────────────────────────────────────────────────── */}
@@ -437,5 +430,205 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="block text-xs font-medium text-gray-400">{label}</label>
       {children}
     </div>
+  );
+}
+
+// ─── POI Fields with geocoding ────────────────────────────────────────────────
+
+interface POIFieldsProps {
+  selected: Hotspot;
+  update: (patch: Partial<Omit<Hotspot, 'id'>>) => void;
+  propertyLat?: number;
+  propertyLng?: number;
+}
+
+function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProps) {
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [results,     setResults]         = useState<NominatimResult[]>([]);
+  const [searching,   setSearching]       = useState(false);
+  const [showResults, setShowResults]     = useState(false);
+  const searchTimeout                     = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasOrigin  = propertyLat != null && propertyLng != null;
+  const hasDest    = selected.mapLat != null && selected.mapLng != null;
+
+  // Auto-calculate and fill distance when both points are known
+  const autoDistance = useCallback(() => {
+    if (!hasOrigin || !hasDest) return;
+    const km = haversineKm(propertyLat!, propertyLng!, selected.mapLat!, selected.mapLng!);
+    const dist = `${formatWalkTime(km)} · ${formatDistance(km)}`;
+    update({ mapDistance: dist });
+  }, [hasOrigin, hasDest, propertyLat, propertyLng, selected.mapLat, selected.mapLng, update]);
+
+  const handleSearch = () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    setSearching(true);
+    setShowResults(false);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await geocodeAddress(q);
+        setResults(res);
+        setShowResults(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+  };
+
+  const applyResult = (r: NominatimResult) => {
+    const lat = parseFloat(r.lat);
+    const lng = parseFloat(r.lon);
+    const shortAddress = r.display_name.split(',').slice(0, 3).join(', ');
+    update({ mapLat: lat, mapLng: lng, mapAddress: shortAddress });
+    setShowResults(false);
+    setSearchQuery('');
+    // Auto-calculate distance from property origin
+    if (hasOrigin) {
+      const km = haversineKm(propertyLat!, propertyLng!, lat, lng);
+      update({ mapDistance: `${formatWalkTime(km)} · ${formatDistance(km)}` });
+    }
+  };
+
+  return (
+    <>
+      {/* Search box */}
+      <Field label="Buscar lugar en el mapa">
+        <div className="relative">
+          <div className="flex gap-1.5">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="input-dark flex-1"
+              placeholder="Playa del Carmen, Hospital, Colegio…"
+            />
+            <button
+              type="button"
+              onClick={handleSearch}
+              disabled={searching}
+              className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors disabled:opacity-50 flex-shrink-0"
+            >
+              {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            </button>
+          </div>
+          {showResults && results.length > 0 && (
+            <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
+              {results.map((r, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => applyResult(r)}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 border-b border-gray-700 last:border-0 leading-snug"
+                >
+                  <MapPin className="w-3 h-3 inline mr-1 text-blue-400 flex-shrink-0" />
+                  {r.display_name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowResults(false)}
+                className="w-full px-3 py-1.5 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+        </div>
+        {!hasOrigin && (
+          <p className="text-[10px] text-amber-500/80 leading-snug mt-1">
+            Configura la ubicación del desarrollo en Marca → Ubicación para calcular distancias automáticamente.
+          </p>
+        )}
+      </Field>
+
+      {/* Name */}
+      <Field label="Nombre del lugar">
+        <input
+          type="text"
+          value={selected.label}
+          onChange={(e) => update({ label: e.target.value })}
+          className="input-dark"
+          placeholder="Playa, Colegio, Hospital Central…"
+        />
+      </Field>
+
+      {/* Address (read-only after geocode, editable manually) */}
+      <Field label="Dirección">
+        <input
+          type="text"
+          value={selected.mapAddress ?? ''}
+          onChange={(e) => update({ mapAddress: e.target.value })}
+          className="input-dark"
+          placeholder="Se llena automáticamente al buscar"
+        />
+      </Field>
+
+      {/* Distance */}
+      <Field label="Distancia / tiempo">
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={selected.mapDistance ?? ''}
+            onChange={(e) => update({ mapDistance: e.target.value })}
+            className="input-dark flex-1"
+            placeholder="5 min caminando · 2.3 km"
+          />
+          {hasOrigin && hasDest && (
+            <button
+              type="button"
+              onClick={autoDistance}
+              title="Calcular distancia automáticamente"
+              className="px-2 py-1.5 bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-400 rounded-lg text-xs transition-colors flex-shrink-0 flex items-center gap-1"
+            >
+              <Navigation className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </Field>
+
+      {/* Coordinates (collapsed) */}
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Latitud">
+          <input
+            type="number"
+            value={selected.mapLat ?? ''}
+            onChange={(e) => update({ mapLat: e.target.value ? Number(e.target.value) : undefined })}
+            className="input-dark text-xs"
+            placeholder="19.4326"
+            step="any"
+          />
+        </Field>
+        <Field label="Longitud">
+          <input
+            type="number"
+            value={selected.mapLng ?? ''}
+            onChange={(e) => update({ mapLng: e.target.value ? Number(e.target.value) : undefined })}
+            className="input-dark text-xs"
+            placeholder="-99.1332"
+            step="any"
+          />
+        </Field>
+      </div>
+
+      {/* Mini map preview */}
+      {hasDest && (
+        <div className="rounded-xl overflow-hidden border border-gray-700 h-32">
+          <iframe
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${selected.mapLng! - 0.008},${selected.mapLat! - 0.006},${selected.mapLng! + 0.008},${selected.mapLat! + 0.006}&layer=mapnik&marker=${selected.mapLat},${selected.mapLng}`}
+            className="w-full h-full border-0"
+            title="Vista previa del mapa"
+          />
+        </div>
+      )}
+
+      <p className="text-[11px] text-gray-600 leading-snug">
+        Al tocar el hotspot se abrirá Google Maps. Estilo <strong className="text-gray-400">Etiqueta</strong> ideal para vistas aéreas.
+      </p>
+    </>
   );
 }

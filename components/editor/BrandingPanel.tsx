@@ -204,6 +204,50 @@ function BrandTab({ tour, updateTour }: { tour: Tour; updateTour: (p: Partial<Om
           </div>
         ))}
       </div>
+
+      {/* Property location — used as origin for POI distance calculation */}
+      <div className="border-t border-gray-800 pt-3 space-y-2">
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <MapPin className="w-3 h-3" /> Ubicación del desarrollo
+        </p>
+        <p className="text-[10px] text-gray-600 leading-snug">
+          Coordenadas del edificio o desarrollo. Usadas para calcular automáticamente las distancias de los hotspots POI.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <p className="text-[10px] text-gray-500">Latitud</p>
+            <input
+              type="number"
+              value={tour.propertyLat ?? ''}
+              onChange={(e) => updateTour({ propertyLat: e.target.value ? Number(e.target.value) : undefined })}
+              className="input-dark text-xs"
+              placeholder="20.6296"
+              step="any"
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] text-gray-500">Longitud</p>
+            <input
+              type="number"
+              value={tour.propertyLng ?? ''}
+              onChange={(e) => updateTour({ propertyLng: e.target.value ? Number(e.target.value) : undefined })}
+              className="input-dark text-xs"
+              placeholder="-87.0739"
+              step="any"
+            />
+          </div>
+        </div>
+        {tour.propertyLat && tour.propertyLng && (
+          <a
+            href={`https://www.openstreetmap.org/?mlat=${tour.propertyLat}&mlon=${tour.propertyLng}#map=16/${tour.propertyLat}/${tour.propertyLng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] text-blue-400 hover:underline"
+          >
+            <MapPin className="w-3 h-3" /> Verificar en mapa
+          </a>
+        )}
+      </div>
     </div>
   );
 }

@@ -311,6 +311,10 @@ export interface Tour {
   // Side navigation panel
   navPanel?: NavPanel;
 
+  // Property/development geo-location (used as origin for POI distance calculation)
+  propertyLat?: number;
+  propertyLng?: number;
+
   // Meta
   createdAt: string;
   updatedAt: string;

@@ -83,6 +83,8 @@ export function useViewer360({
   const clickStartPos      = useRef({ x: 0, y: 0 });
   const textureLoaderRef   = useRef(new THREE.TextureLoader());
   const currentTextureRef  = useRef<THREE.Texture | null>(null);
+  // Ref so the animate loop always calls the latest version (avoids stale closure)
+  const updatePositionsRef = useRef<() => void>(() => {});
 
   const [isLoading,              setIsLoading]              = useState(false);
   const [error,                  setError]                  = useState<string | null>(null);
@@ -146,8 +148,8 @@ export function useViewer360({
 
       renderer.render(threeScene, camera);
 
-      // Update hotspot 2D positions every frame
-      updateHotspotScreenPositions();
+      // Update hotspot 2D positions every frame (via ref to avoid stale closure)
+      updatePositionsRef.current();
     };
 
     animate();
@@ -257,10 +259,11 @@ export function useViewer360({
           }
         }
 
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.minFilter  = THREE.LinearFilter;
-        texture.magFilter  = THREE.LinearFilter;
+        texture.colorSpace  = THREE.SRGBColorSpace;
+        texture.minFilter   = THREE.LinearFilter;
+        texture.magFilter   = THREE.LinearFilter;
         texture.generateMipmaps = false;
+        texture.wrapS       = THREE.RepeatWrapping; // smooth horizontal seam
         currentTextureRef.current = texture;
 
         const mat = sphereMeshRef.current!.material as THREE.MeshBasicMaterial;
@@ -320,6 +323,9 @@ export function useViewer360({
     setHotspotPositions(positions);
   }, [scene, containerRef]);
 
+  // Always point the ref at the latest version so the animate loop stays fresh
+  updatePositionsRef.current = updateHotspotScreenPositions;
+
   // ── Click handler for raycasting (add hotspot in edit mode) ───────────────
 
   const handleClick = useCallback(
@@ -362,10 +368,40 @@ export function useViewer360({
     cameraAngles.current.lat = THREE.MathUtils.clamp(pitch, -85, 85);
   }, []);
 
+  /**
+   * Convert screen coordinates (clientX/Y) to spherical (yaw/pitch).
+   * Returns null if the ray doesn't intersect the sphere.
+   * Used for hotspot drag-repositioning.
+   */
+  const screenToSpherical = useCallback(
+    (clientX: number, clientY: number): { yaw: number; pitch: number } | null => {
+      const camera    = cameraRef.current;
+      const sphere    = sphereMeshRef.current;
+      const container = containerRef.current;
+      if (!camera || !sphere || !container) return null;
+
+      const rect  = container.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((clientX - rect.left) / container.clientWidth)  *  2 - 1,
+        -((clientY - rect.top) / container.clientHeight) * 2 + 1
+      );
+
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObject(sphere);
+      if (hits.length === 0) return null;
+
+      const point = hits[0].point.normalize();
+      return vector3ToSpherical(point);
+    },
+    [containerRef]
+  );
+
   return {
     isLoading,
     error,
     hotspotPositions,
     lookAt,
+    screenToSpherical,
   };
 }

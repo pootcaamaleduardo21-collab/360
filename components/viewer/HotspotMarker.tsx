@@ -4,7 +4,7 @@ import { Hotspot, HotspotStyle, PropertyStatus } from '@/types/tour.types';
 import { cn } from '@/lib/utils';
 import {
   ArrowRight, Info, Image as ImageIcon, User, ShoppingCart,
-  Building2, MapPin,
+  Building2, MapPin, Move,
 } from 'lucide-react';
 
 interface HotspotMarkerProps {
@@ -16,6 +16,10 @@ interface HotspotMarkerProps {
   onClick: (hotspot: Hotspot) => void;
   /** Passed by Viewer360 for 'unit' hotspots — drives the status color */
   unitStatus?: PropertyStatus;
+  /** Scene name for navigation hotspots — shown as subtitle in edit mode */
+  targetSceneName?: string;
+  /** Called on pointerdown when editing so parent can start a drag */
+  onDragStart?: (hotspotId: string, e: React.PointerEvent) => void;
 }
 
 // ─── Type → icon + default colors ─────────────────────────────────────────────
@@ -53,6 +57,8 @@ export function HotspotMarker({
   isEditing,
   onClick,
   unitStatus,
+  targetSceneName,
+  onDragStart,
 }: HotspotMarkerProps) {
   const style   = hotspot.style ?? 'bubble';
   const anim    = hotspot.animation ?? (style === 'floor' ? 'ping' : 'ping');
@@ -72,7 +78,31 @@ export function HotspotMarker({
     onClick(hotspot);
   };
 
-  const cursor = isEditing ? 'cursor-crosshair' : 'cursor-pointer';
+  // In edit mode: drag handle on selected, crosshair on others
+  const cursor = isEditing
+    ? (isSelected ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer')
+    : 'cursor-pointer';
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isEditing || !isSelected || !onDragStart) return;
+    e.stopPropagation();
+    e.preventDefault();
+    // Capture so we receive pointermove/up even when moving over other elements
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    onDragStart(hotspot.id, e);
+  };
+
+  // Edit-mode overlay: drag handle icon + scene name for navigation hotspots
+  const EditOverlay = isEditing && isSelected ? (
+    <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-900/90 border border-white/20 text-white whitespace-nowrap pointer-events-none z-30">
+      <Move className="w-3 h-3 text-white/60" />
+      {hotspot.type === 'navigation' && targetSceneName ? (
+        <span className="text-[10px] font-medium text-blue-300">→ {targetSceneName}</span>
+      ) : (
+        <span className="text-[10px] text-white/50">arrastrar</span>
+      )}
+    </div>
+  ) : null;
 
   // Shared icon node
   const IconNode = hotspot.customIcon
@@ -86,8 +116,10 @@ export function HotspotMarker({
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
         aria-label={hotspot.label}
       >
+        {EditOverlay}
         {/* Perspective-squished ring — looks flat on the floor */}
         <div style={{ transform: 'scaleY(0.38)', transformOrigin: 'center center' }}>
           {/* Outer animated ping rings */}
@@ -176,8 +208,10 @@ export function HotspotMarker({
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
         aria-label={hotspot.label}
       >
+        {EditOverlay}
         {/* Ping / glow decorations behind the badge */}
         {anim === 'ping' && (
           <div
@@ -232,8 +266,10 @@ export function HotspotMarker({
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -100%)' }}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
         aria-label={hotspot.label}
       >
+        {EditOverlay}
         <div
           className={cn(
             'flex flex-col items-center transition-transform group-hover:scale-105',
@@ -287,8 +323,10 @@ export function HotspotMarker({
         className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1.5', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
         aria-label={hotspot.label}
       >
+        {EditOverlay}
         {/* Ping rings */}
         {anim === 'ping' && (
           <div
@@ -337,9 +375,11 @@ export function HotspotMarker({
       className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1', cursor)}
       style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
       onClick={handleClick}
+      onPointerDown={handlePointerDown}
       aria-label={hotspot.label}
       title={hotspot.label}
     >
+      {EditOverlay}
       {/* Animated ring behind bubble */}
       {anim === 'ping' && (
         <span
