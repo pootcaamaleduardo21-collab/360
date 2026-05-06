@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Tour, GalleryItem, PointOfInterest, POICategory, SocialLinks } from '@/types/tour.types';
 import { POI_CONFIG } from '@/lib/poiTypes';
 import { NicheType } from '@/lib/niches';
@@ -12,7 +12,7 @@ import { uploadAsset } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 import {
   Palette, Images, FileText, MapPin, Globe,
-  Plus, Trash2, Upload, Loader2, Link, X,
+  Plus, Trash2, Upload, Loader2, Link, X, Search,
 } from 'lucide-react';
 
 // ─── Sub-tab types ────────────────────────────────────────────────────────────
@@ -211,42 +211,13 @@ function BrandTab({ tour, updateTour }: { tour: Tour; updateTour: (p: Partial<Om
           <MapPin className="w-3 h-3" /> Ubicación del desarrollo
         </p>
         <p className="text-[10px] text-gray-600 leading-snug">
-          Coordenadas del edificio o desarrollo. Usadas para calcular automáticamente las distancias de los hotspots POI.
+          Busca la dirección del desarrollo. Se usa para calcular distancias de los puntos de interés.
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <p className="text-[10px] text-gray-500">Latitud</p>
-            <input
-              type="number"
-              value={tour.propertyLat ?? ''}
-              onChange={(e) => updateTour({ propertyLat: e.target.value ? Number(e.target.value) : undefined })}
-              className="input-dark text-xs"
-              placeholder="20.6296"
-              step="any"
-            />
-          </div>
-          <div className="space-y-1">
-            <p className="text-[10px] text-gray-500">Longitud</p>
-            <input
-              type="number"
-              value={tour.propertyLng ?? ''}
-              onChange={(e) => updateTour({ propertyLng: e.target.value ? Number(e.target.value) : undefined })}
-              className="input-dark text-xs"
-              placeholder="-87.0739"
-              step="any"
-            />
-          </div>
-        </div>
-        {tour.propertyLat && tour.propertyLng && (
-          <a
-            href={`https://www.openstreetmap.org/?mlat=${tour.propertyLat}&mlon=${tour.propertyLng}#map=16/${tour.propertyLat}/${tour.propertyLng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[10px] text-blue-400 hover:underline"
-          >
-            <MapPin className="w-3 h-3" /> Verificar en mapa
-          </a>
-        )}
+        <LocationPicker
+          lat={tour.propertyLat}
+          lng={tour.propertyLng}
+          onChange={(lat, lng) => updateTour({ propertyLat: lat, propertyLng: lng })}
+        />
       </div>
     </div>
   );
@@ -510,6 +481,139 @@ function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: P
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── LocationPicker ───────────────────────────────────────────────────────────
+
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+}
+
+function LocationPicker({
+  lat, lng, onChange,
+}: {
+  lat?: number;
+  lng?: number;
+  onChange: (lat: number, lng: number) => void;
+}) {
+  const [query,     setQuery]     = useState('');
+  const [results,   setResults]   = useState<NominatimResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showMap,   setShowMap]   = useState(!!lat && !!lng);
+  const lastCall = useRef(0);
+
+  const search = useCallback(async () => {
+    const q = query.trim();
+    if (!q) return;
+    const now = Date.now();
+    // Nominatim rate limit: 1 req/s
+    const wait = Math.max(0, 1000 - (now - lastCall.current));
+    await new Promise((r) => setTimeout(r, wait));
+    lastCall.current = Date.now();
+    setSearching(true);
+    try {
+      const res  = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=4&q=${encodeURIComponent(q)}`,
+        { headers: { 'Accept-Language': 'es' } },
+      );
+      const data: NominatimResult[] = await res.json();
+      setResults(data);
+    } finally {
+      setSearching(false);
+    }
+  }, [query]);
+
+  const pick = (r: NominatimResult) => {
+    const la = parseFloat(r.lat);
+    const lo = parseFloat(r.lon);
+    onChange(la, lo);
+    setResults([]);
+    setQuery(r.display_name.split(',').slice(0, 2).join(', '));
+    setShowMap(true);
+  };
+
+  const hasPin = lat != null && lng != null;
+
+  return (
+    <div className="space-y-2">
+      {/* Search row */}
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && search()}
+          placeholder="Buscar dirección o lugar…"
+          className="input-dark text-xs flex-1"
+        />
+        <button
+          onClick={search}
+          disabled={searching}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+        >
+          {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {/* Results dropdown */}
+      {results.length > 0 && (
+        <div className="rounded-xl border border-gray-700 bg-gray-900 divide-y divide-gray-800 overflow-hidden">
+          {results.map((r, i) => (
+            <button
+              key={i}
+              onClick={() => pick(r)}
+              className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors"
+            >
+              <p className="text-[11px] text-gray-200 leading-snug line-clamp-2">{r.display_name}</p>
+              <p className="text-[10px] text-gray-600 mt-0.5 font-mono">
+                {parseFloat(r.lat).toFixed(5)}, {parseFloat(r.lon).toFixed(5)}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Coordinates display + map */}
+      {hasPin && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-mono text-gray-500">
+              {lat!.toFixed(6)}, {lng!.toFixed(6)}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowMap((v) => !v)}
+                className="text-[10px] text-blue-400 hover:underline"
+              >
+                {showMap ? 'Ocultar mapa' : 'Ver mapa'}
+              </button>
+              <a
+                href={`https://www.google.com/maps?q=${lat},${lng}`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-[10px] text-blue-400 hover:underline"
+              >
+                Google Maps ↗
+              </a>
+            </div>
+          </div>
+
+          {showMap && (
+            <div className="rounded-xl overflow-hidden border border-gray-700" style={{ height: 180 }}>
+              <iframe
+                title="Ubicación del desarrollo"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng! - 0.006},${lat! - 0.004},${lng! + 0.006},${lat! + 0.004}&layer=mapnik&marker=${lat},${lng}`}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

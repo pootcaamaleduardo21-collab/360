@@ -110,7 +110,9 @@ export interface Scene {
   nadirEnabled?: boolean;
   nadirLogoUrl?: string;
   nadirPatchColor?: string;   // Background fill color (default '#ffffff')
-  nadirPatchRadius?: number;  // Radius as fraction of image height (default 0.085)
+  nadirPatchRadius?: number;  // Angular radius fraction (default 0.085)
+  nadirYaw?: number;          // Horizontal patch center offset in degrees (default 0 = front)
+  nadirPitch?: number;        // Lift patch center up by N degrees from nadir (default 0)
   originalImageUrl?: string;  // Pre-patch URL — used to restore or re-apply with new settings
   initialYaw?: number;    // Starting camera direction
   initialPitch?: number;

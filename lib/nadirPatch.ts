@@ -1,39 +1,43 @@
 /**
- * Nadir Patch — Canvas API
+ * Nadir Patch — spherical polar projection
  *
- * An equirectangular image maps the sphere's south pole (nadir) to the
- * bottom-center strip: x ∈ [0, W], y ∈ [H * 0.85, H].
- *
- * We composite a circular logo there so the tripod/photographer is hidden.
+ * Uses pixel-by-pixel great-circle mapping so the logo renders as a
+ * perfect circle when viewed from inside the 360° sphere, correcting
+ * the teardrop distortion that a naive canvas arc() creates.
  */
 
 export interface NadirPatchOptions {
-  /** Equirectangular image as dataURL or HTMLImageElement */
   source: string | HTMLImageElement;
-  /** Logo image as dataURL or HTMLImageElement */
-  logo: string | HTMLImageElement;
+  logo:   string | HTMLImageElement;
   /**
-   * Radius of the patch as a fraction of image height (default 0.08 = 8%).
-   * A value of 0.08 on a 6000-px-tall image → 480 px radius circle.
+   * Angular half-radius of the patch expressed as a fraction of π.
+   * patch_angle_rad = radiusFraction * π
+   * default 0.08 → ~14.4° from nadir
    */
   radiusFraction?: number;
-  /** Fill color behind the logo (default '#ffffff') */
-  fillColor?: string;
-  /** Logo occupies this fraction of the circle diameter (default 0.65) */
-  logoScale?: number;
-  /** Output quality for JPEG (0–1, default 0.92) */
-  quality?: number;
-  /** Output format (default 'image/jpeg') */
-  format?: 'image/jpeg' | 'image/png' | 'image/webp';
+  fillColor?:  string;   // disc background (default '#ffffff')
+  logoScale?:  number;   // logo occupies this fraction of the disc diameter (default 0.65)
+  quality?:    number;   // JPEG quality 0–1 (default 0.92)
+  format?:    'image/jpeg' | 'image/png' | 'image/webp';
+  /**
+   * Horizontal rotation of the patch centre in degrees.
+   * 0° = same longitude as the image centre (front direction), ±180° = back.
+   */
+  nadirYaw?:   number;
+  /**
+   * Lift the patch centre up from the nadir by this many degrees.
+   * Use when the camera was slightly tilted and the tripod isn't perfectly
+   * at the very bottom of the image.
+   */
+  nadirPitch?: number;
 }
 
 export interface NadirPatchResult {
   dataUrl: string;
-  width: number;
-  height: number;
+  width:   number;
+  height:  number;
 }
 
-/** Load an image from a dataURL or remote URL. Always sets crossOrigin to avoid tainted-canvas errors. */
 function loadImage(src: string | HTMLImageElement): Promise<HTMLImageElement> {
   if (src instanceof HTMLImageElement && src.complete && src.naturalWidth > 0) {
     return Promise.resolve(src);
@@ -41,17 +45,57 @@ function loadImage(src: string | HTMLImageElement): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = src instanceof HTMLImageElement ? src : new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`No se pudo cargar la imagen: ${typeof src === 'string' ? src : 'elemento'}`));
+    img.onload  = () => resolve(img);
+    img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
     if (typeof src === 'string') img.src = src;
   });
 }
 
+const LOGO_RES = 512;
+
 /**
- * Apply a circular nadir patch to an equirectangular image.
- * Returns the composited image as a dataURL.
+ * Render the logo inside a circular disc at LOGO_RES × LOGO_RES.
+ * The logo is contained (aspect-ratio preserved) and the canvas is
+ * clipped to a circle so corners are transparent.
  */
-export async function applyNadirPatch(options: NadirPatchOptions): Promise<NadirPatchResult> {
+function buildLogoDisc(
+  logoImg:   HTMLImageElement,
+  fillColor: string,
+  logoScale: number,
+): ImageData {
+  const c   = document.createElement('canvas');
+  c.width   = LOGO_RES;
+  c.height  = LOGO_RES;
+  const ctx = c.getContext('2d')!;
+
+  // Filled circle
+  ctx.beginPath();
+  ctx.arc(LOGO_RES / 2, LOGO_RES / 2, LOGO_RES / 2, 0, Math.PI * 2);
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // Logo — contain fit
+  const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
+  const maxDim = LOGO_RES * logoScale;
+  const lw = aspect >= 1 ? maxDim : maxDim * aspect;
+  const lh = aspect >= 1 ? maxDim / aspect : maxDim;
+  ctx.drawImage(logoImg, (LOGO_RES - lw) / 2, (LOGO_RES - lh) / 2, lw, lh);
+
+  // Clip to circle
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.beginPath();
+  ctx.arc(LOGO_RES / 2, LOGO_RES / 2, LOGO_RES / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  return ctx.getImageData(0, 0, LOGO_RES, LOGO_RES);
+}
+
+/**
+ * Apply a nadir patch with proper spherical polar projection.
+ * The result looks like a perfect circular disc in any 360° viewer.
+ */
+export async function applyNadirPatch(opts: NadirPatchOptions): Promise<NadirPatchResult> {
   const {
     source,
     logo,
@@ -60,81 +104,98 @@ export async function applyNadirPatch(options: NadirPatchOptions): Promise<Nadir
     logoScale      = 0.65,
     quality        = 0.92,
     format         = 'image/jpeg',
-  } = options;
+    nadirYaw       = 0,
+    nadirPitch     = 0,
+  } = opts;
 
-  const [baseImg, logoImg] = await Promise.all([
-    loadImage(source),
-    loadImage(logo),
-  ]);
+  const [baseImg, logoImg] = await Promise.all([loadImage(source), loadImage(logo)]);
 
   const W = baseImg.naturalWidth;
   const H = baseImg.naturalHeight;
 
-  const canvas = document.createElement('canvas');
+  const canvas  = document.createElement('canvas');
   canvas.width  = W;
   canvas.height = H;
-
   const ctx = canvas.getContext('2d')!;
-
-  // 1. Draw the equirectangular base image
   ctx.drawImage(baseImg, 0, 0, W, H);
 
-  // 2. Compute patch geometry
-  //    Nadir (south pole) in equirectangular is at (W/2, H) — the very bottom edge.
-  //    Centering the patch at (W/2, H) means only the top half of the circle sits
-  //    within the canvas, but the spherical renderer renders it as a full disc when
-  //    the viewer looks straight down. This is the standard nadir-patch placement.
-  const cx      = W / 2;
-  const patchCy = H;          // true south-pole center
-  const r       = H * radiusFraction;
+  const basePixels = ctx.getImageData(0, 0, W, H);
+  const outPixels  = new ImageData(new Uint8ClampedArray(basePixels.data), W, H);
 
-  // 3. Draw a soft-edged circular background
-  const gradient = ctx.createRadialGradient(cx, patchCy, r * 0.4, cx, patchCy, r);
-  gradient.addColorStop(0,   fillColor + 'ff');
-  gradient.addColorStop(0.7, fillColor + 'ee');
-  gradient.addColorStop(1,   fillColor + '00');
+  const logoData = buildLogoDisc(logoImg, fillColor, logoScale);
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, patchCy, r, 0, Math.PI * 2);
-  ctx.fillStyle = gradient;
-  ctx.fill();
-  ctx.restore();
+  // ── Patch centre in spherical coords ──────────────────────────────────────
+  const phi0   = nadirYaw   * (Math.PI / 180);           // longitude of centre
+  const theta0 = -Math.PI / 2 + nadirPitch * (Math.PI / 180); // latitude of centre
+  const sinT0  = Math.sin(theta0);
+  const cosT0  = Math.cos(theta0);
+  const isNadir = Math.abs(cosT0) < 1e-9; // true when pitch ≈ 0
 
-  // 4. Draw the logo centered inside the visible portion of the patch.
-  //    The visible semicircle spans from (patchCy - r) to patchCy, so its
-  //    visual center is at patchCy - r/2.
-  //    Preserve the logo's natural aspect ratio (contain fit inside the circle).
-  const logoCy      = patchCy - r * 0.5;
-  const maxLogoSize = r * 2 * logoScale;
-  const logoAspect  = logoImg.naturalWidth / logoImg.naturalHeight;
-  let logoW: number, logoH: number;
-  if (logoAspect >= 1) {
-    logoW = maxLogoSize;
-    logoH = maxLogoSize / logoAspect;
-  } else {
-    logoH = maxLogoSize;
-    logoW = maxLogoSize * logoAspect;
+  const maxBeta = Math.PI * radiusFraction; // angular radius (radians)
+  const cosBetaMin = Math.cos(maxBeta);
+
+  // ── Per-column lookup tables (sin/cos of longitude difference) ───────────
+  const sinDPhi = new Float64Array(W);
+  const cosDPhi = new Float64Array(W);
+  for (let x = 0; x < W; x++) {
+    const dPhi   = 2 * Math.PI * x / W - Math.PI - phi0;
+    sinDPhi[x]   = Math.sin(dPhi);
+    cosDPhi[x]   = Math.cos(dPhi);
   }
-  const logoX = cx      - logoW / 2;
-  const logoY = logoCy  - logoH / 2;
 
-  // Clip to circle while drawing logo
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, patchCy, r * 0.88, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
-  ctx.restore();
+  // Only scan the strip where the patch can possibly fall
+  const stripTop = Math.max(0, Math.floor(H * (1 - radiusFraction * 1.6)));
 
-  // 5. Stroke a subtle border ring
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, patchCy, r, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth   = 2;
-  ctx.stroke();
-  ctx.restore();
+  for (let y = stripTop; y < H; y++) {
+    // Latitude of this row
+    const theta = Math.PI / 2 - Math.PI * y / H;
+    const sinT  = Math.sin(theta);
+    const cosT  = Math.cos(theta);
+
+    for (let x = 0; x < W; x++) {
+      // Great-circle distance from patch centre
+      const cosBeta   = sinT * sinT0 + cosT * cosT0 * cosDPhi[x];
+      if (cosBeta < cosBetaMin) continue;           // outside patch
+
+      const beta   = Math.acos(Math.min(1, cosBeta));
+      const r_norm = beta / maxBeta;                // 0 at centre, 1 at edge
+
+      // Feather the outer 20 % of the radius
+      const blendAlpha = r_norm < 0.80 ? 1.0 : (1.0 - r_norm) / 0.20;
+
+      // Azimuth from patch centre → logo pixel direction
+      let psi: number;
+      const sinBeta = Math.sin(beta);
+      if (sinBeta < 1e-9) {
+        psi = 0;
+      } else if (isNadir) {
+        // Simplified: azimuth = longitude difference
+        psi = Math.atan2(sinDPhi[x], cosDPhi[x]);
+      } else {
+        psi = Math.atan2(
+          cosT * sinDPhi[x],
+          (sinT - sinT0 * cosBeta) / cosT0,
+        );
+      }
+
+      // Polar → logo pixel
+      const logoU = (0.5 + 0.5 * r_norm * Math.cos(psi)) * (LOGO_RES - 1);
+      const logoV = (0.5 + 0.5 * r_norm * Math.sin(psi)) * (LOGO_RES - 1);
+      const lx    = Math.max(0, Math.min(LOGO_RES - 1, Math.round(logoU)));
+      const ly    = Math.max(0, Math.min(LOGO_RES - 1, Math.round(logoV)));
+
+      const li  = (ly * LOGO_RES + lx) * 4;
+      const bi  = (y  * W        + x)  * 4;
+      const inv = 1 - blendAlpha;
+
+      outPixels.data[bi]     = (basePixels.data[bi]     * inv + logoData.data[li]     * blendAlpha) | 0;
+      outPixels.data[bi + 1] = (basePixels.data[bi + 1] * inv + logoData.data[li + 1] * blendAlpha) | 0;
+      outPixels.data[bi + 2] = (basePixels.data[bi + 2] * inv + logoData.data[li + 2] * blendAlpha) | 0;
+      outPixels.data[bi + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(outPixels, 0, 0);
 
   return {
     dataUrl: canvas.toDataURL(format, quality),
@@ -144,33 +205,35 @@ export async function applyNadirPatch(options: NadirPatchOptions): Promise<Nadir
 }
 
 /**
- * Remove an existing nadir patch by restoring the bottom-center area
- * with a simple black fill (useful when switching logos).
- * Note: this is destructive — the original tripod area won't be recovered.
+ * Fill the nadir cap with black (destructive — original area not recoverable).
  */
 export async function clearNadirArea(
-  source: string | HTMLImageElement,
-  radiusFraction = 0.08
+  source:         string | HTMLImageElement,
+  radiusFraction = 0.08,
 ): Promise<string> {
   const img = await loadImage(source);
-  const W = img.naturalWidth;
-  const H = img.naturalHeight;
-  const canvas = document.createElement('canvas');
+  const W   = img.naturalWidth;
+  const H   = img.naturalHeight;
+  const canvas  = document.createElement('canvas');
   canvas.width  = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(img, 0, 0, W, H);
 
-  const r  = H * radiusFraction;
-  const cx = W / 2;
-  const cy = H - r * 0.4;
+  const maxBeta  = Math.PI * radiusFraction;
+  const data     = ctx.getImageData(0, 0, W, H);
+  const stripTop = Math.max(0, Math.floor(H * (1 - radiusFraction * 1.6)));
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#000000';
-  ctx.fill();
-  ctx.restore();
+  for (let y = stripTop; y < H; y++) {
+    const beta = Math.PI * (H - y) / H;
+    if (beta > maxBeta) continue;
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      data.data[i] = data.data[i + 1] = data.data[i + 2] = 0;
+      data.data[i + 3] = 255;
+    }
+  }
 
+  ctx.putImageData(data, 0, 0);
   return canvas.toDataURL('image/jpeg', 0.92);
 }

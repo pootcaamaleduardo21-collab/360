@@ -69,6 +69,8 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
     !!scene.nadirPatchColor && !PATCH_COLORS.slice(0, -1).some((c) => c.value === scene.nadirPatchColor)
   );
   const [patchRadius,  setPatchRadius]  = useState(scene.nadirPatchRadius ?? 0.090);
+  const [nadirYaw,     setNadirYaw]     = useState(scene.nadirYaw   ?? 0);
+  const [nadirPitch,   setNadirPitch]   = useState(scene.nadirPitch ?? 0);
   const [applyToAll,   setApplyToAll]   = useState(false);
   const [allProgress,  setAllProgress]  = useState<{ current: number; total: number } | null>(null);
 
@@ -77,6 +79,8 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
     setLogoPreview(scene.nadirLogoUrl ?? null);
     setPatchColor(scene.nadirPatchColor ?? '#ffffff');
     setPatchRadius(scene.nadirPatchRadius ?? 0.090);
+    setNadirYaw(scene.nadirYaw   ?? 0);
+    setNadirPitch(scene.nadirPitch ?? 0);
     setNadirStatus('idle');
     setNadirError(null);
   }, [scene.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -152,6 +156,8 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
         radiusFraction: patchRadius,
         fillColor:      effectiveColor,
         logoScale:      0.60,
+        nadirYaw,
+        nadirPitch,
       });
 
       let patchedImageUrl: string;
@@ -169,10 +175,12 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
         nadirLogoUrl:     logoUrl,
         nadirPatchColor:  effectiveColor,
         nadirPatchRadius: patchRadius,
+        nadirYaw,
+        nadirPitch,
         originalImageUrl: sourceUrl,
       });
     },
-    [patchRadius, effectiveColor, tour, updateScene]
+    [patchRadius, effectiveColor, nadirYaw, nadirPitch, tour, updateScene]
   );
 
   // ── File upload handler ────────────────────────────────────────────────────
@@ -425,6 +433,46 @@ export function RetouchPanel({ scene }: RetouchPanelProps) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* ── Position offset ────────────────────────────────────────── */}
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">Ajuste de posición</p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-gray-500">
+              <span>Horizontal (rotación)</span>
+              <span className="font-mono">{nadirYaw > 0 ? `+${nadirYaw}` : nadirYaw}°</span>
+            </div>
+            <input
+              type="range" min={-180} max={180} step={1}
+              value={nadirYaw}
+              onChange={(e) => setNadirYaw(Number(e.target.value))}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-700
+                         [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
+                         [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
+                         [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow"
+              style={{ background: `linear-gradient(to right, #3b82f6 ${((nadirYaw+180)/360)*100}%, #374151 ${((nadirYaw+180)/360)*100}%)` }}
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-gray-500">
+              <span>Vertical (elevar desde nadir)</span>
+              <span className="font-mono">{nadirPitch}°</span>
+            </div>
+            <input
+              type="range" min={0} max={20} step={0.5}
+              value={nadirPitch}
+              onChange={(e) => setNadirPitch(Number(e.target.value))}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-700
+                         [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5
+                         [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full
+                         [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow"
+              style={{ background: `linear-gradient(to right, #3b82f6 ${(nadirPitch/20)*100}%, #374151 ${(nadirPitch/20)*100}%)` }}
+            />
+          </div>
+          <p className="text-[10px] text-gray-600 leading-snug">
+            Ajusta si el trípode no aparece exactamente al centro del nadir. Cambia los valores y presiona ↺ para reaplicar.
+          </p>
         </div>
 
         {/* ── Apply to all scenes toggle ──────────────────────────────── */}
