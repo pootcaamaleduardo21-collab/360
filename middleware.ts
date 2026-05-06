@@ -27,8 +27,11 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Refresh session if expired — required for Server Components
-  const { data: { user } } = await supabase.auth.getUser();
+  // Read session from cookie — no network round-trip.
+  // getUser() would validate against Supabase servers on every request; for redirect-only
+  // middleware this is unnecessary. Real authz happens via RLS on the DB.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
   const isAuthPage  = AUTH_PATHS.some((p) => pathname.startsWith(p));

@@ -55,9 +55,15 @@ export default function DashboardPage() {
   const [viewMode,         setViewMode]         = useState<'grid' | 'list'>('grid');
   const [deleteId,         setDeleteId]         = useState<string | null>(null);
   const [activeTab,        setActiveTab]        = useState<DashTab>('tours');
+  const [mountedTabs,      setMountedTabs]      = useState<Set<DashTab>>(new Set(['tours']));
   const [menuOpen,         setMenuOpen]         = useState(false);
   const [notifOpen,        setNotifOpen]        = useState(false);
   const [onboardingDone,   setOnboardingDone]   = useState(false);
+
+  const switchTab = useCallback((tab: DashTab) => {
+    setActiveTab(tab);
+    setMountedTabs((prev) => { const s = new Set(prev); s.add(tab); return s; });
+  }, []);
 
   const fetchTours = useCallback(async () => {
     try {
@@ -71,10 +77,17 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Start fetching tours immediately — middleware already guarantees the user
+  // is authenticated before reaching /dashboard, so we don't need to wait for
+  // authLoading to resolve. Eliminates the auth→fetch waterfall.
   useEffect(() => {
-    if (!authLoading && user) fetchTours();
+    fetchTours();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Redirect unauthenticated users (fallback in case middleware is bypassed)
+  useEffect(() => {
     if (!authLoading && !user) router.push('/auth/login');
-  }, [authLoading, user, fetchTours, router]);
+  }, [authLoading, user, router]);
 
   const handleNewTour = () => {
     initTour('Nuevo tour');
@@ -139,7 +152,7 @@ export default function DashboardPage() {
               {roleTabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => switchTab(tab.id)}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors',
                     activeTab === tab.id
@@ -259,29 +272,36 @@ export default function DashboardPage() {
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
-        {/* ── CRM tab ─────────────────────────────────────────────────── */}
-        {activeTab === 'crm' && (
-          <CRMPanel />
+        {/* ── Tabs: mount-once, hide with CSS to preserve state + avoid re-fetches ── */}
+
+        {mountedTabs.has('crm') && (
+          <div className={cn(activeTab !== 'crm' && 'hidden')}>
+            <CRMPanel />
+          </div>
         )}
 
-        {/* ── ANALYTICS tab ───────────────────────────────────────────── */}
-        {activeTab === 'analytics' && (
-          <AnalyticsOverview initialTours={tours} toursLoading={isLoading} />
+        {mountedTabs.has('analytics') && (
+          <div className={cn(activeTab !== 'analytics' && 'hidden')}>
+            <AnalyticsOverview initialTours={tours} toursLoading={isLoading} />
+          </div>
         )}
 
-        {/* ── PLATFORM tab (super admin) ──────────────────────────────── */}
-        {activeTab === 'platform' && role === 'super_admin' && (
-          <SuperAdminView />
+        {mountedTabs.has('platform') && role === 'super_admin' && (
+          <div className={cn(activeTab !== 'platform' && 'hidden')}>
+            <SuperAdminView />
+          </div>
         )}
 
-        {/* ── LEADS tab ───────────────────────────────────────────────── */}
-        {activeTab === 'leads' && (
-          <LeadsPanel initialTours={tours.map((t) => ({ id: t.id, title: t.title }))} />
+        {mountedTabs.has('leads') && (
+          <div className={cn(activeTab !== 'leads' && 'hidden')}>
+            <LeadsPanel initialTours={tours.map((t) => ({ id: t.id, title: t.title }))} />
+          </div>
         )}
 
-        {/* ── TEAM tab ────────────────────────────────────────────────── */}
-        {activeTab === 'team' && (
-          <TeamPanel />
+        {mountedTabs.has('team') && (
+          <div className={cn(activeTab !== 'team' && 'hidden')}>
+            <TeamPanel />
+          </div>
         )}
 
         {/* ── TOURS tab ───────────────────────────────────────────────── */}
