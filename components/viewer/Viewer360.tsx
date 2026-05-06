@@ -229,17 +229,7 @@ export function Viewer360({
         />
       )}
 
-      {/* Nadir patch (logo over tripod) */}
-      {currentScene.nadirEnabled && currentScene.nadirLogoUrl && (
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/3 w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl pointer-events-none">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={currentScene.nadirLogoUrl}
-            alt="Logo"
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
+      {/* Nadir patch is baked into the equirectangular image — no extra overlay needed */}
 
       {/* Loading spinner */}
       {isLoading && (

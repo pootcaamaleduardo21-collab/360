@@ -98,6 +98,9 @@ export function HotspotMarker({
   const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onClick(hotspot); };
   const cursor = isEditing ? (isSelected ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer') : 'cursor-pointer';
 
+  // Drop-shadow filter applied to the whole marker so it floats above any background
+  const markerShadow = 'drop-shadow(0 4px 12px rgba(0,0,0,0.55)) drop-shadow(0 1px 3px rgba(0,0,0,0.8))';
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!isEditing || !isSelected || !onDragStart) return;
     e.stopPropagation(); e.preventDefault();
@@ -123,7 +126,7 @@ export function HotspotMarker({
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
-        style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+        style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
         onClick={handleClick}
         onPointerDown={handlePointerDown}
         aria-label={hotspot.label}
@@ -158,13 +161,14 @@ export function HotspotMarker({
         {!hotspot.noIcon && (
           <div className="absolute flex flex-col items-center gap-1 pointer-events-none"
             style={{ bottom: '50%', left: '50%', transform: 'translate(-50%, -14px)' }}>
-            <div className={cn('flex items-center justify-center rounded-full shadow-lg border border-white/20', sz.floorBubble)}
-              style={{ backgroundColor: color }}>
+            <div className={cn('flex items-center justify-center rounded-full border border-white/30', sz.floorBubble)}
+              style={{ backgroundColor: color, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)' }}>
               <ResolvedIcon className={cn(sz.floorIcon, 'text-white')} strokeWidth={2.5} />
             </div>
             {showLbl !== 'never' && (
-              <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow',
-                showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
+              <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-gray-950/85 text-white border border-white/10',
+                showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}
+                style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
                 {hotspot.label}
               </span>
             )}
@@ -175,8 +179,9 @@ export function HotspotMarker({
         {hotspot.noIcon && showLbl !== 'never' && (
           <div className="absolute flex flex-col items-center pointer-events-none"
             style={{ bottom: '50%', left: '50%', transform: 'translate(-50%, -8px)' }}>
-            <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow',
-              showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
+            <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-gray-950/85 text-white border border-white/10',
+              showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}
+              style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
               {hotspot.label}
             </span>
           </div>
@@ -190,7 +195,7 @@ export function HotspotMarker({
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
-        style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+        style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
         onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
       >
         {EditOverlay}
@@ -219,7 +224,7 @@ export function HotspotMarker({
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
-        style={{ left: x, top: y, transform: 'translate(-50%, -100%)' }}
+        style={{ left: x, top: y, transform: 'translate(-50%, -100%)', filter: markerShadow }}
         onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
       >
         {EditOverlay}
@@ -241,7 +246,7 @@ export function HotspotMarker({
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1.5', cursor)}
-        style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+        style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
         onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
       >
         {EditOverlay}
@@ -268,7 +273,7 @@ export function HotspotMarker({
   return (
     <button
       className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1', cursor)}
-      style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+      style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
       onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label} title={hotspot.label}
     >
       {EditOverlay}
@@ -280,14 +285,21 @@ export function HotspotMarker({
         <span className="absolute inline-flex h-12 w-12 rounded-full animate-pulse pointer-events-none"
           style={{ backgroundColor: `${ringColor}30` }} />
       )}
-      <span className={cn('relative flex items-center justify-center rounded-full border-2 shadow-lg transition-all duration-200', sz.bubble,
+      <span className={cn('relative flex items-center justify-center rounded-full border-2 transition-all duration-200', sz.bubble,
         isSelected && 'ring-4 ring-white ring-offset-1 ring-offset-black/40 scale-110')}
-        style={{ backgroundColor: color, borderColor: `${ringColor}80`, boxShadow: anim === 'glow' ? `0 0 14px 5px ${color}70` : undefined }}>
+        style={{
+          backgroundColor: color,
+          borderColor: `${ringColor}80`,
+          boxShadow: anim === 'glow'
+            ? `0 0 14px 5px ${color}70, inset 0 1px 0 rgba(255,255,255,0.35)`
+            : 'inset 0 1px 0 rgba(255,255,255,0.35)',
+        }}>
         {showIcon && <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />}
       </span>
       {showLbl !== 'never' && (
-        <span className={cn('px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-black/70 text-white backdrop-blur-sm pointer-events-none select-none',
-          showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
+        <span className={cn('px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap bg-gray-950/85 text-white backdrop-blur-sm pointer-events-none select-none border border-white/10',
+          showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}
+          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
           {hotspot.label}
         </span>
       )}
