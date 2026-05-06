@@ -149,9 +149,9 @@ export function HotspotMarker({
           )}
           {/* Main ring */}
           <div className={cn('absolute rounded-full', isSelected && 'ring-4 ring-white/60')}
-            style={{ width: 44, height: 44, top: -22, left: -22, border: `3px solid ${color}`, backgroundColor: `${color}25` }} />
+            style={{ width: sz.ringInner, height: sz.ringInner, top: -sz.ringInner/2, left: -sz.ringInner/2, border: `3px solid ${color}`, backgroundColor: `${color}25` }} />
           {/* Center dot */}
-          <div className="absolute rounded-full" style={{ width: 10, height: 10, top: -5, left: -5, backgroundColor: color }} />
+          <div className="absolute rounded-full" style={{ width: sz.ringInner * 0.23, height: sz.ringInner * 0.23, top: -sz.ringInner * 0.115, left: -sz.ringInner * 0.115, backgroundColor: color }} />
         </div>
 
         {/* Icon bubble + label above — only when noIcon is false */}

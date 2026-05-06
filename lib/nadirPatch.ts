@@ -80,20 +80,19 @@ export async function applyNadirPatch(options: NadirPatchOptions): Promise<Nadir
   ctx.drawImage(baseImg, 0, 0, W, H);
 
   // 2. Compute patch geometry
-  //    Nadir center in equirectangular: (W/2, H) — very bottom center
-  const cx = W / 2;
-  const cy = H;               // nadir is at y = H (bottom edge)
-  const r  = H * radiusFraction;
+  //    Nadir (south pole) in equirectangular is at (W/2, H) — the very bottom edge.
+  //    Centering the patch at (W/2, H) means only the top half of the circle sits
+  //    within the canvas, but the spherical renderer renders it as a full disc when
+  //    the viewer looks straight down. This is the standard nadir-patch placement.
+  const cx      = W / 2;
+  const patchCy = H;          // true south-pole center
+  const r       = H * radiusFraction;
 
   // 3. Draw a soft-edged circular background
-  //    We position the circle so its center sits at cy - r (the patch sits above the bottom edge)
-  const patchCy = cy - r * 0.4; // slight offset so patch bleeds into bottom
-
-  // Radial gradient for a soft edge
-  const gradient = ctx.createRadialGradient(cx, patchCy, r * 0.6, cx, patchCy, r);
-  gradient.addColorStop(0, fillColor + 'ff');
+  const gradient = ctx.createRadialGradient(cx, patchCy, r * 0.4, cx, patchCy, r);
+  gradient.addColorStop(0,   fillColor + 'ff');
   gradient.addColorStop(0.7, fillColor + 'ee');
-  gradient.addColorStop(1, fillColor + '00');
+  gradient.addColorStop(1,   fillColor + '00');
 
   ctx.save();
   ctx.beginPath();
@@ -102,17 +101,30 @@ export async function applyNadirPatch(options: NadirPatchOptions): Promise<Nadir
   ctx.fill();
   ctx.restore();
 
-  // 4. Draw the logo centered inside the patch
-  const logoSize = r * 2 * logoScale;
-  const logoX    = cx - logoSize / 2;
-  const logoY    = patchCy - logoSize / 2;
+  // 4. Draw the logo centered inside the visible portion of the patch.
+  //    The visible semicircle spans from (patchCy - r) to patchCy, so its
+  //    visual center is at patchCy - r/2.
+  //    Preserve the logo's natural aspect ratio (contain fit inside the circle).
+  const logoCy      = patchCy - r * 0.5;
+  const maxLogoSize = r * 2 * logoScale;
+  const logoAspect  = logoImg.naturalWidth / logoImg.naturalHeight;
+  let logoW: number, logoH: number;
+  if (logoAspect >= 1) {
+    logoW = maxLogoSize;
+    logoH = maxLogoSize / logoAspect;
+  } else {
+    logoH = maxLogoSize;
+    logoW = maxLogoSize * logoAspect;
+  }
+  const logoX = cx      - logoW / 2;
+  const logoY = logoCy  - logoH / 2;
 
-  // Clip to a circle while drawing the logo
+  // Clip to circle while drawing logo
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, patchCy, r * 0.85, 0, Math.PI * 2);
+  ctx.arc(cx, patchCy, r * 0.88, 0, Math.PI * 2);
   ctx.clip();
-  ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+  ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
   ctx.restore();
 
   // 5. Stroke a subtle border ring
