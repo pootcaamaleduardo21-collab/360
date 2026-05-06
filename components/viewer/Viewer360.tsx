@@ -27,6 +27,7 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
+  MapPin,
 } from 'lucide-react';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -357,6 +358,23 @@ export function Viewer360({
             onClick={onOpenMediaGallery}
           />
         </div>
+      )}
+
+      {/* Property location button (bottom-left, above lead capture) */}
+      {!isEditing && !isComparisonPanel && tour.propertyLat && tour.propertyLng && (
+        <a
+          href={`https://www.google.com/maps?q=${tour.propertyLat},${tour.propertyLng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            'absolute left-4 z-20 flex items-center gap-2 px-3.5 py-2 text-white font-medium rounded-xl shadow-lg transition-opacity hover:opacity-90 backdrop-blur-sm border border-white/15',
+            onOpenLeadCapture ? 'bottom-[72px]' : 'bottom-4',
+          )}
+          style={{ background: 'rgba(0,0,0,0.62)' }}
+        >
+          <MapPin className="w-4 h-4 text-blue-300" />
+          <span className="text-sm">Ver ubicación</span>
+        </a>
       )}
 
       {/* Lead capture button (bottom-left) */}

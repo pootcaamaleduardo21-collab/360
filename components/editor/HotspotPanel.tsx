@@ -688,38 +688,23 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
         </div>
       </Field>
 
-      {/* Coordinates (collapsed) */}
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Latitud">
-          <input
-            type="number"
-            value={selected.mapLat ?? ''}
-            onChange={(e) => update({ mapLat: e.target.value ? Number(e.target.value) : undefined })}
-            className="input-dark text-xs"
-            placeholder="19.4326"
-            step="any"
-          />
-        </Field>
-        <Field label="Longitud">
-          <input
-            type="number"
-            value={selected.mapLng ?? ''}
-            onChange={(e) => update({ mapLng: e.target.value ? Number(e.target.value) : undefined })}
-            className="input-dark text-xs"
-            placeholder="-99.1332"
-            step="any"
-          />
-        </Field>
-      </div>
-
-      {/* Mini map preview */}
+      {/* Map preview — appears once a location is selected */}
       {hasDest && (
-        <div className="rounded-xl overflow-hidden border border-gray-700 h-32">
-          <iframe
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${selected.mapLng! - 0.008},${selected.mapLat! - 0.006},${selected.mapLng! + 0.008},${selected.mapLat! + 0.006}&layer=mapnik&marker=${selected.mapLat},${selected.mapLng}`}
-            className="w-full h-full border-0"
-            title="Vista previa del mapa"
-          />
+        <div className="space-y-1.5">
+          <div className="rounded-xl overflow-hidden border border-gray-700" style={{ height: 140 }}>
+            <iframe
+              src={`https://www.openstreetmap.org/export/embed.html?bbox=${selected.mapLng! - 0.008},${selected.mapLat! - 0.006},${selected.mapLng! + 0.008},${selected.mapLat! + 0.006}&layer=mapnik&marker=${selected.mapLat},${selected.mapLng}`}
+              className="w-full h-full border-0"
+              title="Vista previa del mapa"
+            />
+          </div>
+          <a
+            href={`https://www.google.com/maps?q=${selected.mapLat},${selected.mapLng}`}
+            target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
+          >
+            <MapPin className="w-3 h-3" /> Verificar en Google Maps ↗
+          </a>
         </div>
       )}
 

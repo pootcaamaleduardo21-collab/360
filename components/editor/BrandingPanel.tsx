@@ -505,21 +505,23 @@ function LocationPicker({
   const [query,     setQuery]     = useState('');
   const [results,   setResults]   = useState<NominatimResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [showMap,   setShowMap]   = useState(!!lat && !!lng);
+  const [placeName, setPlaceName] = useState<string | null>(null);
+  const [editing,   setEditing]   = useState(!lat || !lng);
   const lastCall = useRef(0);
+
+  const hasPin = lat != null && lng != null;
 
   const search = useCallback(async () => {
     const q = query.trim();
     if (!q) return;
-    const now = Date.now();
-    // Nominatim rate limit: 1 req/s
+    const now  = Date.now();
     const wait = Math.max(0, 1000 - (now - lastCall.current));
-    await new Promise((r) => setTimeout(r, wait));
+    if (wait) await new Promise((r) => setTimeout(r, wait));
     lastCall.current = Date.now();
     setSearching(true);
     try {
       const res  = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=4&q=${encodeURIComponent(q)}`,
+        `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`,
         { headers: { 'Accept-Language': 'es' } },
       );
       const data: NominatimResult[] = await res.json();
@@ -530,90 +532,103 @@ function LocationPicker({
   }, [query]);
 
   const pick = (r: NominatimResult) => {
-    const la = parseFloat(r.lat);
-    const lo = parseFloat(r.lon);
-    onChange(la, lo);
+    onChange(parseFloat(r.lat), parseFloat(r.lon));
+    setPlaceName(r.display_name.split(',').slice(0, 2).join(', '));
     setResults([]);
-    setQuery(r.display_name.split(',').slice(0, 2).join(', '));
-    setShowMap(true);
+    setQuery('');
+    setEditing(false);
   };
 
-  const hasPin = lat != null && lng != null;
+  // ── Confirmed view ──────────────────────────────────────────────────────────
+  if (hasPin && !editing) {
+    return (
+      <div className="space-y-2">
+        {/* Confirmed card */}
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/40">
+          <div className="w-8 h-8 rounded-full bg-emerald-700/25 flex items-center justify-center flex-shrink-0">
+            <MapPin className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-emerald-300 leading-snug line-clamp-2">
+              {placeName ?? 'Ubicación guardada'}
+            </p>
+            <button
+              onClick={() => { setEditing(true); setResults([]); }}
+              className="text-[10px] text-gray-500 hover:text-gray-300 mt-0.5 transition-colors"
+            >
+              Cambiar ubicación
+            </button>
+          </div>
+          <a
+            href={`https://www.google.com/maps?q=${lat},${lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 px-2.5 py-1 text-[11px] font-medium bg-blue-600/20 border border-blue-600/30 text-blue-400 rounded-lg hover:bg-blue-600/35 transition-colors"
+          >
+            Ver ↗
+          </a>
+        </div>
 
+        {/* Map preview */}
+        <div className="rounded-xl overflow-hidden border border-gray-700/60" style={{ height: 170 }}>
+          <iframe
+            title="Ubicación del desarrollo"
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng! - 0.006},${lat! - 0.004},${lng! + 0.006},${lat! + 0.004}&layer=mapnik&marker=${lat},${lng}`}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Search mode ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-2">
-      {/* Search row */}
       <div className="flex gap-1.5">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && search()}
-          placeholder="Buscar dirección o lugar…"
+          placeholder="Ej: Torre Mayor, Playa del Carmen, Col. Polanco…"
           className="input-dark text-xs flex-1"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus={editing && hasPin}
         />
         <button
           onClick={search}
           disabled={searching}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-50 transition-colors"
         >
-          {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+          {searching
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <Search  className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* Results dropdown */}
+      {hasPin && (
+        <button
+          onClick={() => setEditing(false)}
+          className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+        >
+          ← Cancelar
+        </button>
+      )}
+
       {results.length > 0 && (
-        <div className="rounded-xl border border-gray-700 bg-gray-900 divide-y divide-gray-800 overflow-hidden">
+        <div className="rounded-xl border border-gray-700 bg-gray-900/95 divide-y divide-gray-800 overflow-hidden shadow-xl">
           {results.map((r, i) => (
             <button
               key={i}
               onClick={() => pick(r)}
-              className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors"
+              className="w-full text-left px-3 py-2.5 hover:bg-gray-800 transition-colors flex items-start gap-2"
             >
+              <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
               <p className="text-[11px] text-gray-200 leading-snug line-clamp-2">{r.display_name}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5 font-mono">
-                {parseFloat(r.lat).toFixed(5)}, {parseFloat(r.lon).toFixed(5)}
-              </p>
             </button>
           ))}
-        </div>
-      )}
-
-      {/* Coordinates display + map */}
-      {hasPin && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-mono text-gray-500">
-              {lat!.toFixed(6)}, {lng!.toFixed(6)}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowMap((v) => !v)}
-                className="text-[10px] text-blue-400 hover:underline"
-              >
-                {showMap ? 'Ocultar mapa' : 'Ver mapa'}
-              </button>
-              <a
-                href={`https://www.google.com/maps?q=${lat},${lng}`}
-                target="_blank" rel="noopener noreferrer"
-                className="text-[10px] text-blue-400 hover:underline"
-              >
-                Google Maps ↗
-              </a>
-            </div>
-          </div>
-
-          {showMap && (
-            <div className="rounded-xl overflow-hidden border border-gray-700" style={{ height: 180 }}>
-              <iframe
-                title="Ubicación del desarrollo"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng! - 0.006},${lat! - 0.004},${lng! + 0.006},${lat! + 0.004}&layer=mapnik&marker=${lat},${lng}`}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>
