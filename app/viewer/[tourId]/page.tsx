@@ -7,17 +7,18 @@ import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { getTourById, getTourBySlug } from '@/lib/db';
 import { trackEvent } from '@/lib/analytics';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { InventoryOverlay } from '@/components/viewer/InventoryOverlay';
-import { CartPanel } from '@/components/viewer/CartPanel';
-import { UnitDetailModal } from '@/components/viewer/UnitDetailModal';
-import { SalesPanel } from '@/components/viewer/SalesPanel';
-import { PasswordGate } from '@/components/viewer/PasswordGate';
-import { BookingModal } from '@/components/viewer/BookingModal';
-import { LeadCaptureModal } from '@/components/viewer/LeadCaptureModal';
-import { ComparisonViewer } from '@/components/viewer/ComparisonViewer';
-import { MediaGallery } from '@/components/viewer/MediaGallery';
-import { AIAssistant } from '@/components/viewer/AIAssistant';
-import { LangSwitcher } from '@/components/viewer/LangSwitcher';
+// Lazy-load all non-critical viewer panels so they don't bloat the initial bundle
+const InventoryOverlay  = dynamic(() => import('@/components/viewer/InventoryOverlay').then(m => m.InventoryOverlay),  { ssr: false });
+const CartPanel         = dynamic(() => import('@/components/viewer/CartPanel').then(m => m.CartPanel),                { ssr: false });
+const UnitDetailModal   = dynamic(() => import('@/components/viewer/UnitDetailModal').then(m => m.UnitDetailModal),    { ssr: false });
+const SalesPanel        = dynamic(() => import('@/components/viewer/SalesPanel').then(m => m.SalesPanel),              { ssr: false });
+const PasswordGate      = dynamic(() => import('@/components/viewer/PasswordGate').then(m => m.PasswordGate),          { ssr: false });
+const BookingModal      = dynamic(() => import('@/components/viewer/BookingModal').then(m => m.BookingModal),           { ssr: false });
+const LeadCaptureModal  = dynamic(() => import('@/components/viewer/LeadCaptureModal').then(m => m.LeadCaptureModal),  { ssr: false });
+const ComparisonViewer  = dynamic(() => import('@/components/viewer/ComparisonViewer').then(m => m.ComparisonViewer),  { ssr: false });
+const MediaGallery      = dynamic(() => import('@/components/viewer/MediaGallery').then(m => m.MediaGallery),          { ssr: false });
+const AIAssistant       = dynamic(() => import('@/components/viewer/AIAssistant').then(m => m.AIAssistant),            { ssr: false });
+const LangSwitcher      = dynamic(() => import('@/components/viewer/LangSwitcher').then(m => m.LangSwitcher),          { ssr: false });
 import { useViewerLang } from '@/hooks/useViewerLang';
 import { PropertyUnit } from '@/types/tour.types';
 import { Loader2, AlertTriangle, Columns2, Share2, MessageCircle, Copy, Check, X } from 'lucide-react';
@@ -104,7 +105,9 @@ function ViewerInner({ tourId }: { tourId: string }) {
             // For raw UUID access, block if draft unless the viewer IS the owner.
             if (isUuid && !row.is_published) {
               const sb = (await import('@/lib/supabase')).getSupabase();
-              const { data: { user } } = await sb.auth.getUser();
+              // getSession() reads from cookie — no network call vs getUser()
+              const { data: { session } } = await sb.auth.getSession();
+              const user = session?.user ?? null;
               if (!user || user.id !== row.user_id) {
                 setNotFound(true);
                 setIsLoading(false);

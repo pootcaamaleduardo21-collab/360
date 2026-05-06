@@ -114,10 +114,7 @@ export function HotspotMarker({
     </div>
   ) : null;
 
-  // Icon node — omitted when noIcon is set
-  const IconNode = hotspot.noIcon ? null : (
-    <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />
-  );
+  const showIcon = !hotspot.noIcon;
 
   // ─── FLOOR STYLE ──────────────────────────────────────────────────────────────
   if (style === 'floor') {
@@ -255,7 +252,7 @@ export function HotspotMarker({
         <div className={cn('flex items-center justify-center w-14 h-14 rounded-2xl shadow-xl border-2 transition-transform group-hover:scale-105',
           isSelected && 'ring-4 ring-white scale-110', anim === 'pulse' && 'animate-pulse')}
           style={{ backgroundColor: color, borderColor: `${ringColor}80`, boxShadow: anim === 'glow' ? `0 0 18px 6px ${color}55` : undefined }}>
-          {IconNode ?? <ResolvedIcon className="w-7 h-7 text-white" strokeWidth={2} />}
+          {showIcon && <ResolvedIcon className="w-7 h-7 text-white" strokeWidth={2} />}
         </div>
         {showLbl !== 'never' && (
           <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow pointer-events-none select-none',
@@ -286,7 +283,7 @@ export function HotspotMarker({
       <span className={cn('relative flex items-center justify-center rounded-full border-2 shadow-lg transition-all duration-200', sz.bubble,
         isSelected && 'ring-4 ring-white ring-offset-1 ring-offset-black/40 scale-110')}
         style={{ backgroundColor: color, borderColor: `${ringColor}80`, boxShadow: anim === 'glow' ? `0 0 14px 5px ${color}70` : undefined }}>
-        {IconNode ?? <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />}
+        {showIcon && <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />}
       </span>
       {showLbl !== 'never' && (
         <span className={cn('px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-black/70 text-white backdrop-blur-sm pointer-events-none select-none',
