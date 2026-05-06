@@ -52,17 +52,31 @@ function StatCard({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function AnalyticsOverview() {
-  const [tours,   setTours]   = useState<TourSummary[]>([]);
-  const [leads,   setLeads]   = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+interface AnalyticsOverviewProps {
+  initialTours?: TourSummary[];
+  toursLoading?: boolean;
+}
+
+export function AnalyticsOverview({ initialTours, toursLoading = false }: AnalyticsOverviewProps) {
+  const [tours,      setTours]      = useState<TourSummary[]>(initialTours ?? []);
+  const [leads,      setLeads]      = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+
+  // Keep tours in sync if parent re-fetches
+  useEffect(() => {
+    if (initialTours) setTours(initialTours);
+  }, [initialTours]);
 
   useEffect(() => {
-    Promise.all([listUserTours(), getLeadsForUser()])
-      .then(([t, l]) => { setTours(t); setLeads(l); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    // Only fetch tours ourselves if not provided by parent
+    const fetchAll = initialTours
+      ? getLeadsForUser().then((l) => { setLeads(l); })
+      : Promise.all([listUserTours(), getLeadsForUser()]).then(([t, l]) => { setTours(t); setLeads(l); });
+
+    fetchAll.catch(() => {}).finally(() => setLeadsLoading(false));
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loading = toursLoading || leadsLoading;
 
   if (loading) {
     return (

@@ -64,26 +64,36 @@ function exportLeadsCSV(leads: Lead[], tours: TourOption[], sceneMaps: SceneMap)
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function LeadsPanel() {
+interface LeadsPanelProps {
+  initialTours?: TourOption[];
+}
+
+export function LeadsPanel({ initialTours }: LeadsPanelProps) {
   const { user } = useAuth();
   const [leads,     setLeads]     = useState<Lead[]>([]);
-  const [tours,     setTours]     = useState<TourOption[]>([]);
+  const [tours,     setTours]     = useState<TourOption[]>(initialTours ?? []);
   const [sceneMaps, setSceneMaps] = useState<SceneMap>({});
   const [filter,    setFilter]    = useState<string>('all');
   const [search,    setSearch]    = useState('');
   const [loading,   setLoading]   = useState(true);
 
+  // Keep tours in sync if parent re-fetches
+  useEffect(() => {
+    if (initialTours) setTours(initialTours);
+  }, [initialTours]);
+
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const [leadsData, toursData] = await Promise.all([
-        getLeadsForUser(),
-        listUserTours(),
-      ]);
-      setLeads(leadsData);
-      setTours(toursData.map((t) => ({ id: t.id, title: t.title })));
+      // Only fetch tours if not provided by parent
+      const [leadsData, toursData] = initialTours
+        ? [await getLeadsForUser(), null]
+        : await Promise.all([getLeadsForUser(), listUserTours()]);
 
-      // Fetch scene id→name maps for tours that have leads (lightweight query per tour)
+      setLeads(leadsData);
+      if (toursData) setTours(toursData.map((t) => ({ id: t.id, title: t.title })));
+
+      // Fetch scene id→name maps for tours that have leads
       const tourIdsWithLeads = [...new Set(leadsData.map((l) => l.tour_id))];
       const maps: SceneMap = {};
       await Promise.all(
@@ -95,7 +105,7 @@ export function LeadsPanel() {
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [user]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = leads
     .filter((l) => filter === 'all' || l.tour_id === filter)

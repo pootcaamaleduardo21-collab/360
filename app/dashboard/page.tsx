@@ -266,7 +266,7 @@ export default function DashboardPage() {
 
         {/* ── ANALYTICS tab ───────────────────────────────────────────── */}
         {activeTab === 'analytics' && (
-          <AnalyticsOverview />
+          <AnalyticsOverview initialTours={tours} toursLoading={isLoading} />
         )}
 
         {/* ── PLATFORM tab (super admin) ──────────────────────────────── */}
@@ -276,7 +276,7 @@ export default function DashboardPage() {
 
         {/* ── LEADS tab ───────────────────────────────────────────────── */}
         {activeTab === 'leads' && (
-          <LeadsPanel />
+          <LeadsPanel initialTours={tours.map((t) => ({ id: t.id, title: t.title }))} />
         )}
 
         {/* ── TEAM tab ────────────────────────────────────────────────── */}
