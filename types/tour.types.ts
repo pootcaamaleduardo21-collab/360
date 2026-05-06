@@ -76,7 +76,8 @@ export interface Hotspot {
   style?: HotspotStyle;           // Marker presentation style
   animation?: HotspotAnimation;   // Idle animation
   showLabel?: 'always' | 'hover' | 'never'; // Label visibility
-  customIcon?: string;            // Emoji or single symbol shown instead of type icon
+  customIcon?: string;            // Lucide icon name or legacy emoji
+  noIcon?: boolean;               // Hide icon entirely (floor style shows only the ring)
 }
 
 // ─── Scene ────────────────────────────────────────────────────────────────────

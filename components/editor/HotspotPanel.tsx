@@ -8,8 +8,18 @@ import {
 import { useTourStore } from '@/store/tourStore';
 import {
   Trash2, ArrowRight, Info, Image, User, ShoppingCart, Building2, MapPin,
-  Search, Loader2, Navigation,
+  Search, Loader2, Navigation, Ban,
+  DoorOpen, BedDouble, BedSingle, Bath, ChefHat, Sofa, Armchair, Tv, MonitorPlay,
+  Dumbbell, Waves, Wifi, Car, Trees, Flower2, Zap, Flame, Snowflake, Wind, Sun,
+  Home, Key, Store, Hotel, Warehouse, Landmark, ParkingCircle,
+  School, Hospital, ShoppingBag, Coffee, Church, Star, Eye,
+  HelpCircle, Heart, Bookmark, Bell, Navigation2, Compass, CornerUpRight,
+  Utensils, Package, Tag, Camera, Music, Video, FileText, Globe,
+  Phone, Mail, Lock, Unlock, Wrench, Hammer,
+  Leaf, Mountain, Umbrella, Sunset, Bike, Bus, Train, Plane,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { ICON_REGISTRY } from '@/components/viewer/HotspotMarker';
 import { cn } from '@/lib/utils';
 
 // ─── Haversine distance ───────────────────────────────────────────────────────
@@ -73,6 +83,65 @@ const ANIM_OPTIONS: { value: HotspotAnimation; label: string }[] = [
   { value: 'glow',  label: 'Brillo' },
   { value: 'none',  label: 'Ninguna' },
 ];
+
+// ─── Icon library ─────────────────────────────────────────────────────────────
+
+const ICON_LIBRARY: { label: string; icons: { name: string; Icon: LucideIcon }[] }[] = [
+  { label: 'Navegación', icons: [
+    { name: 'ArrowRight', Icon: ArrowRight }, { name: 'Navigation2', Icon: Navigation2 },
+    { name: 'Compass', Icon: Compass }, { name: 'CornerUpRight', Icon: CornerUpRight },
+  ]},
+  { label: 'Espacios', icons: [
+    { name: 'DoorOpen', Icon: DoorOpen }, { name: 'BedDouble', Icon: BedDouble },
+    { name: 'BedSingle', Icon: BedSingle }, { name: 'Bath', Icon: Bath },
+    { name: 'ChefHat', Icon: ChefHat }, { name: 'Sofa', Icon: Sofa },
+    { name: 'Armchair', Icon: Armchair }, { name: 'Tv', Icon: Tv },
+    { name: 'MonitorPlay', Icon: MonitorPlay }, { name: 'Dumbbell', Icon: Dumbbell },
+  ]},
+  { label: 'Amenidades', icons: [
+    { name: 'Waves', Icon: Waves }, { name: 'Wifi', Icon: Wifi },
+    { name: 'Car', Icon: Car }, { name: 'ParkingCircle', Icon: ParkingCircle },
+    { name: 'Trees', Icon: Trees }, { name: 'Flower2', Icon: Flower2 },
+    { name: 'Zap', Icon: Zap }, { name: 'Flame', Icon: Flame },
+    { name: 'Snowflake', Icon: Snowflake }, { name: 'Wind', Icon: Wind },
+    { name: 'Sun', Icon: Sun }, { name: 'Umbrella', Icon: Umbrella },
+  ]},
+  { label: 'Propiedad', icons: [
+    { name: 'Home', Icon: Home }, { name: 'Building2', Icon: Building2 },
+    { name: 'Key', Icon: Key }, { name: 'Store', Icon: Store },
+    { name: 'Hotel', Icon: Hotel }, { name: 'Warehouse', Icon: Warehouse },
+    { name: 'Landmark', Icon: Landmark }, { name: 'Lock', Icon: Lock },
+    { name: 'Unlock', Icon: Unlock }, { name: 'Wrench', Icon: Wrench },
+    { name: 'Hammer', Icon: Hammer },
+  ]},
+  { label: 'Lugares', icons: [
+    { name: 'School', Icon: School }, { name: 'Hospital', Icon: Hospital },
+    { name: 'ShoppingBag', Icon: ShoppingBag }, { name: 'Coffee', Icon: Coffee },
+    { name: 'Utensils', Icon: Utensils }, { name: 'Church', Icon: Church },
+    { name: 'MapPin', Icon: MapPin }, { name: 'Bike', Icon: Bike },
+    { name: 'Bus', Icon: Bus }, { name: 'Train', Icon: Train },
+    { name: 'Plane', Icon: Plane }, { name: 'Mountain', Icon: Mountain },
+    { name: 'Sunset', Icon: Sunset }, { name: 'Leaf', Icon: Leaf },
+  ]},
+  { label: 'General', icons: [
+    { name: 'Info', Icon: Info }, { name: 'Star', Icon: Star },
+    { name: 'Heart', Icon: Heart }, { name: 'Eye', Icon: Eye },
+    { name: 'Bell', Icon: Bell }, { name: 'Bookmark', Icon: Bookmark },
+    { name: 'HelpCircle', Icon: HelpCircle }, { name: 'Phone', Icon: Phone },
+    { name: 'Mail', Icon: Mail }, { name: 'Globe', Icon: Globe },
+    { name: 'Camera', Icon: Camera }, { name: 'Music', Icon: Music },
+    { name: 'Video', Icon: Video }, { name: 'FileText', Icon: FileText },
+    { name: 'Package', Icon: Package }, { name: 'Tag', Icon: Tag },
+  ]},
+];
+
+const COLOR_PRESETS = [
+  '#3b82f6', '#60a5fa', '#06b6d4', '#10b981', '#22c55e',
+  '#f59e0b', '#f97316', '#ef4444', '#a855f7', '#ec4899',
+  '#ffffff', '#6b7280', '#1f2937', '#0f172a',
+];
+
+// ─── Unit status labels ────────────────────────────────────────────────────────
 
 const UNIT_STATUS_LABELS: Record<PropertyStatus, string> = {
   available:    'Disponible',
@@ -301,20 +370,29 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
         <Field label="Estilo visual">
           <div className="grid grid-cols-3 gap-1.5">
             {STYLE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => update({ style: opt.value })}
-                className={cn(
-                  'flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-colors',
+              <button key={opt.value} type="button" onClick={() => update({ style: opt.value })}
+                className={cn('flex flex-col items-center gap-0.5 p-2 rounded-lg border text-center transition-colors',
                   (selected.style ?? 'bubble') === opt.value
                     ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-                )}
-              >
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300')}>
                 <span className="text-xl">{opt.emoji}</span>
                 <span className="text-[10px] font-semibold leading-tight">{opt.label}</span>
                 <span className="text-[9px] text-gray-600 leading-tight">{opt.desc}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* Size */}
+        <Field label="Tamaño">
+          <div className="grid grid-cols-3 gap-1">
+            {([{ value: 'sm', label: 'Pequeño' }, { value: 'md', label: 'Normal' }, { value: 'lg', label: 'Grande' }] as const).map((opt) => (
+              <button key={opt.value} type="button" onClick={() => update({ iconSize: opt.value })}
+                className={cn('py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                  (selected.iconSize ?? 'md') === opt.value
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500')}>
+                {opt.label}
               </button>
             ))}
           </div>
@@ -324,17 +402,11 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
         <Field label="Animación">
           <div className="grid grid-cols-4 gap-1">
             {ANIM_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => update({ animation: opt.value })}
-                className={cn(
-                  'py-1.5 rounded-lg text-xs font-medium border transition-colors',
+              <button key={opt.value} type="button" onClick={() => update({ animation: opt.value })}
+                className={cn('py-1.5 rounded-lg text-xs font-medium border transition-colors',
                   (selected.animation ?? 'ping') === opt.value
                     ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-                )}
-              >
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500')}>
                 {opt.label}
               </button>
             ))}
@@ -342,74 +414,99 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
         </Field>
 
         {/* Show label */}
-        <Field label="Mostrar etiqueta">
+        <Field label="Etiqueta">
           <div className="grid grid-cols-3 gap-1">
-            {([
-              { value: 'always', label: 'Siempre' },
-              { value: 'hover',  label: 'Al pasar' },
-              { value: 'never',  label: 'Nunca' },
-            ] as const).map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => update({ showLabel: opt.value })}
-                className={cn(
-                  'py-1.5 rounded-lg text-xs font-medium border transition-colors',
+            {([{ value: 'always', label: 'Siempre' }, { value: 'hover', label: 'Al pasar' }, { value: 'never', label: 'Nunca' }] as const).map((opt) => (
+              <button key={opt.value} type="button" onClick={() => update({ showLabel: opt.value })}
+                className={cn('py-1.5 rounded-lg text-xs font-medium border transition-colors',
                   (selected.showLabel ?? 'hover') === opt.value
                     ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-                )}
-              >
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500')}>
                 {opt.label}
               </button>
             ))}
           </div>
         </Field>
 
-        {/* Custom icon */}
-        <Field label="Ícono personalizado (emoji)">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={selected.customIcon ?? ''}
-              onChange={(e) => {
-                const val = [...e.target.value].slice(0, 2).join('');
-                update({ customIcon: val || undefined });
-              }}
-              className="input-dark w-14 text-center text-xl"
-              placeholder="🏠"
-            />
-            {selected.customIcon && (
-              <button
-                type="button"
-                onClick={() => update({ customIcon: undefined })}
-                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
-              >
-                Quitar
-              </button>
-            )}
-            <span className="text-[10px] text-gray-600">Vacío = ícono por tipo</span>
-          </div>
+        {/* Icon picker */}
+        <Field label="Ícono">
+          {/* No icon toggle */}
+          <button type="button"
+            onClick={() => update({ noIcon: !selected.noIcon, customIcon: selected.noIcon ? selected.customIcon : selected.customIcon })}
+            className={cn('flex items-center gap-1.5 w-full px-2.5 py-1.5 mb-2 rounded-lg border text-xs font-medium transition-colors',
+              selected.noIcon
+                ? 'bg-gray-700 border-gray-500 text-white'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500')}>
+            <Ban className="w-3.5 h-3.5" />
+            Sin ícono {selected.style === 'floor' ? '(solo anillo en piso)' : ''}
+          </button>
+
+          {!selected.noIcon && (
+            <div className="space-y-2">
+              {/* Current icon preview */}
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-800 border border-gray-700">
+                {(() => {
+                  const Ic = (selected.customIcon && ICON_REGISTRY[selected.customIcon]) ? ICON_REGISTRY[selected.customIcon] : null;
+                  return Ic
+                    ? <Ic className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    : <span className="text-xs text-gray-500 italic">Ícono por tipo</span>;
+                })()}
+                {selected.customIcon && (
+                  <button type="button" onClick={() => update({ customIcon: undefined })}
+                    className="ml-auto text-[10px] text-gray-500 hover:text-red-400 transition-colors">
+                    Restaurar
+                  </button>
+                )}
+              </div>
+
+              {/* Categorized icon grid */}
+              {ICON_LIBRARY.map((cat) => (
+                <div key={cat.label}>
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">{cat.label}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {cat.icons.map(({ name, Icon }) => (
+                      <button key={name} type="button" title={name}
+                        onClick={() => update({ customIcon: name })}
+                        className={cn('w-7 h-7 flex items-center justify-center rounded-lg border transition-colors',
+                          selected.customIcon === name
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white')}>
+                        <Icon className="w-3.5 h-3.5" strokeWidth={2} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Field>
 
         {/* Color */}
         <Field label="Color">
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={selected.iconColor ?? '#3b82f6'}
-              onChange={(e) => update({ iconColor: e.target.value })}
-              className="w-8 h-8 rounded cursor-pointer border border-gray-600 bg-transparent"
-            />
-            {selected.iconColor && (
-              <button
-                type="button"
-                onClick={() => update({ iconColor: undefined })}
-                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
-              >
-                Restaurar predeterminado
-              </button>
-            )}
+          <div className="space-y-2">
+            {/* Presets */}
+            <div className="flex flex-wrap gap-1.5">
+              {COLOR_PRESETS.map((c) => (
+                <button key={c} type="button" title={c}
+                  onClick={() => update({ iconColor: c })}
+                  className={cn('w-6 h-6 rounded-md border-2 transition-all',
+                    selected.iconColor === c ? 'border-white scale-110' : 'border-transparent hover:scale-105')}
+                  style={{ backgroundColor: c }} />
+              ))}
+            </div>
+            {/* Custom color picker + reset */}
+            <div className="flex items-center gap-2">
+              <input type="color" value={selected.iconColor ?? '#3b82f6'}
+                onChange={(e) => update({ iconColor: e.target.value })}
+                className="w-8 h-8 rounded cursor-pointer border border-gray-600 bg-transparent" />
+              <span className="text-xs text-gray-500 font-mono">{selected.iconColor ?? 'predeterminado'}</span>
+              {selected.iconColor && (
+                <button type="button" onClick={() => update({ iconColor: undefined })}
+                  className="ml-auto text-xs text-gray-500 hover:text-red-400 transition-colors">
+                  Restaurar
+                </button>
+              )}
+            </div>
           </div>
         </Field>
       </div>

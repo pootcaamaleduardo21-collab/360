@@ -2,25 +2,34 @@
 
 import { Hotspot, HotspotStyle, PropertyStatus } from '@/types/tour.types';
 import { cn } from '@/lib/utils';
+import type { LucideIcon } from 'lucide-react';
 import {
   ArrowRight, Info, Image as ImageIcon, User, ShoppingCart,
   Building2, MapPin, Move,
+  // Icon library — kept in sync with ICON_LIBRARY in HotspotPanel
+  DoorOpen, BedDouble, Bath, ChefHat, Sofa, Tv, Dumbbell, Waves,
+  Wifi, Car, Trees, Flower2, Zap, Flame, Snowflake, Wind, Sun,
+  Home, Key, Store, Hotel, Warehouse, Landmark, ParkingCircle,
+  School, Hospital, ShoppingBag, Coffee, Church, Star, Eye,
+  HelpCircle, Heart, Bookmark, Bell, Navigation2, Compass,
+  CornerUpRight, Utensils, BedSingle, Armchair, MonitorPlay,
+  Sword, Package, Tag, Camera, Music, Video, FileText, Globe,
+  Phone, Mail, Lock, Unlock, Settings, Wrench, Hammer, Drill,
+  Leaf, Mountain, Umbrella, Sunset, Bike, Bus, Train, Plane,
 } from 'lucide-react';
 
-interface HotspotMarkerProps {
-  hotspot: Hotspot;
-  x: number | string;
-  y: number | string;
-  isSelected?: boolean;
-  isEditing?: boolean;
-  onClick: (hotspot: Hotspot) => void;
-  /** Passed by Viewer360 for 'unit' hotspots — drives the status color */
-  unitStatus?: PropertyStatus;
-  /** Scene name for navigation hotspots — shown as subtitle in edit mode */
-  targetSceneName?: string;
-  /** Called on pointerdown when editing so parent can start a drag */
-  onDragStart?: (hotspotId: string, e: React.PointerEvent) => void;
-}
+// ─── Icon registry — name → component (used by both Marker and Panel) ──────────
+export const ICON_REGISTRY: Record<string, LucideIcon> = {
+  ArrowRight, Info, ImageIcon, User, ShoppingCart, Building2, MapPin,
+  DoorOpen, BedDouble, BedSingle, Bath, ChefHat, Sofa, Armchair, Tv, MonitorPlay,
+  Dumbbell, Waves, Wifi, Car, Trees, Flower2, Zap, Flame, Snowflake, Wind, Sun,
+  Home, Key, Store, Hotel, Warehouse, Landmark, ParkingCircle,
+  School, Hospital, ShoppingBag, Coffee, Church, Star, Eye,
+  HelpCircle, Heart, Bookmark, Bell, Navigation2, Compass, CornerUpRight,
+  Utensils, Package, Tag, Camera, Music, Video, FileText, Globe,
+  Phone, Mail, Lock, Unlock, Settings, Wrench, Hammer, Drill,
+  Leaf, Mountain, Umbrella, Sunset, Bike, Bus, Train, Plane,
+};
 
 // ─── Type → icon + default colors ─────────────────────────────────────────────
 const TYPE_DEFAULTS = {
@@ -47,70 +56,73 @@ const UNIT_STATUS_LABEL: Record<PropertyStatus, string> = {
   'in-process': 'En proceso',
 };
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Size maps ────────────────────────────────────────────────────────────────
+const SIZE = {
+  sm: { bubble: 'w-7 h-7',  icon: 'w-3.5 h-3.5', badge: 'w-10 h-10', badgeIcon: 'w-5 h-5',  floorBubble: 'w-6 h-6',  floorIcon: 'w-3 h-3',   ring: 60,  ringInner: 44 },
+  md: { bubble: 'w-10 h-10', icon: 'w-5 h-5',    badge: 'w-14 h-14', badgeIcon: 'w-7 h-7',  floorBubble: 'w-8 h-8',  floorIcon: 'w-4 h-4',   ring: 80,  ringInner: 60 },
+  lg: { bubble: 'w-13 h-13', icon: 'w-6 h-6',    badge: 'w-18 h-18', badgeIcon: 'w-9 h-9',  floorBubble: 'w-10 h-10', floorIcon: 'w-5 h-5',  ring: 100, ringInner: 76 },
+} as const;
+
+interface HotspotMarkerProps {
+  hotspot: Hotspot;
+  x: number | string;
+  y: number | string;
+  isSelected?: boolean;
+  isEditing?: boolean;
+  onClick: (hotspot: Hotspot) => void;
+  unitStatus?: PropertyStatus;
+  targetSceneName?: string;
+  onDragStart?: (hotspotId: string, e: React.PointerEvent) => void;
+}
 
 export function HotspotMarker({
-  hotspot,
-  x,
-  y,
-  isSelected,
-  isEditing,
-  onClick,
-  unitStatus,
-  targetSceneName,
-  onDragStart,
+  hotspot, x, y, isSelected, isEditing, onClick, unitStatus, targetSceneName, onDragStart,
 }: HotspotMarkerProps) {
   const style   = hotspot.style ?? 'bubble';
-  const anim    = hotspot.animation ?? (style === 'floor' ? 'ping' : 'ping');
+  const anim    = hotspot.animation ?? 'ping';
   const showLbl = hotspot.showLabel ?? (style === 'label' ? 'always' : 'hover');
+  const sz      = SIZE[hotspot.iconSize ?? 'md'];
 
   const defaults = TYPE_DEFAULTS[hotspot.type] ?? TYPE_DEFAULTS.info;
-  const { Icon } = defaults;
 
-  // Unit hotspots inherit color from availability status
+  // Resolve custom icon: name from registry, fallback to type default
+  const ResolvedIcon: LucideIcon =
+    (hotspot.customIcon && ICON_REGISTRY[hotspot.customIcon])
+      ? ICON_REGISTRY[hotspot.customIcon]
+      : defaults.Icon;
+
   const color     = hotspot.iconColor ?? (hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_COLOR[unitStatus] : defaults.color);
   const ringColor = hotspot.iconColor ?? (hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_COLOR[unitStatus] : defaults.ring);
-
   const statusLabel = hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_LABEL[unitStatus] : null;
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClick(hotspot);
-  };
-
-  // In edit mode: drag handle on selected, crosshair on others
-  const cursor = isEditing
-    ? (isSelected ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer')
-    : 'cursor-pointer';
+  const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onClick(hotspot); };
+  const cursor = isEditing ? (isSelected ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer') : 'cursor-pointer';
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!isEditing || !isSelected || !onDragStart) return;
-    e.stopPropagation();
-    e.preventDefault();
-    // Capture so we receive pointermove/up even when moving over other elements
+    e.stopPropagation(); e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     onDragStart(hotspot.id, e);
   };
 
-  // Edit-mode overlay: drag handle icon + scene name for navigation hotspots
   const EditOverlay = isEditing && isSelected ? (
     <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-900/90 border border-white/20 text-white whitespace-nowrap pointer-events-none z-30">
       <Move className="w-3 h-3 text-white/60" />
-      {hotspot.type === 'navigation' && targetSceneName ? (
-        <span className="text-[10px] font-medium text-blue-300">→ {targetSceneName}</span>
-      ) : (
-        <span className="text-[10px] text-white/50">arrastrar</span>
-      )}
+      {hotspot.type === 'navigation' && targetSceneName
+        ? <span className="text-[10px] font-medium text-blue-300">→ {targetSceneName}</span>
+        : <span className="text-[10px] text-white/50">arrastrar</span>}
     </div>
   ) : null;
 
-  // Shared icon node
-  const IconNode = hotspot.customIcon
-    ? <span className="leading-none select-none">{hotspot.customIcon}</span>
-    : <Icon className="w-5 h-5 text-white" strokeWidth={2.5} />;
+  // Icon node — omitted when noIcon is set
+  const IconNode = hotspot.noIcon ? null : (
+    <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />
+  );
 
-  // ─── FLOOR STYLE ────────────────────────────────────────────────────────────
+  // ─── FLOOR STYLE ──────────────────────────────────────────────────────────────
   if (style === 'floor') {
+    const ringOuter = sz.ring;
+    const ringInner = sz.ringInner;
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
@@ -122,246 +134,132 @@ export function HotspotMarker({
         {EditOverlay}
         {/* Perspective-squished ring — looks flat on the floor */}
         <div style={{ transform: 'scaleY(0.38)', transformOrigin: 'center center' }}>
-          {/* Outer animated ping rings */}
           {anim === 'ping' && (
             <>
-              <div
-                className="absolute rounded-full animate-ping pointer-events-none"
-                style={{
-                  width: 80, height: 80,
-                  top: -40, left: -40,
-                  border: `2px solid ${ringColor}`,
-                  opacity: 0.45,
-                }}
-              />
-              <div
-                className="absolute rounded-full animate-ping pointer-events-none"
-                style={{
-                  width: 60, height: 60,
-                  top: -30, left: -30,
-                  border: `2px solid ${ringColor}`,
-                  opacity: 0.6,
-                  animationDelay: '0.35s',
-                }}
-              />
+              <div className="absolute rounded-full animate-ping pointer-events-none"
+                style={{ width: ringOuter, height: ringOuter, top: -ringOuter/2, left: -ringOuter/2, border: `2px solid ${ringColor}`, opacity: 0.45 }} />
+              <div className="absolute rounded-full animate-ping pointer-events-none"
+                style={{ width: ringInner, height: ringInner, top: -ringInner/2, left: -ringInner/2, border: `2px solid ${ringColor}`, opacity: 0.6, animationDelay: '0.35s' }} />
             </>
           )}
-
+          {anim === 'pulse' && (
+            <div className="absolute rounded-full animate-pulse pointer-events-none"
+              style={{ width: ringOuter, height: ringOuter, top: -ringOuter/2, left: -ringOuter/2, backgroundColor: `${ringColor}30` }} />
+          )}
+          {anim === 'glow' && (
+            <div className="absolute rounded-full pointer-events-none"
+              style={{ width: ringInner, height: ringInner, top: -ringInner/2, left: -ringInner/2, boxShadow: `0 0 18px 8px ${color}60` }} />
+          )}
           {/* Main ring */}
-          <div
-            className={cn('absolute rounded-full', isSelected && 'ring-4 ring-white/60')}
-            style={{
-              width: 44, height: 44,
-              top: -22, left: -22,
-              border: `3px solid ${color}`,
-              backgroundColor: `${color}25`,
-            }}
-          />
-
+          <div className={cn('absolute rounded-full', isSelected && 'ring-4 ring-white/60')}
+            style={{ width: 44, height: 44, top: -22, left: -22, border: `3px solid ${color}`, backgroundColor: `${color}25` }} />
           {/* Center dot */}
-          <div
-            className="absolute rounded-full"
-            style={{
-              width: 10, height: 10,
-              top: -5, left: -5,
-              backgroundColor: color,
-            }}
-          />
+          <div className="absolute rounded-full" style={{ width: 10, height: 10, top: -5, left: -5, backgroundColor: color }} />
         </div>
 
-        {/* Icon + label float above — NOT transformed */}
-        <div
-          className="absolute flex flex-col items-center gap-1 pointer-events-none"
-          style={{ bottom: '50%', left: '50%', transform: 'translate(-50%, -14px)' }}
-        >
-          {/* Mini icon bubble */}
-          <div
-            className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg border border-white/20"
-            style={{ backgroundColor: color }}
-          >
-            {hotspot.customIcon
-              ? <span className="text-sm leading-none select-none">{hotspot.customIcon}</span>
-              : <Icon className="w-4 h-4 text-white" strokeWidth={2.5} />
-            }
+        {/* Icon bubble + label above — only when noIcon is false */}
+        {!hotspot.noIcon && (
+          <div className="absolute flex flex-col items-center gap-1 pointer-events-none"
+            style={{ bottom: '50%', left: '50%', transform: 'translate(-50%, -14px)' }}>
+            <div className={cn('flex items-center justify-center rounded-full shadow-lg border border-white/20', sz.floorBubble)}
+              style={{ backgroundColor: color }}>
+              <ResolvedIcon className={cn(sz.floorIcon, 'text-white')} strokeWidth={2.5} />
+            </div>
+            {showLbl !== 'never' && (
+              <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow',
+                showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
+                {hotspot.label}
+              </span>
+            )}
           </div>
+        )}
 
-          {/* Label */}
-          {showLbl !== 'never' && (
-            <span
-              className={cn(
-                'px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow',
-                showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150'
-              )}
-            >
+        {/* Label only (no icon bubble) */}
+        {hotspot.noIcon && showLbl !== 'never' && (
+          <div className="absolute flex flex-col items-center pointer-events-none"
+            style={{ bottom: '50%', left: '50%', transform: 'translate(-50%, -8px)' }}>
+            <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow',
+              showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
               {hotspot.label}
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </button>
     );
   }
 
-  // ─── WALL STYLE ──────────────────────────────────────────────────────────────
+  // ─── WALL STYLE ───────────────────────────────────────────────────────────────
   if (style === 'wall') {
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
-        onClick={handleClick}
-        onPointerDown={handlePointerDown}
-        aria-label={hotspot.label}
+        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
       >
         {EditOverlay}
-        {/* Ping / glow decorations behind the badge */}
         {anim === 'ping' && (
-          <div
-            className="absolute inset-0 rounded-xl animate-ping pointer-events-none"
-            style={{ border: `2px solid ${ringColor}`, opacity: 0.35 }}
-          />
+          <div className="absolute inset-0 rounded-xl animate-ping pointer-events-none"
+            style={{ border: `2px solid ${ringColor}`, opacity: 0.35 }} />
         )}
-
-        {/* Badge */}
-        <div
-          className={cn(
-            'flex items-center rounded-xl overflow-hidden shadow-xl border transition-transform',
-            'group-hover:scale-105',
-            isSelected && 'ring-2 ring-white scale-105'
+        <div className={cn('flex items-center rounded-xl overflow-hidden shadow-xl border transition-transform group-hover:scale-105', isSelected && 'ring-2 ring-white scale-105')}
+          style={{ borderColor: `${color}55`, boxShadow: anim === 'glow' ? `0 0 14px 4px ${color}55` : undefined }}>
+          {!hotspot.noIcon && (
+            <div className="flex items-center justify-center w-10 h-10 flex-shrink-0" style={{ backgroundColor: color }}>
+              <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />
+            </div>
           )}
-          style={{
-            borderColor: `${color}55`,
-            boxShadow: anim === 'glow' ? `0 0 14px 4px ${color}55` : undefined,
-          }}
-        >
-          {/* Left: colored icon block */}
-          <div
-            className="flex items-center justify-center w-10 h-10 flex-shrink-0"
-            style={{ backgroundColor: color }}
-          >
-            {hotspot.customIcon
-              ? <span className="text-base leading-none select-none">{hotspot.customIcon}</span>
-              : <Icon className="w-5 h-5 text-white" strokeWidth={2.5} />
-            }
-          </div>
-
-          {/* Right: text block */}
           <div className="flex flex-col justify-center px-2.5 py-1.5 bg-gray-950/88 backdrop-blur-sm">
-            <span className="text-xs font-semibold text-white whitespace-nowrap leading-tight">
-              {hotspot.label}
-            </span>
-            {statusLabel && (
-              <span className="text-[10px] leading-tight mt-0.5 font-medium" style={{ color }}>
-                {statusLabel}
-              </span>
-            )}
+            <span className="text-xs font-semibold text-white whitespace-nowrap leading-tight">{hotspot.label}</span>
+            {statusLabel && <span className="text-[10px] leading-tight mt-0.5 font-medium" style={{ color }}>{statusLabel}</span>}
           </div>
         </div>
       </button>
     );
   }
 
-  // ─── LABEL STYLE (Google Maps POI) ───────────────────────────────────────────
+  // ─── LABEL STYLE ──────────────────────────────────────────────────────────────
   if (style === 'label') {
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -100%)' }}
-        onClick={handleClick}
-        onPointerDown={handlePointerDown}
-        aria-label={hotspot.label}
+        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
       >
         {EditOverlay}
-        <div
-          className={cn(
-            'flex flex-col items-center transition-transform group-hover:scale-105',
-            isSelected && 'scale-110'
-          )}
-        >
-          {/* Text pill */}
-          <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-xl bg-white/95 backdrop-blur-sm border border-black/10"
-          >
-            {hotspot.customIcon
-              ? <span className="text-sm leading-none select-none">{hotspot.customIcon}</span>
-              : <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color }} />
-            }
-            <span className="text-[11px] font-semibold text-gray-800 whitespace-nowrap">
-              {hotspot.label}
-            </span>
-            {hotspot.mapDistance && (
-              <span className="text-[10px] text-gray-500 whitespace-nowrap ml-0.5">
-                · {hotspot.mapDistance}
-              </span>
-            )}
+        <div className={cn('flex flex-col items-center transition-transform group-hover:scale-105', isSelected && 'scale-110')}>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-xl bg-white/95 backdrop-blur-sm border border-black/10">
+            {!hotspot.noIcon && <ResolvedIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color }} />}
+            <span className="text-[11px] font-semibold text-gray-800 whitespace-nowrap">{hotspot.label}</span>
+            {hotspot.mapDistance && <span className="text-[10px] text-gray-500 whitespace-nowrap ml-0.5">· {hotspot.mapDistance}</span>}
           </div>
-
-          {/* Downward-pointing triangle */}
-          <div
-            className="w-0 h-0"
-            style={{
-              borderLeft:  '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderTop:   '8px solid rgba(255,255,255,0.95)',
-              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))',
-              marginTop: -1,
-            }}
-          />
-
-          {/* Pin anchor dot */}
-          <div
-            className="w-2.5 h-2.5 rounded-full mt-[-2px] shadow"
-            style={{ backgroundColor: color }}
-          />
+          <div className="w-0 h-0" style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '8px solid rgba(255,255,255,0.95)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', marginTop: -1 }} />
+          <div className="w-2.5 h-2.5 rounded-full mt-[-2px] shadow" style={{ backgroundColor: color }} />
         </div>
       </button>
     );
   }
 
-  // ─── ICON-BADGE STYLE ────────────────────────────────────────────────────────
+  // ─── ICON-BADGE STYLE ─────────────────────────────────────────────────────────
   if (style === 'icon-badge') {
     return (
       <button
         className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1.5', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
-        onClick={handleClick}
-        onPointerDown={handlePointerDown}
-        aria-label={hotspot.label}
+        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
       >
         {EditOverlay}
-        {/* Ping rings */}
         {anim === 'ping' && (
-          <div
-            className="absolute w-14 h-14 rounded-2xl animate-ping pointer-events-none"
-            style={{ border: `2px solid ${ringColor}`, opacity: 0.45 }}
-          />
+          <div className="absolute w-14 h-14 rounded-2xl animate-ping pointer-events-none"
+            style={{ border: `2px solid ${ringColor}`, opacity: 0.45 }} />
         )}
-
-        {/* Large icon square */}
-        <div
-          className={cn(
-            'flex items-center justify-center w-14 h-14 rounded-2xl shadow-xl border-2 transition-transform group-hover:scale-105',
-            isSelected && 'ring-4 ring-white scale-110',
-            anim === 'pulse' && 'animate-pulse'
-          )}
-          style={{
-            backgroundColor: color,
-            borderColor: `${ringColor}80`,
-            boxShadow: anim === 'glow' ? `0 0 18px 6px ${color}55` : undefined,
-          }}
-        >
-          {hotspot.customIcon
-            ? <span className="text-2xl leading-none select-none">{hotspot.customIcon}</span>
-            : <Icon className="w-7 h-7 text-white" strokeWidth={2} />
-          }
+        <div className={cn('flex items-center justify-center w-14 h-14 rounded-2xl shadow-xl border-2 transition-transform group-hover:scale-105',
+          isSelected && 'ring-4 ring-white scale-110', anim === 'pulse' && 'animate-pulse')}
+          style={{ backgroundColor: color, borderColor: `${ringColor}80`, boxShadow: anim === 'glow' ? `0 0 18px 6px ${color}55` : undefined }}>
+          {IconNode ?? <ResolvedIcon className="w-7 h-7 text-white" strokeWidth={2} />}
         </div>
-
-        {/* Label */}
         {showLbl !== 'never' && (
-          <span
-            className={cn(
-              'px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow pointer-events-none select-none',
-              showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150'
-            )}
-          >
+          <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow pointer-events-none select-none',
+            showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
             {hotspot.label}
           </span>
         )}
@@ -374,52 +272,25 @@ export function HotspotMarker({
     <button
       className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1', cursor)}
       style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
-      onClick={handleClick}
-      onPointerDown={handlePointerDown}
-      aria-label={hotspot.label}
-      title={hotspot.label}
+      onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label} title={hotspot.label}
     >
       {EditOverlay}
-      {/* Animated ring behind bubble */}
       {anim === 'ping' && (
-        <span
-          className="absolute inline-flex h-10 w-10 rounded-full animate-ping pointer-events-none"
-          style={{ backgroundColor: `${ringColor}55` }}
-        />
+        <span className="absolute inline-flex h-10 w-10 rounded-full animate-ping pointer-events-none"
+          style={{ backgroundColor: `${ringColor}55` }} />
       )}
       {anim === 'pulse' && (
-        <span
-          className="absolute inline-flex h-12 w-12 rounded-full animate-pulse pointer-events-none"
-          style={{ backgroundColor: `${ringColor}30` }}
-        />
+        <span className="absolute inline-flex h-12 w-12 rounded-full animate-pulse pointer-events-none"
+          style={{ backgroundColor: `${ringColor}30` }} />
       )}
-
-      {/* Main circle */}
-      <span
-        className={cn(
-          'relative flex items-center justify-center w-10 h-10 rounded-full border-2 shadow-lg transition-all duration-200',
-          isSelected && 'ring-4 ring-white ring-offset-1 ring-offset-black/40 scale-110'
-        )}
-        style={{
-          backgroundColor: color,
-          borderColor: `${ringColor}80`,
-          boxShadow: anim === 'glow' ? `0 0 14px 5px ${color}70` : undefined,
-        }}
-      >
-        {hotspot.customIcon
-          ? <span className="text-base leading-none select-none">{hotspot.customIcon}</span>
-          : <Icon className="w-5 h-5 text-white" strokeWidth={2.5} />
-        }
+      <span className={cn('relative flex items-center justify-center rounded-full border-2 shadow-lg transition-all duration-200', sz.bubble,
+        isSelected && 'ring-4 ring-white ring-offset-1 ring-offset-black/40 scale-110')}
+        style={{ backgroundColor: color, borderColor: `${ringColor}80`, boxShadow: anim === 'glow' ? `0 0 14px 5px ${color}70` : undefined }}>
+        {IconNode ?? <ResolvedIcon className={cn(sz.icon, 'text-white')} strokeWidth={2.5} />}
       </span>
-
-      {/* Label */}
       {showLbl !== 'never' && (
-        <span
-          className={cn(
-            'px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-black/70 text-white backdrop-blur-sm pointer-events-none select-none',
-            showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150'
-          )}
-        >
+        <span className={cn('px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-black/70 text-white backdrop-blur-sm pointer-events-none select-none',
+          showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
           {hotspot.label}
         </span>
       )}
