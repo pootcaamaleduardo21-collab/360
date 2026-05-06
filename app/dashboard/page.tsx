@@ -303,13 +303,25 @@ export default function DashboardPage() {
                 )}
 
                 {/* Stats row */}
-                {tours.length > 0 && (
+                {isLoading ? (
+                  <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8 animate-pulse">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 p-4 rounded-2xl bg-gray-900 border border-gray-800">
+                        <div className="w-9 h-9 rounded-xl bg-gray-800 flex-shrink-0" />
+                        <div className="space-y-2">
+                          <div className="h-5 w-8 bg-gray-800 rounded" />
+                          <div className="h-3 w-16 bg-gray-800 rounded" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : tours.length > 0 ? (
                   <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
                     <StatMini label="Tours"         value={statsRow.total}     icon={<Globe     className="w-4 h-4 text-blue-400"    />} />
                     <StatMini label="Publicados"    value={statsRow.published} icon={<Building2 className="w-4 h-4 text-emerald-400" />} />
                     <StatMini label="Vistas totales" value={statsRow.views}   icon={<BarChart2  className="w-4 h-4 text-purple-400"  />} />
                   </div>
-                )}
+                ) : null}
 
                 {/* Page header */}
                 <div className="flex items-center justify-between mb-5 sm:mb-6 gap-3">
@@ -342,8 +354,14 @@ export default function DashboardPage() {
 
                 {/* Content */}
                 {isLoading ? (
-                  <div className="flex justify-center py-20">
-                    <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                  <div className={cn(
+                    viewMode === 'grid'
+                      ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
+                      : 'space-y-3'
+                  )}>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <TourCardSkeleton key={i} list={viewMode === 'list'} />
+                    ))}
                   </div>
                 ) : error ? (
                   <div className="text-center py-20 text-red-400">{error}</div>
@@ -389,6 +407,35 @@ function StatMini({ label, value, icon }: { label: string; value: number; icon: 
       <div>
         <p className="text-xl font-black text-white leading-none">{value.toLocaleString()}</p>
         <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function TourCardSkeleton({ list }: { list?: boolean }) {
+  const pulse = 'bg-gray-800 animate-pulse rounded-lg';
+  if (list) {
+    return (
+      <div className="flex items-center gap-4 p-4 rounded-2xl bg-gray-900 border border-gray-800">
+        <div className={cn(pulse, 'w-16 h-16 rounded-xl flex-shrink-0')} />
+        <div className="flex-1 space-y-2">
+          <div className={cn(pulse, 'h-4 w-40')} />
+          <div className={cn(pulse, 'h-3 w-24')} />
+        </div>
+        <div className={cn(pulse, 'h-7 w-20 rounded-xl')} />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl bg-gray-900 border border-gray-800 overflow-hidden">
+      <div className={cn(pulse, 'w-full aspect-video')} />
+      <div className="p-4 space-y-3">
+        <div className={cn(pulse, 'h-4 w-3/4')} />
+        <div className={cn(pulse, 'h-3 w-1/2')} />
+        <div className="flex gap-2 pt-1">
+          <div className={cn(pulse, 'h-7 flex-1 rounded-xl')} />
+          <div className={cn(pulse, 'h-7 w-8 rounded-xl')} />
+        </div>
       </div>
     </div>
   );

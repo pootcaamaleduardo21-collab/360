@@ -39,14 +39,16 @@ export interface TourSummary {
 /** Fetch all tours for the current user (summary only, no heavy JSON). */
 export async function listUserTours(): Promise<TourSummary[]> {
   const sb = getSupabase();
+  // Select only `data->scenes` (PostgREST JSON path) instead of the full JSONB column.
+  // PostgREST returns the extracted value with key `scenes` in each row.
   const { data, error } = await sb
     .from('tours')
-    .select('id, title, description, is_published, share_slug, view_count, created_at, updated_at, data')
+    .select('id, title, description, is_published, share_slug, view_count, created_at, updated_at, data->scenes')
     .order('updated_at', { ascending: false });
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((row) => ({
+  return (data ?? []).map((row: any) => ({
     id:           row.id,
     title:        row.title,
     description:  row.description,
@@ -55,9 +57,26 @@ export async function listUserTours(): Promise<TourSummary[]> {
     view_count:   row.view_count,
     created_at:   row.created_at,
     updated_at:   row.updated_at,
-    thumbnail:    row.data?.scenes?.[0]?.thumbnailUrl ?? row.data?.scenes?.[0]?.imageUrl ?? null,
-    scene_count:  row.data?.scenes?.length ?? 0,
+    thumbnail:    row.scenes?.[0]?.thumbnailUrl ?? row.scenes?.[0]?.imageUrl ?? null,
+    scene_count:  row.scenes?.length ?? 0,
   }));
+}
+
+/**
+ * Fetch only scene id→name pairs for a tour. Much lighter than getTourById()
+ * when you only need to resolve scene names (e.g. LeadsPanel).
+ */
+export async function getTourSceneNames(id: string): Promise<Map<string, string>> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('tours')
+    .select('data->scenes')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) return new Map();
+  const scenes: { id: string; name: string }[] = (data as any).scenes ?? [];
+  return new Map(scenes.map((s) => [s.id, s.name]));
 }
 
 /** Fetch a single tour by its UUID (requires ownership or published). */
@@ -103,16 +122,17 @@ export interface CRMUnit {
 /** Fetch all tours and extract every unit, keyed by tour. Used in the CRM dashboard panel. */
 export async function listToursWithUnits(): Promise<CRMUnit[]> {
   const sb = getSupabase();
+  // Select only `data->units` instead of the full JSONB column.
   const { data, error } = await sb
     .from('tours')
-    .select('id, title, data')
+    .select('id, title, data->units')
     .order('updated_at', { ascending: false });
 
   if (error) throw new Error(error.message);
 
   const result: CRMUnit[] = [];
-  for (const row of data ?? []) {
-    const units: import('@/types/tour.types').PropertyUnit[] = row.data?.units ?? [];
+  for (const row of (data ?? []) as any[]) {
+    const units: import('@/types/tour.types').PropertyUnit[] = row.units ?? [];
     for (const unit of units) {
       result.push({ tourId: row.id, tourTitle: row.title, unit });
     }

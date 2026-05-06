@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { getLeadsForUser, Lead } from '@/lib/leads';
-import { listUserTours, getTourById } from '@/lib/db';
+import { listUserTours, getTourSceneNames } from '@/lib/db';
 import {
   MessageSquare, Phone, Mail, Clock, Inbox, ExternalLink,
   MessageCircle, Download, Star, MapPin, Search, Filter,
@@ -83,15 +83,12 @@ export function LeadsPanel() {
       setLeads(leadsData);
       setTours(toursData.map((t) => ({ id: t.id, title: t.title })));
 
-      // Fetch scene names for tours that have leads
+      // Fetch scene id→name maps for tours that have leads (lightweight query per tour)
       const tourIdsWithLeads = [...new Set(leadsData.map((l) => l.tour_id))];
       const maps: SceneMap = {};
       await Promise.all(
         tourIdsWithLeads.map(async (id) => {
-          const row = await getTourById(id).catch(() => null);
-          if (row) {
-            maps[id] = new Map(row.data.scenes.map((s) => [s.id, s.name]));
-          }
+          maps[id] = await getTourSceneNames(id).catch(() => new Map());
         })
       );
       setSceneMaps(maps);
@@ -122,8 +119,26 @@ export function LeadsPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="h-5 w-36 bg-gray-800 rounded-lg animate-pulse" />
+          <div className="h-7 w-24 bg-gray-800 rounded-lg animate-pulse" />
+        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="p-4 rounded-2xl bg-gray-900 border border-gray-800 space-y-3 animate-pulse">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-2 flex-1">
+                <div className="h-4 w-40 bg-gray-800 rounded" />
+                <div className="h-3 w-24 bg-gray-800 rounded" />
+              </div>
+              <div className="h-7 w-20 bg-gray-800 rounded-lg" />
+            </div>
+            <div className="flex gap-3">
+              <div className="h-3 w-28 bg-gray-800 rounded" />
+              <div className="h-3 w-32 bg-gray-800 rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

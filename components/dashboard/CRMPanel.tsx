@@ -722,8 +722,19 @@ export function CRMPanel() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+        <div className="rounded-2xl border border-gray-800 overflow-hidden animate-pulse">
+          <div className="grid grid-cols-6 gap-4 px-4 py-3 bg-gray-900 border-b border-gray-800">
+            {['w-16','w-24','w-20','w-20','w-16','w-12'].map((w, i) => (
+              <div key={i} className={`h-3 ${w} bg-gray-800 rounded`} />
+            ))}
+          </div>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="grid grid-cols-6 gap-4 px-4 py-4 border-b border-gray-800/50 last:border-0">
+              {['w-20','w-28','w-24','w-20','w-16','w-10'].map((w, j) => (
+                <div key={j} className={`h-4 ${w} bg-gray-800 rounded`} />
+              ))}
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div className="flex items-center gap-2 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400">
