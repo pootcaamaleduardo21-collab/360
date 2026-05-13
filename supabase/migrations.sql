@@ -95,6 +95,68 @@ ALTER TABLE team_invites
     CHECK (role IN ('admin', 'advisor'));
 
 
+-- ─── Migration 5: UTM columns on leads ───────────────────────────────────────
+--
+-- Almacena los parámetros UTM junto a cada lead para saber de qué campaña,
+-- canal o fuente llegó el visitante que envió sus datos de contacto.
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS utm_source   text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS utm_medium   text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS utm_campaign text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS utm_content  text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS utm_term     text;
+
+CREATE INDEX IF NOT EXISTS leads_utm_source_idx
+  ON leads(tour_id, utm_source)
+  WHERE utm_source IS NOT NULL;
+
+
+-- ─── Migration 6: tour_events table (if not created yet) ─────────────────────
+--
+-- Tabla principal de analytics. Si ya existe (creada manualmente), las líneas
+-- ADD COLUMN son idempotentes gracias a IF NOT EXISTS.
+
+CREATE TABLE IF NOT EXISTS tour_events (
+  id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  tour_id     uuid        REFERENCES tours(id) ON DELETE CASCADE NOT NULL,
+  event_type  text        NOT NULL,
+  scene_id    text,
+  unit_id     text,
+  hotspot_id  text,
+  metadata    jsonb,
+  created_at  timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS tour_events_tour_idx
+  ON tour_events(tour_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS tour_events_type_idx
+  ON tour_events(tour_id, event_type);
+
+-- Si la tabla ya existía sin estas columnas, las agrega:
+ALTER TABLE tour_events ADD COLUMN IF NOT EXISTS unit_id    text;
+ALTER TABLE tour_events ADD COLUMN IF NOT EXISTS hotspot_id text;
+ALTER TABLE tour_events ADD COLUMN IF NOT EXISTS metadata   jsonb;
+
+ALTER TABLE tour_events ENABLE ROW LEVEL SECURITY;
+
+-- Cualquier visitante puede insertar eventos (fire-and-forget desde el viewer)
+DROP POLICY IF EXISTS "tour_events: anyone can insert" ON tour_events;
+CREATE POLICY "tour_events: anyone can insert"
+  ON tour_events FOR INSERT
+  WITH CHECK (true);
+
+-- Solo el dueño del tour puede leer sus eventos
+DROP POLICY IF EXISTS "tour_events: owner can read" ON tour_events;
+CREATE POLICY "tour_events: owner can read"
+  ON tour_events FOR SELECT
+  USING (
+    tour_id IN (
+      SELECT id FROM tours WHERE user_id = auth.uid()
+    )
+  );
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --
@@ -102,3 +164,9 @@ ALTER TABLE team_invites
 --   WHERE table_schema = 'public';
 --
 -- Deberías ver: tours, profiles, tour_events, leads, team_invites
+--
+-- Columnas de leads:
+--   SELECT column_name FROM information_schema.columns
+--   WHERE table_name = 'leads' ORDER BY ordinal_position;
+--
+-- Debería incluir: utm_source, utm_medium, utm_campaign, utm_content, utm_term
