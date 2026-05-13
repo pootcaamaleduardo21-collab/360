@@ -21,12 +21,13 @@ import { MeasurementsPanel }  from '@/components/editor/MeasurementsPanel';
 import { MediaPanel }         from '@/components/editor/MediaPanel';
 import { NavPanelEditor }     from '@/components/editor/NavPanelEditor';
 import { InventoryPanel }    from '@/components/editor/InventoryPanel';
+import { POIEditor }         from '@/components/editor/POIEditor';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
   Layers, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
   Loader2, Map, Building2, Palette, Cloud, CloudOff, Check, Lock,
-  Ruler, Film, Sparkles,
+  Ruler, Film, Sparkles, MapPin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -48,7 +49,7 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'inventory' | 'branding' | 'navpanel' | 'security' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'inventory' | 'poi' | 'branding' | 'navpanel' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
 // Grouped tabs: content group + config group
@@ -65,6 +66,7 @@ const TAB_GROUPS: {
       { id: 'medidas',   label: 'Medidas',   icon: <Ruler     className="w-4 h-4" />, minRole: 'admin' },
       { id: 'media',     label: 'Galería',   icon: <Film      className="w-4 h-4" />, minRole: 'admin' },
       { id: 'inventory', label: 'Inventario', icon: <Building2 className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'poi',       label: 'Lugares',    icon: <MapPin    className="w-4 h-4" />, minRole: 'admin' },
     ],
   },
   {
@@ -404,6 +406,9 @@ function EditorInner() {
             )}
             {leftTab === 'inventory' && tour && (
               <InventoryPanel tour={tour} />
+            )}
+            {leftTab === 'poi' && tour && (
+              <POIEditor tour={tour} />
             )}
             {leftTab === 'branding' && tour && (
               <BrandingPanel tour={tour} />
