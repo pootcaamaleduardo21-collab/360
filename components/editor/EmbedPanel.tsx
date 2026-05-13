@@ -298,6 +298,33 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
                 </a>
               </div>
             )}
+
+            {/* Advisor referral link */}
+            {tour.salesAdvisor?.phone ? (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> Link del asesor (con WhatsApp directo)
+                </p>
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#25D366]/10 border border-[#25D366]/25">
+                  <span className="flex-1 text-xs text-gray-300 truncate">
+                    {publicUrl}?wa={tour.salesAdvisor.phone.replace(/\D/g, '')}
+                  </span>
+                  <button
+                    onClick={() => copy(`${publicUrl}?wa=${tour.salesAdvisor!.phone!.replace(/\D/g, '')}`, 'advisor_url')}
+                    className="text-[#25D366] hover:text-white transition-colors flex-shrink-0"
+                  >
+                    {copied === 'advisor_url' ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-600">
+                  Cuando el cliente abre este link, el botón "Compartir" muestra directamente el contacto del asesor.
+                </p>
+              </div>
+            ) : (
+              <p className="text-[10px] text-amber-500/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                💡 Configura el asesor en <strong>Inventario → Asesor</strong> para generar links personalizados con WhatsApp directo.
+              </p>
+            )}
           </section>
 
           <div className="border-t border-gray-700/50" />
@@ -412,7 +439,7 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
         </h3>
 
         <p className="text-[11px] text-gray-500 leading-relaxed">
-          Muestra un botón en el tour para que el cliente deje su nombre, teléfono y mensaje. Los leads caen en tu panel de CRM y recibes una notificación.
+          Muestra un botón en el recorrido para que el cliente deje nombre, teléfono y mensaje. Los leads llegan a tu panel de CRM y recibes notificación por email.
         </p>
 
         <label className="flex items-center justify-between cursor-pointer">
