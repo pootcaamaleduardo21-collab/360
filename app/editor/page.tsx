@@ -185,42 +185,44 @@ function EditorInner() {
 
   // ── Auto-save (debounced 3 s) — works for both existing and new tours ───────
   // Ref so the timeout callback can read the latest tourId without stale closure
-  const tourIdRef = useRef(tourId);
+  const tourIdRef  = useRef(tourId);
+  const tourRef    = useRef(tour);
   useEffect(() => { tourIdRef.current = tourId; }, [tourId]);
+  useEffect(() => { tourRef.current   = tour;   }, [tour]);
+
+  const performSave = useCallback(async () => {
+    const currentTour = tourRef.current;
+    if (!currentTour || !user) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    setSaveStatus('saving');
+    try {
+      if (tourIdRef.current) {
+        await saveTour(currentTour);
+      } else {
+        const newId = await createTour(currentTour);
+        router.replace(`/editor?id=${newId}`);
+      }
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('error');
+    }
+  }, [user, router]);
 
   useEffect(() => {
     if (!tour || !user) return;
 
-    // Skip the initial load/set (when loadTour is called from DB fetch)
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false;
       return;
     }
 
-    // Only start tracking changes once the tour has at least one scene
     if (tour.scenes.length === 0) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     setSaveStatus('pending');
 
-    autoSaveTimer.current = setTimeout(async () => {
-      setSaveStatus('saving');
-      try {
-        if (tourIdRef.current) {
-          // Existing tour — just upsert
-          await saveTour(tour);
-        } else {
-          // Brand-new tour — create in DB and update URL so future saves use upsert
-          const newId = await createTour(tour);
-          router.replace(`/editor?id=${newId}`);
-          // tourIdRef.current will update via the useEffect above after re-render
-        }
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
-      } catch {
-        setSaveStatus('error');
-      }
-    }, 3000);
+    autoSaveTimer.current = setTimeout(performSave, 3000);
 
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
@@ -304,25 +306,47 @@ function EditorInner() {
                   Eleva<span className="text-blue-400">360</span>
                 </span>
               )}
-              {/* Save status inline */}
-              {saveStatus !== 'idle' && (
-                <span className={cn(
-                  'flex items-center gap-1 text-[11px] transition-colors',
-                  saveStatus === 'pending' && 'text-gray-500',
-                  saveStatus === 'saving'  && 'text-blue-400',
-                  saveStatus === 'saved'   && 'text-emerald-400',
-                  saveStatus === 'error'   && 'text-red-400',
-                )}>
-                  {saveStatus === 'pending' && <Cloud    className="w-3 h-3" />}
-                  {saveStatus === 'saving'  && <Loader2  className="w-3 h-3 animate-spin" />}
-                  {saveStatus === 'saved'   && <Check    className="w-3 h-3" />}
-                  {saveStatus === 'error'   && <CloudOff className="w-3 h-3" />}
-                  {saveStatus === 'pending' && 'Sin guardar'}
-                  {saveStatus === 'saving'  && 'Guardando…'}
-                  {saveStatus === 'saved'   && 'Guardado'}
-                  {saveStatus === 'error'   && 'Error'}
-                </span>
-              )}
+              {/* Save status + manual save button */}
+              <div className="flex items-center gap-1.5">
+                {saveStatus !== 'idle' && (
+                  <span className={cn(
+                    'flex items-center gap-1 text-[11px] transition-colors',
+                    saveStatus === 'pending' && 'text-gray-500',
+                    saveStatus === 'saving'  && 'text-blue-400',
+                    saveStatus === 'saved'   && 'text-emerald-400',
+                    saveStatus === 'error'   && 'text-red-400',
+                  )}>
+                    {saveStatus === 'pending' && <Cloud    className="w-3 h-3" />}
+                    {saveStatus === 'saving'  && <Loader2  className="w-3 h-3 animate-spin" />}
+                    {saveStatus === 'saved'   && <Check    className="w-3 h-3" />}
+                    {saveStatus === 'error'   && <CloudOff className="w-3 h-3" />}
+                    {saveStatus === 'pending' && 'Sin guardar'}
+                    {saveStatus === 'saving'  && 'Guardando…'}
+                    {saveStatus === 'saved'   && 'Guardado'}
+                    {saveStatus === 'error'   && 'Error al guardar'}
+                  </span>
+                )}
+                <button
+                  onClick={performSave}
+                  disabled={saveStatus === 'saving'}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all',
+                    saveStatus === 'saving'
+                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      : saveStatus === 'error'
+                      ? 'bg-red-600/20 border border-red-600/40 text-red-400 hover:bg-red-600/30'
+                      : saveStatus === 'pending'
+                      ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-blue-900/50'
+                      : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'
+                  )}
+                  title="Guardar ahora"
+                >
+                  {saveStatus === 'saving'
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <Cloud className="w-3 h-3" />}
+                  Guardar
+                </button>
+              </div>
             </div>
             <input
               type="text"
