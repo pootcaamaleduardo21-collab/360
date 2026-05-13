@@ -19,6 +19,7 @@ const ComparisonViewer  = dynamic(() => import('@/components/viewer/ComparisonVi
 const MediaGallery      = dynamic(() => import('@/components/viewer/MediaGallery').then(m => m.MediaGallery),          { ssr: false });
 const AIAssistant       = dynamic(() => import('@/components/viewer/AIAssistant').then(m => m.AIAssistant),            { ssr: false });
 const LangSwitcher      = dynamic(() => import('@/components/viewer/LangSwitcher').then(m => m.LangSwitcher),          { ssr: false });
+const POIPanel          = dynamic(() => import('@/components/viewer/POIPanel').then(m => m.POIPanel),                  { ssr: false });
 import { useViewerLang } from '@/hooks/useViewerLang';
 import { PropertyUnit } from '@/types/tour.types';
 import { Loader2, AlertTriangle, Columns2, Share2, MessageCircle, Copy, Check, X } from 'lucide-react';
@@ -70,6 +71,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
   const [leadCaptureOpen,  setLeadCaptureOpen]  = useState(false);
   const [comparisonMode,   setComparisonMode]   = useState(false);
   const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
+  const [poiPanelOpen,     setPoiPanelOpen]     = useState(false);
   const [shareOpen,        setShareOpen]        = useState(false);
   const [linkCopied,       setLinkCopied]       = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -251,6 +253,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
             onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => setBookingOpen(true) : undefined}
             onOpenLeadCapture={tour.leadCaptureEnabled ? () => { setLeadCaptureOpen(true); trackEvent({ tourId: tour.id, event: 'cta_click', sceneId: currentSceneId ?? undefined }); } : undefined}
             onOpenMediaGallery={(tour.gallery?.length || tour.brochureUrl) ? () => setMediaGalleryOpen(true) : undefined}
+            onOpenPOIPanel={(tour.pointsOfInterest?.length ?? 0) > 0 ? () => setPoiPanelOpen(true) : undefined}
           />
         )}
       </ErrorBoundary>
@@ -316,6 +319,14 @@ function ViewerInner({ tourId }: { tourId: string }) {
           tourTitle={tour.title}
           ctaLabel={tour.leadCaptureLabel}
           onClose={() => setLeadCaptureOpen(false)}
+        />
+      )}
+
+      {/* POI panel */}
+      {poiPanelOpen && (
+        <POIPanel
+          tour={tour}
+          onClose={() => setPoiPanelOpen(false)}
         />
       )}
 
