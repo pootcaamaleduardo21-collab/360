@@ -298,7 +298,7 @@ function GuidedTourSection({
   updateTour,
 }: {
   tour: Tour;
-  updateTour: (patch: Partial<Tour>) => void;
+  updateTour: (patch: Partial<Omit<Tour, 'id' | 'scenes'>>) => void;
 }) {
   // Build ordered list: use saved custom order first, fall back to scenes array
   const buildOrder = () => {

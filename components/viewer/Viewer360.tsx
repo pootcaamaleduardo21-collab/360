@@ -90,29 +90,10 @@ export function Viewer360({
   const toggleCart           = useTourStore((s) => s.toggleCart);
   const updateHotspot        = useTourStore((s) => s.updateHotspot);
 
-  // Track time spent per scene
-  const sceneEnteredAt = useRef<number>(Date.now());
-  const prevSceneId    = useRef<string>(currentScene.id);
-
   // Hide tutorial if user has already dismissed it globally
   useEffect(() => {
     if (tutorialDismissed) setShowTutorial(false);
   }, [tutorialDismissed]);
-
-  // Scene duration tracking — fires scene_exit on navigation
-  useEffect(() => {
-    if (!isEditing && currentScene.id !== prevSceneId.current) {
-      const durationMs = Date.now() - sceneEnteredAt.current;
-      trackEvent({
-        tourId: tour.id,
-        event: 'scene_exit',
-        sceneId: prevSceneId.current,
-        metadata: { durationMs },
-      });
-      prevSceneId.current    = currentScene.id;
-      sceneEnteredAt.current = Date.now();
-    }
-  }, [currentScene.id, isEditing, tour.id]);
 
   const handleAddHotspot = useCallback(
     (yaw: number, pitch: number) => {
