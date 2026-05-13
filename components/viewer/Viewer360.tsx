@@ -100,6 +100,21 @@ export function Viewer360({
     if (tutorialDismissed) setShowTutorial(false);
   }, [tutorialDismissed]);
 
+  // Silently preload all other scene images after 2 s so navigation feels instant
+  useEffect(() => {
+    if (tour.scenes.length <= 1) return;
+    const timer = setTimeout(() => {
+      tour.scenes.forEach((s) => {
+        if (s.imageUrl && s.imageUrl !== currentScene.imageUrl) {
+          const img = new Image();
+          img.src = s.imageUrl;
+        }
+      });
+    }, 2000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // once on mount — all scenes available via closure
+
   // Scene duration tracking — fires scene_exit on navigation
   useEffect(() => {
     if (!isEditing && currentScene.id !== prevSceneId.current) {
@@ -215,6 +230,14 @@ export function Viewer360({
       onPointerMove={handleWrapperPointerMove}
       onPointerUp={handleWrapperPointerUp}
     >
+      {/* Thumbnail backdrop — shows instantly while the 360° texture loads */}
+      {currentScene.thumbnailUrl && (
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${currentScene.thumbnailUrl})`, filter: 'blur(12px)', transform: 'scale(1.05)' }}
+        />
+      )}
+
       {/* Three.js canvas mount point */}
       <div ref={containerRef} className="absolute inset-0" />
 

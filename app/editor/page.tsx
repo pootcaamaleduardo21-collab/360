@@ -223,7 +223,7 @@ function EditorInner() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     setSaveStatus('pending');
 
-    autoSaveTimer.current = setTimeout(performSave, 3000);
+    autoSaveTimer.current = setTimeout(performSave, 1500);
 
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);

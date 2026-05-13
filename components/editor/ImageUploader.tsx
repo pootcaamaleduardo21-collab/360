@@ -77,10 +77,13 @@ const CAMERA_GUIDES = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const WARN_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB — above this, recommend compression
+
 export function ImageUploader({ onImagesReady, maxFiles = 20, className }: ImageUploaderProps) {
-  const [files,     setFiles]     = useState<FileItem[]>([]);
-  const [showGuide, setShowGuide] = useState(false);
-  const [rejErrors, setRejErrors] = useState<string[]>([]);
+  const [files,        setFiles]        = useState<FileItem[]>([]);
+  const [showGuide,    setShowGuide]    = useState(false);
+  const [rejErrors,    setRejErrors]    = useState<string[]>([]);
+  const [heavyFiles,   setHeavyFiles]   = useState<string[]>([]);
   const tour = useTourStore((s) => s.tour);
 
   // Auto-dismiss rejection errors after 6 s
@@ -95,6 +98,10 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
 
   const onDrop = useCallback(
     async (accepted: File[]) => {
+      // Warn about heavy files before processing starts
+      const heavy = accepted.filter((f) => f.size > WARN_SIZE_BYTES).map((f) => f.name);
+      if (heavy.length) setHeavyFiles(heavy);
+
       const newItems: FileItem[] = accepted.map((file) => ({
         file,
         preview: URL.createObjectURL(file),
@@ -287,6 +294,31 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
           ))}
         </div>
       </div>
+
+      {/* ── Heavy file warning ────────────────────────────────────────────── */}
+      {heavyFiles.length > 0 && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 space-y-1.5">
+          <p className="flex items-start gap-1.5 text-xs text-amber-400 font-semibold">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+            {heavyFiles.length === 1
+              ? `"${heavyFiles[0]}" pesa más de 5 MB — el visor cargará lento.`
+              : `${heavyFiles.length} imágenes pesan más de 5 MB — el visor cargará lento.`}
+          </p>
+          <p className="text-[11px] text-amber-300/70 pl-5">
+            Antes de subir, comprime en{' '}
+            <a href="https://squoosh.app" target="_blank" rel="noreferrer" className="underline hover:text-amber-200">
+              squoosh.app
+            </a>
+            {' '}→ JPEG · calidad 80% · máximo 8192×4096 px. Reduce el tiempo de carga hasta 10×.
+          </p>
+          <button
+            onClick={() => setHeavyFiles([])}
+            className="ml-5 text-[10px] text-amber-500/60 hover:text-amber-400 transition-colors"
+          >
+            Entendido, continuar igual
+          </button>
+        </div>
+      )}
 
       {/* ── Rejection errors ──────────────────────────────────────────────── */}
       {rejErrors.length > 0 && (
