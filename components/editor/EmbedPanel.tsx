@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   Globe, Lock, Copy, CheckCheck, ExternalLink, QrCode,
   Loader2, AlertCircle, RefreshCw, Link2,
-  Eye, EyeOff, Calendar, Phone, Mail, Shield,
+  Eye, EyeOff, Calendar, Phone, Mail, Shield, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -400,6 +400,45 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
               {pwSaved ? <><CheckCheck className="w-3.5 h-3.5" /> Guardada</> : <><Lock className="w-3.5 h-3.5" /> Guardar contraseña</>}
             </button>
           </div>
+        )}
+      </section>
+
+      <div className="border-t border-gray-700/50" />
+
+      {/* ── Lead capture / contact form ────────────────────────────────── */}
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <MessageSquare className="w-3.5 h-3.5" /> Captura de leads
+        </h3>
+
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          Muestra un botón en el tour para que el cliente deje su nombre, teléfono y mensaje. Los leads caen en tu panel de CRM y recibes una notificación.
+        </p>
+
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-xs text-gray-400">Activar botón de contacto</span>
+          <button
+            onClick={() => updateTour({ leadCaptureEnabled: !tour.leadCaptureEnabled } as any)}
+            className={cn(
+              'relative w-10 h-5 rounded-full transition-colors',
+              tour.leadCaptureEnabled ? 'bg-teal-500' : 'bg-gray-700'
+            )}
+          >
+            <span className={cn(
+              'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
+              tour.leadCaptureEnabled ? 'translate-x-5' : 'translate-x-0.5'
+            )} />
+          </button>
+        </label>
+
+        {tour.leadCaptureEnabled && (
+          <input
+            type="text"
+            value={(tour as any).leadCaptureLabel ?? ''}
+            onChange={(e) => updateTour({ leadCaptureLabel: e.target.value || undefined } as any)}
+            placeholder='Texto del botón (ej. "Solicitar visita")'
+            className="input-dark w-full text-xs"
+          />
         )}
       </section>
 

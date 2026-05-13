@@ -11,6 +11,133 @@ interface NavPanelEditorProps {
   tour: Tour;
 }
 
+// ─── ItemRow must live OUTSIDE NavPanelEditor so React does not treat it as
+// a new component type on every re-render, which would unmount the input and
+// lose focus after each keystroke.
+interface ItemRowProps {
+  item: NavPanelItem;
+  depth: number;
+  scenes: Tour['scenes'];
+  onUpdate: (id: string, patch: Partial<NavPanelItem>) => void;
+  onRemove: (id: string) => void;
+  onAddChild: (parentId: string) => void;
+}
+
+function ItemRow({ item, depth, scenes, onUpdate, onRemove, onAddChild }: ItemRowProps) {
+  const [itemExpanded, setItemExpanded] = useState(false);
+  const hasChildren = item.children && item.children.length > 0;
+
+  return (
+    <div className={cn('space-y-1', depth > 0 && 'ml-4')}>
+      <div className="flex items-center gap-1.5 group">
+        {/* Expand toggle for items with children */}
+        <button
+          onClick={() => setItemExpanded((v) => !v)}
+          className="w-4 h-4 flex items-center justify-center text-gray-600 hover:text-white flex-shrink-0"
+        >
+          {hasChildren
+            ? itemExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />
+            : <span className="w-3" />}
+        </button>
+
+        {/* Icon */}
+        <input
+          type="text"
+          value={item.icon ?? ''}
+          onChange={(e) => onUpdate(item.id, { icon: e.target.value })}
+          className="w-8 text-center bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-sm"
+          placeholder="📍"
+        />
+
+        {/* Label */}
+        <input
+          type="text"
+          value={item.label}
+          onChange={(e) => onUpdate(item.id, { label: e.target.value })}
+          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 min-w-0"
+          placeholder="Etiqueta"
+        />
+
+        {/* Type toggle: scene vs external */}
+        <button
+          onClick={() => onUpdate(item.id, { type: item.type === 'scene' ? 'external' : 'scene' })}
+          title={item.type === 'scene' ? 'Escena interna' : 'URL externa'}
+          className={cn(
+            'flex-shrink-0 p-1 rounded transition-colors',
+            item.type === 'external' ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
+          )}
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Add child (only at depth 0) */}
+        {depth === 0 && (
+          <button
+            onClick={() => { onAddChild(item.id); setItemExpanded(true); }}
+            title="Agregar sub-elemento"
+            className="flex-shrink-0 p-1 text-gray-600 hover:text-gray-300 rounded transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* Delete */}
+        <button
+          onClick={() => onRemove(item.id)}
+          className="flex-shrink-0 p-1 text-gray-600 hover:text-red-400 rounded transition-colors opacity-0 group-hover:opacity-100"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Target selector */}
+      {(itemExpanded || !hasChildren) && (
+        <div className={cn('ml-6 pl-2', depth > 0 && 'ml-3')}>
+          {item.type === 'scene' ? (
+            <select
+              value={item.sceneId ?? ''}
+              onChange={(e) => onUpdate(item.id, { sceneId: e.target.value || undefined })}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-400"
+            >
+              <option value="">— Seleccionar escena —</option>
+              {scenes.map((sc) => (
+                <option key={sc.id} value={sc.id}>{sc.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="url"
+              value={item.url ?? ''}
+              onChange={(e) => onUpdate(item.id, { url: e.target.value || undefined })}
+              placeholder="https://360-flax.vercel.app/viewer/otro-tour"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-400 placeholder-gray-600"
+            />
+          )}
+        </div>
+      )}
+
+      {/* Children */}
+      {hasChildren && itemExpanded && (
+        <div className="space-y-1">
+          {item.children!.map((child) => (
+            <ItemRow
+              key={child.id}
+              item={child}
+              depth={depth + 1}
+              scenes={scenes}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+              onAddChild={onAddChild}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main editor ──────────────────────────────────────────────────────────────
+
 export function NavPanelEditor({ tour }: NavPanelEditorProps) {
   const updateTour = useTourStore((s) => s.updateTour);
   const panel = tour.navPanel ?? { enabled: false, items: [] };
@@ -19,7 +146,7 @@ export function NavPanelEditor({ tour }: NavPanelEditorProps) {
     updateTour({ navPanel: { ...panel, ...patch } });
   }, [panel, updateTour]);
 
-  const addItem = (parentId?: string) => {
+  const addItem = useCallback((parentId?: string) => {
     const newItem: NavPanelItem = {
       id: uuidv4(),
       label: 'Nueva sección',
@@ -38,18 +165,18 @@ export function NavPanelEditor({ tour }: NavPanelEditorProps) {
         );
       save({ items: addChild(panel.items) });
     }
-  };
+  }, [panel, save]);
 
-  const removeItem = (itemId: string) => {
+  const removeItem = useCallback((itemId: string) => {
     const removeDeep = (items: NavPanelItem[]): NavPanelItem[] =>
       items.filter((it) => it.id !== itemId).map((it) => ({
         ...it,
         children: it.children ? removeDeep(it.children) : undefined,
       }));
     save({ items: removeDeep(panel.items) });
-  };
+  }, [panel, save]);
 
-  const updateItem = (itemId: string, patch: Partial<NavPanelItem>) => {
+  const updateItem = useCallback((itemId: string, patch: Partial<NavPanelItem>) => {
     const updateDeep = (items: NavPanelItem[]): NavPanelItem[] =>
       items.map((it) =>
         it.id === itemId
@@ -57,112 +184,7 @@ export function NavPanelEditor({ tour }: NavPanelEditorProps) {
           : { ...it, children: it.children ? updateDeep(it.children) : undefined }
       );
     save({ items: updateDeep(panel.items) });
-  };
-
-  function ItemRow({ item, depth = 0 }: { item: NavPanelItem; depth?: number }) {
-    const [itemExpanded, setItemExpanded] = useState(false);
-    const hasChildren = item.children && item.children.length > 0;
-
-    return (
-      <div className={cn('space-y-1', depth > 0 && 'ml-4')}>
-        <div className="flex items-center gap-1.5 group">
-          {/* Expand toggle for items with children */}
-          <button
-            onClick={() => setItemExpanded((v) => !v)}
-            className="w-4 h-4 flex items-center justify-center text-gray-600 hover:text-white flex-shrink-0"
-          >
-            {hasChildren
-              ? itemExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />
-              : <span className="w-3" />}
-          </button>
-
-          {/* Icon */}
-          <input
-            type="text"
-            value={item.icon ?? ''}
-            onChange={(e) => updateItem(item.id, { icon: e.target.value })}
-            className="w-8 text-center bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-sm"
-            placeholder="📍"
-          />
-
-          {/* Label */}
-          <input
-            type="text"
-            value={item.label}
-            onChange={(e) => updateItem(item.id, { label: e.target.value })}
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 min-w-0"
-            placeholder="Etiqueta"
-          />
-
-          {/* Type toggle: scene vs external */}
-          <button
-            onClick={() => updateItem(item.id, { type: item.type === 'scene' ? 'external' : 'scene' })}
-            title={item.type === 'scene' ? 'Escena interna' : 'URL externa'}
-            className={cn(
-              'flex-shrink-0 p-1 rounded transition-colors',
-              item.type === 'external' ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
-            )}
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Add child (only at depth 0) */}
-          {depth === 0 && (
-            <button
-              onClick={() => { addItem(item.id); setItemExpanded(true); }}
-              title="Agregar sub-elemento"
-              className="flex-shrink-0 p-1 text-gray-600 hover:text-gray-300 rounded transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {/* Delete */}
-          <button
-            onClick={() => removeItem(item.id)}
-            className="flex-shrink-0 p-1 text-gray-600 hover:text-red-400 rounded transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Target selector */}
-        {(itemExpanded || !hasChildren) && (
-          <div className={cn('ml-6 pl-2', depth > 0 && 'ml-3')}>
-            {item.type === 'scene' ? (
-              <select
-                value={item.sceneId ?? ''}
-                onChange={(e) => updateItem(item.id, { sceneId: e.target.value || undefined })}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-400"
-              >
-                <option value="">— Seleccionar escena —</option>
-                {tour.scenes.map((sc) => (
-                  <option key={sc.id} value={sc.id}>{sc.name}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="url"
-                value={item.url ?? ''}
-                onChange={(e) => updateItem(item.id, { url: e.target.value || undefined })}
-                placeholder="https://360-flax.vercel.app/viewer/otro-tour"
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-400 placeholder-gray-600"
-              />
-            )}
-          </div>
-        )}
-
-        {/* Children */}
-        {hasChildren && itemExpanded && (
-          <div className="space-y-1">
-            {item.children!.map((child) => (
-              <ItemRow key={child.id} item={child} depth={depth + 1} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+  }, [panel, save]);
 
   return (
     <div className="space-y-4">
@@ -220,14 +242,22 @@ export function NavPanelEditor({ tour }: NavPanelEditorProps) {
             ) : (
               <div className="space-y-2">
                 {panel.items.map((item) => (
-                  <ItemRow key={item.id} item={item} />
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    depth={0}
+                    scenes={tour.scenes}
+                    onUpdate={updateItem}
+                    onRemove={removeItem}
+                    onAddChild={addItem}
+                  />
                 ))}
               </div>
             )}
           </div>
 
           <p className="text-[10px] text-gray-600">
-            Los elementos con sub-elementos se muestran colapsables. Los ícono son emoji (una sola letra/símbolo).
+            Los elementos con sub-elementos se muestran colapsables. Los íconos son emoji (una sola letra/símbolo).
           </p>
         </>
       )}
