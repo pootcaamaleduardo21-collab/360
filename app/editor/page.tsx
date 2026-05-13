@@ -186,15 +186,18 @@ function EditorInner() {
 
   // ── Auto-save (debounced 3 s) — works for both existing and new tours ───────
   // Ref so the timeout callback can read the latest tourId without stale closure
-  const tourIdRef  = useRef(tourId);
-  const tourRef    = useRef(tour);
+  const tourIdRef   = useRef(tourId);
+  const tourRef     = useRef(tour);
+  const isSavingRef = useRef(false);
   useEffect(() => { tourIdRef.current = tourId; }, [tourId]);
   useEffect(() => { tourRef.current   = tour;   }, [tour]);
 
   const performSave = useCallback(async () => {
     const currentTour = tourRef.current;
-    if (!currentTour || !user) return;
+    if (!currentTour) return;
+    if (isSavingRef.current) return; // prevent concurrent saves
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    isSavingRef.current = true;
     setSaveStatus('saving');
     try {
       if (tourIdRef.current) {
@@ -205,13 +208,16 @@ function EditorInner() {
       }
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('[Editor] Save failed:', err);
       setSaveStatus('error');
+    } finally {
+      isSavingRef.current = false;
     }
-  }, [user, router]);
+  }, [router]);
 
   useEffect(() => {
-    if (!tour || !user) return;
+    if (!tour) return;
 
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false;

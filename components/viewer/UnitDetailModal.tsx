@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/utils';
 import {
   X, Share2, Phone, MessageCircle, ChevronRight,
   Maximize2, BedDouble, Bath, Car, Ruler, Building2,
-  CheckCircle, XCircle, Clock, AlertCircle, Check,
+  CheckCircle, XCircle, Clock, AlertCircle, Check, Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +18,7 @@ interface UnitDetailModalProps {
   tour: Tour;
   onClose: () => void;
   onNavigate?: (sceneId: string) => void;
+  onOpenBooking?: () => void;
 }
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ const STATUS_STYLE: Record<PropertyStatus, {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function UnitDetailModal({ unit, tour, onClose, onNavigate }: UnitDetailModalProps) {
+export function UnitDetailModal({ unit, tour, onClose, onNavigate, onOpenBooking }: UnitDetailModalProps) {
   const [showFloorPlan, setShowFloorPlan] = useState(false);
   const [copied,        setCopied]        = useState(false);
 
@@ -101,15 +102,11 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate }: UnitDetailM
     setTimeout(() => setCopied(false), 2500);
   }, [tourUrl, unit, tour]);
 
-  const handleInterest = () => {
-    if (!advisor?.phone) return;
-    const phone = advisor.phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(buildInterestMsg())}`, '_blank');
-  };
+  const interestHref = advisor?.phone
+    ? `https://wa.me/${advisor.phone.replace(/\D/g, '')}?text=${encodeURIComponent(buildInterestMsg())}`
+    : null;
 
-  const handleAdvisorShare = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(buildShareMsg())}`, '_blank');
-  };
+  const shareHref = `https://wa.me/?text=${encodeURIComponent(buildShareMsg())}`;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -241,13 +238,27 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate }: UnitDetailM
               )}
 
               {/* "Me interesa" → WhatsApp to advisor */}
-              {advisor?.phone && unit.status !== 'sold' && (
-                <button
-                  onClick={handleInterest}
+              {interestHref && unit.status !== 'sold' && (
+                <a
+                  href={interestHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold rounded-2xl transition-colors text-sm shadow-sm"
                 >
                   <MessageCircle className="w-4 h-4" />
                   {niche.ctaLabel} — Escribir al {niche.ctaAdvisorLabel.toLowerCase()}
+                </a>
+              )}
+
+              {/* Booking CTA */}
+              {onOpenBooking && tour.bookingEnabled && unit.status !== 'sold' && (
+                <button
+                  onClick={() => { onOpenBooking(); onClose(); }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-semibold text-sm shadow-sm transition-opacity hover:opacity-90"
+                  style={{ background: tour.brandColor ?? '#059669' }}
+                >
+                  <Calendar className="w-4 h-4" />
+                  {tour.bookingConfig?.ctaLabel ?? 'Agendar cita con el asesor'}
                 </button>
               )}
 
@@ -262,13 +273,15 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate }: UnitDetailM
                     : <><Share2 className="w-4 h-4" /> Compartir</>
                   }
                 </button>
-                <button
-                  onClick={handleAdvisorShare}
+                <a
+                  href={shareHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C45] text-sm font-medium transition-colors border border-[#25D366]/30"
                 >
                   <Share2 className="w-4 h-4" />
                   Enviar info
-                </button>
+                </a>
               </div>
             </div>
           </div>

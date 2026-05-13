@@ -85,6 +85,8 @@ export function Viewer360({
   const [showTutorial,       setShowTutorial]       = useState(config.showTutorial);
   const [isFullscreen,       setIsFullscreen]       = useState(false);
   const [draggingHotspotId,  setDraggingHotspotId]  = useState<string | null>(null);
+  const [sceneTransition,    setSceneTransition]    = useState(false);
+  const prevSceneIdRef = useRef(currentScene.id);
   const tutorialDismissed    = useTourStore((s) => s.tutorialDismissed);
   const dismissTutorial      = useTourStore((s) => s.dismissTutorial);
   const cartItemCount        = useTourStore((s) => s.items.reduce((a, i) => a + i.quantity, 0));
@@ -114,6 +116,14 @@ export function Viewer360({
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // once on mount — all scenes available via closure
+
+  // Scene transition overlay — detect scene change, fade out after loaded
+  useEffect(() => {
+    if (currentScene.id !== prevSceneIdRef.current) {
+      prevSceneIdRef.current = currentScene.id;
+      setSceneTransition(true);
+    }
+  }, [currentScene.id]);
 
   // Scene duration tracking — fires scene_exit on navigation
   useEffect(() => {
@@ -170,6 +180,14 @@ export function Viewer360({
     isEditing: isEditing && !!addHotspotType,
     onAddHotspot: handleAddHotspot,
   });
+
+  // Fade out transition overlay once new texture finishes loading
+  useEffect(() => {
+    if (!isLoading && sceneTransition) {
+      const t = setTimeout(() => setSceneTransition(false), 80);
+      return () => clearTimeout(t);
+    }
+  }, [isLoading, sceneTransition]);
 
   // ── Zoom helpers ─────────────────────────────────────────────────────────
   const updateViewerConfig = useTourStore((s) => s.updateViewerConfig);
@@ -237,6 +255,12 @@ export function Viewer360({
           style={{ backgroundImage: `url(${currentScene.thumbnailUrl})`, filter: 'blur(12px)', transform: 'scale(1.05)' }}
         />
       )}
+
+      {/* Scene transition overlay — instant black on navigate, fade out when loaded */}
+      <div
+        className="absolute inset-0 z-20 bg-black pointer-events-none transition-opacity duration-500"
+        style={{ opacity: sceneTransition ? 1 : 0 }}
+      />
 
       {/* Three.js canvas mount point */}
       <div ref={containerRef} className="absolute inset-0" />
