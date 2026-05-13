@@ -372,79 +372,99 @@ function ViewerInner({ tourId }: { tourId: string }) {
       )}
 
       {/* ── Floating share button (top-right) ─────────────────────────────── */}
-      <div ref={shareRef} className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
-        <button
-          onClick={() => setShareOpen((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white/80 hover:text-white text-xs font-medium border border-white/10 transition-all shadow-lg"
-          title={t('share')}
-        >
-          <Share2 className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{t('share')}</span>
-        </button>
+      {(() => {
+        // Advisor phone: URL param overrides tour.salesAdvisor (personalized links)
+        const advisorPhone = waPhone ?? tour.salesAdvisor?.phone ?? null;
+        const advisorName  = tour.salesAdvisor?.name ?? 'Asesor';
 
-        {shareOpen && (
-          <div className="bg-gray-950/95 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-sm overflow-hidden w-56 animate-fade-in">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-              <span className="text-xs font-semibold text-white">{t('share')}</span>
-              <button onClick={() => setShareOpen(false)} className="text-gray-500 hover:text-white transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="p-3 space-y-2">
-              {/* Advisor contact — only when ?wa=PHONE is in the URL */}
-              {waPhone && (
-                <button
-                  onClick={() => {
-                    const url  = window.location.href;
-                    const text = `Hola, me interesa esta propiedad: ${tour.title}\n\n${url}`;
-                    window.open(`https://wa.me/${waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
-                    trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'whatsapp_advisor' } });
-                    setShareOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-semibold transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Contactar asesor
-                </button>
-              )}
+        return (
+          <div ref={shareRef} className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
+            <button
+              onClick={() => setShareOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white/80 hover:text-white text-xs font-medium border border-white/10 transition-all shadow-lg"
+              title={t('share')}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t('share')}</span>
+            </button>
 
-              {/* Share via WhatsApp (enviar link) */}
-              <button
-                onClick={() => {
-                  const url  = window.location.href;
-                  const text = `🏠 *${tour.title}*\n\nExplora el recorrido virtual 360° aquí:\n${url}`;
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                  trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'whatsapp' } });
-                  setShareOpen(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/30 text-[#25D366] text-xs font-semibold transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                {t('sendWhatsapp')}
-              </button>
+            {shareOpen && (
+              <div className="bg-gray-950/95 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-sm overflow-hidden w-60 animate-fade-in">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                  <span className="text-xs font-semibold text-white">{t('share')}</span>
+                  <button onClick={() => setShareOpen(false)} className="text-gray-500 hover:text-white transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-              {/* Copy link */}
-              <button
-                onClick={async () => {
-                  await navigator.clipboard.writeText(window.location.href);
-                  setLinkCopied(true);
-                  trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'copy_link' } });
-                  setTimeout(() => { setLinkCopied(false); setShareOpen(false); }, 1800);
-                }}
-                className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-colors',
-                  linkCopied
-                    ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400'
-                    : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                {/* Advisor card — shown when tour has a salesAdvisor or ?wa= param */}
+                {advisorPhone && (
+                  <div className="px-3 pt-3 pb-1">
+                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-gray-800/60 border border-gray-700/50 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-[#25D366]/20 border border-[#25D366]/30 flex items-center justify-center flex-shrink-0 text-xs font-bold text-[#25D366]">
+                        {advisorName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-white truncate">{advisorName}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{tour.salesAdvisor?.title ?? 'Asesor inmobiliario'}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const url  = window.location.href;
+                        const text = `Hola ${advisorName}! Vi el tour 360° de *${tour.title}* y me interesa conocer más información. 😊\n\n${url}`;
+                        window.open(`https://wa.me/${advisorPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+                        trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'whatsapp_advisor' } });
+                        setShareOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-semibold transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Escribir al asesor
+                    </button>
+                  </div>
                 )}
-              >
-                {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {linkCopied ? t('linkCopied') : t('copyLink')}
-              </button>
-            </div>
+
+                <div className="p-3 space-y-2">
+                  {/* Share via WhatsApp (generic — send tour link) */}
+                  <button
+                    onClick={() => {
+                      const url  = window.location.href;
+                      const text = `🏠 *${tour.title}*\n\nExplora el recorrido virtual 360° aquí:\n${url}`;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                      trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'whatsapp' } });
+                      setShareOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/30 text-[#25D366] text-xs font-semibold transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    {t('sendWhatsapp')}
+                  </button>
+
+                  {/* Copy link */}
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(window.location.href);
+                      setLinkCopied(true);
+                      trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'copy_link' } });
+                      setTimeout(() => { setLinkCopied(false); setShareOpen(false); }, 1800);
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-colors',
+                      linkCopied
+                        ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400'
+                        : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                    )}
+                  >
+                    {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {linkCopied ? t('linkCopied') : t('copyLink')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }
