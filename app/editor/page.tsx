@@ -7,6 +7,7 @@ import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRole } from '@/lib/roles';
 import { getTourById, saveTour, createTour } from '@/lib/db';
+import { getSupabase } from '@/lib/supabase';
 import { HotspotType } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
 import { ImageUploader }    from '@/components/editor/ImageUploader';
@@ -150,29 +151,29 @@ function EditorInner() {
       if (!tour) initTour('Mi Tour 360°');
       return;
     }
-    // Wait until auth resolves before fetching
-    if (!user) return;
 
     setDbLoading(true);
-    getTourById(tourId)
-      .then((row) => {
-        if (!row) {
-          router.push('/dashboard');
-          return;
-        }
-        // ── SECURITY: reject if the tour belongs to another user ────────
-        if (row.user_id !== user.id) {
+    // Fetch tour + auth session in parallel — no need to wait for auth state to settle
+    Promise.all([
+      getTourById(tourId),
+      getSupabase().auth.getSession(),
+    ])
+      .then(([row, { data: { session } }]) => {
+        const currentUser = session?.user ?? null;
+        if (!currentUser) { router.push('/dashboard'); return; }
+        if (!row)         { router.push('/dashboard'); return; }
+        if (row.user_id !== currentUser.id) {
           console.warn('[Editor] Unauthorized: tour belongs to another user');
           router.push('/dashboard');
           return;
         }
-        skipNextSaveRef.current = true; // don't auto-save the data we just loaded
+        skipNextSaveRef.current = true;
         loadTour(row.data);
       })
       .catch(() => router.push('/dashboard'))
       .finally(() => setDbLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tourId, user]);
+  }, [tourId]);
 
   // ── Escape to cancel hotspot placement ───────────────────────────────────
   useEffect(() => {

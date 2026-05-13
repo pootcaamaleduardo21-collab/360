@@ -142,7 +142,8 @@ export async function listToursWithUnits(): Promise<CRMUnit[]> {
 /** Create a new tour row. Returns the generated UUID. */
 export async function createTour(tour: Tour): Promise<string> {
   const sb = getSupabase();
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await sb
@@ -163,7 +164,8 @@ export async function createTour(tour: Tour): Promise<string> {
 /** Upsert (save) a tour — creates if new, updates if exists. */
 export async function saveTour(tour: Tour): Promise<void> {
   const sb = getSupabase();
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
   if (!user) throw new Error('Not authenticated');
 
   const { error } = await sb
@@ -188,7 +190,8 @@ export async function deleteTour(id: string): Promise<void> {
 
   // App-level ownership check: fetch the tour first and confirm it belongs to the caller.
   // Even if someone bypasses the UI, RLS on the DELETE will also block cross-user deletes.
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
   if (!user) throw new Error('Not authenticated');
 
   const { data: row } = await sb.from('tours').select('user_id').eq('id', id).single();
