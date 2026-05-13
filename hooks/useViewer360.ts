@@ -196,6 +196,38 @@ export function useViewer360({
       cameraRef.current.updateProjectionMatrix();
     };
 
+    // ── Pinch-to-zoom (touch) ──────────────────────────────────────────────
+    let lastPinchDist = 0;
+
+    const getTouchDist = (e: TouchEvent) =>
+      Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        lastPinchDist = getTouchDist(e);
+        isDragging.current = false; // cancel single-finger drag
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !cameraRef.current) return;
+      e.preventDefault();
+      const dist = getTouchDist(e);
+      const delta = lastPinchDist - dist;
+      lastPinchDist = dist;
+      const fov = THREE.MathUtils.clamp(
+        cameraRef.current.fov + delta * 0.1,
+        config.minFov,
+        config.maxFov
+      );
+      cameraRef.current.fov = fov;
+      cameraRef.current.updateProjectionMatrix();
+    };
+
     // ── Resize observer ────────────────────────────────────────────────────
     const resizeObserver = new ResizeObserver(() => {
       if (!camera || !renderer) return;
@@ -209,6 +241,8 @@ export function useViewer360({
     container.addEventListener('pointermove', onPointerMove);
     container.addEventListener('pointerup',   onPointerUp);
     container.addEventListener('wheel',       onWheel, { passive: false });
+    container.addEventListener('touchstart',  onTouchStart, { passive: false });
+    container.addEventListener('touchmove',   onTouchMove,  { passive: false });
 
     // ── Cleanup ────────────────────────────────────────────────────────────
     return () => {
@@ -218,6 +252,8 @@ export function useViewer360({
       container.removeEventListener('pointermove', onPointerMove);
       container.removeEventListener('pointerup',   onPointerUp);
       container.removeEventListener('wheel',       onWheel);
+      container.removeEventListener('touchstart',  onTouchStart);
+      container.removeEventListener('touchmove',   onTouchMove);
       currentTextureRef.current?.dispose();
       geometry.dispose();
       material.dispose();

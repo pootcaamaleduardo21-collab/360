@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tour, NavPanelItem } from '@/types/tour.types';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, Menu, X, ExternalLink } from 'lucide-react';
@@ -12,8 +12,13 @@ interface NavigationPanelProps {
 }
 
 export function NavigationPanel({ tour, currentSceneId, onNavigate }: NavigationPanelProps) {
-  const [open, setOpen] = useState(true);
+  // Start closed — open on desktop after mount (SSR-safe)
+  const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (window.innerWidth >= 768) setOpen(true);
+  }, []);
 
   const panel = tour.navPanel;
   if (!panel?.enabled || !panel.items?.length) return null;
@@ -41,6 +46,8 @@ export function NavigationPanel({ tour, currentSceneId, onNavigate }: Navigation
         toggleExpand(item.id);
       } else if (item.type === 'scene' && item.sceneId) {
         onNavigate(item.sceneId);
+        // Auto-close on mobile after navigating
+        if (window.innerWidth < 768) setOpen(false);
       } else if (item.type === 'external' && item.url) {
         window.open(item.url, '_blank', 'noopener,noreferrer');
       }
@@ -124,13 +131,13 @@ export function NavigationPanel({ tour, currentSceneId, onNavigate }: Navigation
         </div>
       </div>
 
-      {/* Toggle tab */}
+      {/* Toggle tab — min 44px tap target on mobile */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="self-start mt-16 -ml-px flex items-center justify-center w-5 h-10 bg-gray-900/80 backdrop-blur-sm border border-white/10 border-l-0 rounded-r-lg text-white/50 hover:text-white transition-colors shadow"
+        className="self-start mt-14 -ml-px flex items-center justify-center w-7 h-11 md:w-5 md:h-10 bg-gray-900/80 backdrop-blur-sm border border-white/10 border-l-0 rounded-r-xl md:rounded-r-lg text-white/60 hover:text-white transition-colors shadow"
         title={open ? 'Cerrar panel' : 'Abrir panel'}
       >
-        {open ? <X className="w-3 h-3" /> : <Menu className="w-3 h-3" />}
+        {open ? <X className="w-3.5 h-3.5" /> : <Menu className="w-3.5 h-3.5" />}
       </button>
     </div>
   );

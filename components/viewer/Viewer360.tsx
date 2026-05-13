@@ -262,8 +262,8 @@ export function Viewer360({
         style={{ opacity: sceneTransition ? 1 : 0 }}
       />
 
-      {/* Three.js canvas mount point */}
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Three.js canvas mount point — touch-none prevents browser gesture interception */}
+      <div ref={containerRef} className="absolute inset-0 touch-none" />
 
       {/* Side navigation panel — visible in both viewer and editor for live preview */}
       <NavigationPanel
@@ -379,11 +379,13 @@ export function Viewer360({
         />
       )}
 
-      {/* Controls toolbar */}
+      {/* Controls toolbar — zoom hidden on mobile (use pinch), only reset + fullscreen shown */}
       {config.showControls && (
         <div className="absolute top-[96px] right-4 z-20 flex flex-col gap-2">
-          <ControlButton onClick={zoomIn}    title="Acercar"     icon={<ZoomIn   className="w-4 h-4" />} />
-          <ControlButton onClick={zoomOut}   title="Alejar"      icon={<ZoomOut  className="w-4 h-4" />} />
+          <div className="hidden md:flex flex-col gap-2">
+            <ControlButton onClick={zoomIn}  title="Acercar" icon={<ZoomIn  className="w-4 h-4" />} />
+            <ControlButton onClick={zoomOut} title="Alejar"  icon={<ZoomOut className="w-4 h-4" />} />
+          </div>
           <ControlButton onClick={resetView} title="Vista inicial" icon={<RotateCcw className="w-4 h-4" />} />
           <ControlButton onClick={toggleFullscreen} title="Pantalla completa" icon={<Maximize2 className="w-4 h-4" />} />
           {isEditing && onSetStartView && (
