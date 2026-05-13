@@ -20,8 +20,9 @@ const MediaGallery      = dynamic(() => import('@/components/viewer/MediaGallery
 const AIAssistant       = dynamic(() => import('@/components/viewer/AIAssistant').then(m => m.AIAssistant),            { ssr: false });
 const LangSwitcher      = dynamic(() => import('@/components/viewer/LangSwitcher').then(m => m.LangSwitcher),          { ssr: false });
 const POIPanel          = dynamic(() => import('@/components/viewer/POIPanel').then(m => m.POIPanel),                  { ssr: false });
+const POIRouteCard      = dynamic(() => import('@/components/viewer/POIRouteCard').then(m => m.POIRouteCard),          { ssr: false });
 import { useViewerLang } from '@/hooks/useViewerLang';
-import { PropertyUnit } from '@/types/tour.types';
+import { PropertyUnit, PointOfInterest } from '@/types/tour.types';
 import { Loader2, AlertTriangle, Columns2, Share2, MessageCircle, Copy, Check, X } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useRef } from 'react';
@@ -72,6 +73,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
   const [comparisonMode,   setComparisonMode]   = useState(false);
   const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const [poiPanelOpen,     setPoiPanelOpen]     = useState(false);
+  const [selectedPOI,      setSelectedPOI]      = useState<PointOfInterest | null>(null);
   const [shareOpen,        setShareOpen]        = useState(false);
   const [linkCopied,       setLinkCopied]       = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -322,11 +324,23 @@ function ViewerInner({ tourId }: { tourId: string }) {
         />
       )}
 
-      {/* POI panel */}
+      {/* POI panel — list on the right */}
       {poiPanelOpen && (
         <POIPanel
           tour={tour}
-          onClose={() => setPoiPanelOpen(false)}
+          selectedPOIId={selectedPOI?.id ?? null}
+          onSelectPOI={setSelectedPOI}
+          onClose={() => { setPoiPanelOpen(false); setSelectedPOI(null); }}
+        />
+      )}
+
+      {/* POI route card — floating over the viewer when a POI is selected */}
+      {selectedPOI && (
+        <POIRouteCard
+          poi={selectedPOI}
+          propertyLat={tour.propertyLat}
+          propertyLng={tour.propertyLng}
+          onClose={() => setSelectedPOI(null)}
         />
       )}
 

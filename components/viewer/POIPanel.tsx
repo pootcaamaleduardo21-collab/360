@@ -4,20 +4,20 @@ import { useState, useMemo } from 'react';
 import { Tour, PointOfInterest, POICategory } from '@/types/tour.types';
 import { POI_CONFIG } from '@/lib/poiTypes';
 import { cn } from '@/lib/utils';
-import { X, MapPin, Navigation, ExternalLink } from 'lucide-react';
+import { X, MapPin, Navigation, Route } from 'lucide-react';
 
 interface POIPanelProps {
   tour: Tour;
+  selectedPOIId?: string | null;
+  onSelectPOI: (poi: PointOfInterest | null) => void;
   onClose: () => void;
 }
 
 const ALL_FILTER = '__all__';
 
-export function POIPanel({ tour, onClose }: POIPanelProps) {
-  const pois       = tour.pointsOfInterest ?? [];
-  const hasMap     = !!(tour.propertyLat && tour.propertyLng);
+export function POIPanel({ tour, selectedPOIId, onSelectPOI, onClose }: POIPanelProps) {
+  const pois = tour.pointsOfInterest ?? [];
 
-  // Derive only the categories actually present
   const presentCategories = useMemo<POICategory[]>(() => {
     const seen = new Set<POICategory>();
     pois.forEach((p) => seen.add(p.category));
@@ -30,18 +30,15 @@ export function POIPanel({ tour, onClose }: POIPanelProps) {
     ? pois
     : pois.filter((p) => p.category === activeCategory);
 
-  // OpenStreetMap embed URL — free, no API key required
-  const mapSrc = hasMap
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${tour.propertyLng! - 0.018},${tour.propertyLat! - 0.009},${tour.propertyLng! + 0.018},${tour.propertyLat! + 0.009}&layer=mapnik&marker=${tour.propertyLat},${tour.propertyLng}`
-    : null;
+  const handleCardClick = (poi: PointOfInterest) => {
+    // Toggle: clicking the selected POI deselects it
+    onSelectPOI(selectedPOIId === poi.id ? null : poi);
+  };
 
   return (
     <div className="absolute inset-y-0 right-0 z-30 flex items-stretch">
-      {/* Backdrop tap-to-close */}
-      <div className="hidden sm:block w-6 flex-shrink-0" onClick={onClose} />
-
       {/* Panel */}
-      <div className="w-80 bg-gray-900/97 backdrop-blur-md border-l border-gray-800 flex flex-col shadow-2xl animate-slide-left overflow-hidden">
+      <div className="w-80 bg-gray-900/97 backdrop-blur-md border-l border-gray-800 flex flex-col shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 flex-shrink-0">
@@ -58,29 +55,13 @@ export function POIPanel({ tour, onClose }: POIPanelProps) {
           </button>
         </div>
 
-        {/* Map embed */}
-        {mapSrc && (
-          <div className="flex-shrink-0 border-b border-gray-800">
-            <div className="relative w-full" style={{ paddingTop: '52%' }}>
-              <iframe
-                src={mapSrc}
-                title="Mapa de ubicación"
-                className="absolute inset-0 w-full h-full"
-                style={{ border: 0, filter: 'brightness(0.88) contrast(1.1) saturate(0.9)' }}
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
-              {/* Ver en Google Maps link */}
-              <a
-                href={`https://www.google.com/maps?q=${tour.propertyLat},${tour.propertyLng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-gray-900/90 border border-gray-700 rounded-lg text-[10px] text-gray-300 hover:text-white transition-colors backdrop-blur-sm"
-              >
-                <ExternalLink className="w-2.5 h-2.5" />
-                Ver en mapa
-              </a>
-            </div>
+        {/* Route active hint */}
+        {selectedPOIId && (
+          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-blue-600/15 border-b border-blue-500/20">
+            <Route className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+            <p className="text-[11px] text-blue-300 font-medium">
+              Ruta activa — ve el mapa en el visor
+            </p>
           </div>
         )}
 
@@ -123,17 +104,17 @@ export function POIPanel({ tour, onClose }: POIPanelProps) {
               <POICard
                 key={poi.id}
                 poi={poi}
-                propertyLat={tour.propertyLat}
-                propertyLng={tour.propertyLng}
+                isSelected={selectedPOIId === poi.id}
+                onClick={() => handleCardClick(poi)}
               />
             ))
           )}
         </div>
 
-        {/* Footer note */}
+        {/* Footer */}
         <div className="flex-shrink-0 px-4 py-2.5 border-t border-gray-800">
           <p className="text-[10px] text-gray-600 text-center">
-            Distancias aproximadas desde el desarrollo
+            Toca un lugar para ver la ruta en el visor
           </p>
         </div>
       </div>
@@ -180,26 +161,29 @@ function CategoryPill({
 
 function POICard({
   poi,
-  propertyLat,
-  propertyLng,
+  isSelected,
+  onClick,
 }: {
   poi: PointOfInterest;
-  propertyLat?: number;
-  propertyLng?: number;
+  isSelected: boolean;
+  onClick: () => void;
 }) {
   const cfg = POI_CONFIG[poi.category];
 
-  const routeUrl = propertyLat && propertyLng
-    ? `https://www.google.com/maps/dir/${propertyLat},${propertyLng}/${encodeURIComponent(poi.label)}`
-    : `https://www.google.com/maps/search/${encodeURIComponent(poi.label)}`;
-
   return (
-    <div className="flex items-start gap-3 px-3 py-3 rounded-xl bg-gray-800/50 border border-gray-700/40 hover:border-gray-600/60 transition-colors group">
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-start gap-3 px-3 py-3 rounded-xl border transition-all text-left',
+        isSelected
+          ? 'bg-blue-600/15 border-blue-500/50 ring-1 ring-blue-500/30'
+          : 'bg-gray-800/50 border-gray-700/40 hover:border-gray-600/60 hover:bg-gray-800/80'
+      )}
+    >
       {/* Category icon */}
       <div
         className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg leading-none shadow-sm"
         style={{ background: `${cfg.color}20`, border: `1px solid ${cfg.color}40` }}
-        title={cfg.label}
       >
         {cfg.emoji}
       </div>
@@ -207,7 +191,12 @@ function POICard({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-xs font-semibold text-gray-200 leading-snug truncate">{poi.label}</p>
+          <p className={cn(
+            'text-xs font-semibold leading-snug truncate',
+            isSelected ? 'text-blue-200' : 'text-gray-200'
+          )}>
+            {poi.label}
+          </p>
           {poi.distance && (
             <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-semibold text-amber-400/90 bg-amber-500/10 border border-amber-500/20 px-1.5 py-px rounded-full whitespace-nowrap">
               <Navigation className="w-2.5 h-2.5" />
@@ -221,17 +210,13 @@ function POICard({
         )}
       </div>
 
-      {/* Route button */}
-      <a
-        href={routeUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-gray-700 hover:bg-blue-600 text-gray-400 hover:text-white"
-        title="Ver ruta en Google Maps"
-      >
-        <ExternalLink className="w-3 h-3" />
-      </a>
-    </div>
+      {/* Route indicator */}
+      <div className={cn(
+        'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-colors mt-0.5',
+        isSelected ? 'bg-blue-500 text-white' : 'bg-gray-700/50 text-gray-600'
+      )}>
+        <Route className="w-3 h-3" />
+      </div>
+    </button>
   );
 }
