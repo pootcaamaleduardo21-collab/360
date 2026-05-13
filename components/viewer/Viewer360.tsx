@@ -28,6 +28,7 @@ import {
   Loader2,
   AlertTriangle,
   MapPin,
+  Map,
 } from 'lucide-react';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ interface Viewer360Props {
   onOpenSalesPanel?: () => void;
   onOpenBooking?: () => void;
   onOpenLeadCapture?: () => void;
+  onOpenPOIPanel?: () => void;
   /** When true, hides CTAs that don't belong in split-screen panels */
   isComparisonPanel?: boolean;
   /** Show media gallery button + overlay */
@@ -70,6 +72,7 @@ export function Viewer360({
   onOpenSalesPanel,
   onOpenBooking,
   onOpenLeadCapture,
+  onOpenPOIPanel,
   isComparisonPanel = false,
   onOpenMediaGallery,
 }: Viewer360Props) {
@@ -348,15 +351,27 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Media gallery button — top-left (non-comparison) */}
-      {!isEditing && !isComparisonPanel && onOpenMediaGallery && (
-        <div className="absolute top-4 left-4 z-20">
-          <MediaGalleryButton
-            itemCount={tour.gallery?.length ?? 0}
-            hasBrochure={!!tour.brochureUrl}
-            brandColor={tour.brandColor}
-            onClick={onOpenMediaGallery}
-          />
+      {/* Top-left buttons: media gallery + POI */}
+      {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel) && (
+        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+          {onOpenMediaGallery && (
+            <MediaGalleryButton
+              itemCount={tour.gallery?.length ?? 0}
+              hasBrochure={!!tour.brochureUrl}
+              brandColor={tour.brandColor}
+              onClick={onOpenMediaGallery}
+            />
+          )}
+          {onOpenPOIPanel && (
+            <button
+              onClick={onOpenPOIPanel}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white/80 hover:text-white text-xs font-medium border border-white/10 backdrop-blur-sm transition-colors shadow"
+              title="Lugares cercanos"
+            >
+              <Map className="w-3.5 h-3.5 text-blue-300" />
+              <span>Lugares</span>
+            </button>
+          )}
         </div>
       )}
 
