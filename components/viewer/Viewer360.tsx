@@ -86,7 +86,8 @@ export function Viewer360({
   const [isFullscreen,       setIsFullscreen]       = useState(false);
   const [draggingHotspotId,  setDraggingHotspotId]  = useState<string | null>(null);
   const [sceneTransition,    setSceneTransition]    = useState(false);
-  const prevSceneIdRef = useRef(currentScene.id);
+  const prevSceneIdRef       = useRef(currentScene.id);
+  const sceneTransitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tutorialDismissed    = useTourStore((s) => s.tutorialDismissed);
   const dismissTutorial      = useTourStore((s) => s.dismissTutorial);
   const cartItemCount        = useTourStore((s) => s.items.reduce((a, i) => a + i.quantity, 0));
@@ -117,12 +118,17 @@ export function Viewer360({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // once on mount — all scenes available via closure
 
-  // Scene transition overlay — detect scene change, fade out after loaded
+  // Scene transition overlay — instant black on scene change, guaranteed 400ms, then fade out
   useEffect(() => {
     if (currentScene.id !== prevSceneIdRef.current) {
       prevSceneIdRef.current = currentScene.id;
+      if (sceneTransitionTimer.current) clearTimeout(sceneTransitionTimer.current);
       setSceneTransition(true);
+      sceneTransitionTimer.current = setTimeout(() => setSceneTransition(false), 400);
     }
+    return () => {
+      if (sceneTransitionTimer.current) clearTimeout(sceneTransitionTimer.current);
+    };
   }, [currentScene.id]);
 
   // Scene duration tracking — fires scene_exit on navigation
@@ -180,14 +186,6 @@ export function Viewer360({
     isEditing: isEditing && !!addHotspotType,
     onAddHotspot: handleAddHotspot,
   });
-
-  // Fade out transition overlay once new texture finishes loading
-  useEffect(() => {
-    if (!isLoading && sceneTransition) {
-      const t = setTimeout(() => setSceneTransition(false), 80);
-      return () => clearTimeout(t);
-    }
-  }, [isLoading, sceneTransition]);
 
   // ── Zoom helpers ─────────────────────────────────────────────────────────
   const updateViewerConfig = useTourStore((s) => s.updateViewerConfig);
@@ -256,10 +254,12 @@ export function Viewer360({
         />
       )}
 
-      {/* Scene transition overlay — instant black on navigate, fade out when loaded */}
+      {/* Scene transition overlay — instant black on navigate, slow fade-out after 400ms */}
       <div
-        className="absolute inset-0 z-20 bg-black pointer-events-none transition-opacity duration-500"
-        style={{ opacity: sceneTransition ? 1 : 0 }}
+        className={cn(
+          'absolute inset-0 z-[55] bg-black pointer-events-none',
+          sceneTransition ? 'opacity-100' : 'opacity-0 transition-opacity duration-500'
+        )}
       />
 
       {/* Three.js canvas mount point — touch-none prevents browser gesture interception */}
