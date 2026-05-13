@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   MapPin,
   Map,
+  Crosshair,
 } from 'lucide-react';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -55,6 +56,8 @@ interface Viewer360Props {
   isComparisonPanel?: boolean;
   /** Show media gallery button + overlay */
   onOpenMediaGallery?: () => void;
+  /** Editor only: called with current yaw+pitch so the scene's starting view can be saved */
+  onSetStartView?: (yaw: number, pitch: number) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -75,6 +78,7 @@ export function Viewer360({
   onOpenPOIPanel,
   isComparisonPanel = false,
   onOpenMediaGallery,
+  onSetStartView,
 }: Viewer360Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
@@ -144,7 +148,7 @@ export function Viewer360({
   // Apply CSS color filters to the Three.js canvas
   useColorFilter(containerRef, currentScene.colorAdjustments);
 
-  const { isLoading, error, hotspotPositions, lookAt, screenToSpherical } = useViewer360({
+  const { isLoading, error, hotspotPositions, lookAt, getAngles, screenToSpherical } = useViewer360({
     containerRef,
     scene: currentScene,
     config,
@@ -264,6 +268,9 @@ export function Viewer360({
         const unitStatus = hotspot.type === 'unit' && hotspot.unitId
           ? tour.units?.find((u) => u.id === hotspot.unitId)?.status
           : undefined;
+        const unitLabel = hotspot.type === 'unit' && hotspot.unitId
+          ? tour.units?.find((u) => u.id === hotspot.unitId)?.label
+          : undefined;
         const targetSceneName = hotspot.type === 'navigation' && hotspot.targetSceneId
           ? tour.scenes.find((s) => s.id === hotspot.targetSceneId)?.name
           : undefined;
@@ -277,6 +284,7 @@ export function Viewer360({
             isEditing={isEditing}
             onClick={handleHotspotClick}
             unitStatus={unitStatus}
+            unitLabel={unitLabel}
             targetSceneName={targetSceneName}
             onDragStart={isEditing ? handleHotspotDragStart : undefined}
           />
@@ -331,6 +339,14 @@ export function Viewer360({
           <ControlButton onClick={zoomOut}   title="Alejar"      icon={<ZoomOut  className="w-4 h-4" />} />
           <ControlButton onClick={resetView} title="Vista inicial" icon={<RotateCcw className="w-4 h-4" />} />
           <ControlButton onClick={toggleFullscreen} title="Pantalla completa" icon={<Maximize2 className="w-4 h-4" />} />
+          {isEditing && onSetStartView && (
+            <ControlButton
+              onClick={() => { const a = getAngles(); onSetStartView(a.yaw, a.pitch); }}
+              title="Fijar vista inicial (guardar ángulo actual)"
+              icon={<Crosshair className="w-4 h-4" />}
+              highlight
+            />
+          )}
         </div>
       )}
 
@@ -469,16 +485,23 @@ function ControlButton({
   onClick,
   title,
   icon,
+  highlight = false,
 }: {
   onClick: () => void;
   title: string;
   icon: React.ReactNode;
+  highlight?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      className="w-9 h-9 flex items-center justify-center rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm border border-white/10 transition-colors shadow"
+      className={cn(
+        'w-9 h-9 flex items-center justify-center rounded-xl backdrop-blur-sm border transition-colors shadow',
+        highlight
+          ? 'bg-blue-600/80 hover:bg-blue-500 text-white border-blue-400/40'
+          : 'bg-black/60 hover:bg-black/80 text-white border-white/10'
+      )}
     >
       {icon}
     </button>

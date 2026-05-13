@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Scene } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
-import { Trash2, Star, Volume2, Upload, X, Loader2 } from 'lucide-react';
+import { Trash2, Star, Volume2, Upload, X, Loader2, Pencil, Check } from 'lucide-react';
 import { uploadAsset } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 
@@ -22,11 +22,31 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
   const updateScene      = useTourStore((s) => s.updateScene);
   const tour             = useTourStore((s) => s.tour);
 
-  const [expandedAudio, setExpandedAudio] = useState<string | null>(null);
-  const [uploading,     setUploading]     = useState<Record<string, boolean>>({});  // sceneId → bool
-  const [activeLang,    setActiveLang]    = useState<Record<string, string>>({});   // sceneId → lang
-  const fileInputRef                      = useRef<HTMLInputElement>(null);
-  const uploadingForRef                   = useRef<string | null>(null); // sceneId being uploaded
+  const [expandedAudio,  setExpandedAudio]  = useState<string | null>(null);
+  const [uploading,      setUploading]      = useState<Record<string, boolean>>({});
+  const [activeLang,     setActiveLang]     = useState<Record<string, string>>({});
+  const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+  const [editNameValue,  setEditNameValue]  = useState('');
+  const nameInputRef                        = useRef<HTMLInputElement>(null);
+  const fileInputRef                        = useRef<HTMLInputElement>(null);
+  const uploadingForRef                     = useRef<string | null>(null);
+
+  // Focus the name input when editing starts
+  useEffect(() => {
+    if (editingSceneId) nameInputRef.current?.focus();
+  }, [editingSceneId]);
+
+  const startRename = (scene: Scene, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSceneId(scene.id);
+    setEditNameValue(scene.name);
+  };
+
+  const commitRename = (sceneId: string) => {
+    const trimmed = editNameValue.trim();
+    if (trimmed) updateScene(sceneId, { name: trimmed });
+    setEditingSceneId(null);
+  };
 
   const handleAudioUpload = async (sceneId: string, file: File) => {
     if (!tour) return;
@@ -92,8 +112,46 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{scene.name}</p>
+                <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                  {editingSceneId === scene.id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={editNameValue}
+                        onChange={(e) => setEditNameValue(e.target.value)}
+                        onBlur={() => commitRename(scene.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitRename(scene.id);
+                          if (e.key === 'Escape') setEditingSceneId(null);
+                        }}
+                        className="flex-1 min-w-0 bg-gray-700 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-white outline-none"
+                      />
+                      <button
+                        onMouseDown={(e) => { e.preventDefault(); commitRename(scene.id); }}
+                        className="p-0.5 text-blue-400 hover:text-blue-300"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 group/name">
+                      <p
+                        className="text-xs font-medium truncate flex-1 cursor-text"
+                        title="Doble clic para renombrar"
+                        onDoubleClick={(e) => startRename(scene, e)}
+                      >
+                        {scene.name}
+                      </p>
+                      <button
+                        onClick={(e) => startRename(scene, e)}
+                        className="opacity-0 group-hover/name:opacity-100 p-0.5 text-gray-600 hover:text-gray-300 transition-opacity flex-shrink-0"
+                        title="Renombrar escena"
+                      >
+                        <Pencil className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  )}
                   <p className="text-xs opacity-50">
                     {scene.hotspots.length} hotspot{scene.hotspots.length !== 1 ? 's' : ''}
                   </p>

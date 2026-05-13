@@ -397,11 +397,17 @@ export function useViewer360({
     [containerRef]
   );
 
+  const getAngles = useCallback(
+    () => ({ yaw: cameraAngles.current.lon, pitch: cameraAngles.current.lat }),
+    []
+  );
+
   return {
     isLoading,
     error,
     hotspotPositions,
     lookAt,
+    getAngles,
     screenToSpherical,
   };
 }

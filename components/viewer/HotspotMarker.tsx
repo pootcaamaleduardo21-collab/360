@@ -71,12 +71,13 @@ interface HotspotMarkerProps {
   isEditing?: boolean;
   onClick: (hotspot: Hotspot) => void;
   unitStatus?: PropertyStatus;
+  unitLabel?: string;
   targetSceneName?: string;
   onDragStart?: (hotspotId: string, e: React.PointerEvent) => void;
 }
 
 export function HotspotMarker({
-  hotspot, x, y, isSelected, isEditing, onClick, unitStatus, targetSceneName, onDragStart,
+  hotspot, x, y, isSelected, isEditing, onClick, unitStatus, unitLabel, targetSceneName, onDragStart,
 }: HotspotMarkerProps) {
   const style   = hotspot.style ?? 'bubble';
   const anim    = hotspot.animation ?? 'ping';
@@ -94,6 +95,7 @@ export function HotspotMarker({
   const color     = hotspot.iconColor ?? (hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_COLOR[unitStatus] : defaults.color);
   const ringColor = hotspot.iconColor ?? (hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_COLOR[unitStatus] : defaults.ring);
   const statusLabel = hotspot.type === 'unit' && unitStatus ? UNIT_STATUS_LABEL[unitStatus] : null;
+  const displayLabel = (hotspot.type === 'unit' && unitLabel) ? unitLabel : hotspot.label;
 
   const handleClick = (e: React.MouseEvent) => { e.stopPropagation(); onClick(hotspot); };
   const cursor = isEditing ? (isSelected ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer') : 'cursor-pointer';
@@ -129,7 +131,7 @@ export function HotspotMarker({
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
         onClick={handleClick}
         onPointerDown={handlePointerDown}
-        aria-label={hotspot.label}
+        aria-label={displayLabel}
       >
         {EditOverlay}
         {/* Perspective-squished ring — looks flat on the floor */}
@@ -169,7 +171,7 @@ export function HotspotMarker({
               <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-gray-950/85 text-white border border-white/10',
                 showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}
                 style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                {hotspot.label}
+                {displayLabel}
               </span>
             )}
           </div>
@@ -182,7 +184,7 @@ export function HotspotMarker({
             <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-gray-950/85 text-white border border-white/10',
               showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}
               style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-              {hotspot.label}
+              {displayLabel}
             </span>
           </div>
         )}
@@ -196,7 +198,7 @@ export function HotspotMarker({
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
-        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
+        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={displayLabel}
       >
         {EditOverlay}
         {anim === 'ping' && (
@@ -211,7 +213,7 @@ export function HotspotMarker({
             </div>
           )}
           <div className="flex flex-col justify-center px-2.5 py-1.5 bg-gray-950/88 backdrop-blur-sm">
-            <span className="text-xs font-semibold text-white whitespace-nowrap leading-tight">{hotspot.label}</span>
+            <span className="text-xs font-semibold text-white whitespace-nowrap leading-tight">{displayLabel}</span>
             {statusLabel && <span className="text-[10px] leading-tight mt-0.5 font-medium" style={{ color }}>{statusLabel}</span>}
           </div>
         </div>
@@ -225,13 +227,13 @@ export function HotspotMarker({
       <button
         className={cn('absolute z-20 group focus:outline-none', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -100%)', filter: markerShadow }}
-        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
+        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={displayLabel}
       >
         {EditOverlay}
         <div className={cn('flex flex-col items-center transition-transform group-hover:scale-105', isSelected && 'scale-110')}>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl shadow-xl bg-white/95 backdrop-blur-sm border border-black/10">
             {!hotspot.noIcon && <ResolvedIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color }} />}
-            <span className="text-[11px] font-semibold text-gray-800 whitespace-nowrap">{hotspot.label}</span>
+            <span className="text-[11px] font-semibold text-gray-800 whitespace-nowrap">{displayLabel}</span>
             {hotspot.mapDistance && <span className="text-[10px] text-gray-500 whitespace-nowrap ml-0.5">· {hotspot.mapDistance}</span>}
           </div>
           <div className="w-0 h-0" style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '8px solid rgba(255,255,255,0.95)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', marginTop: -1 }} />
@@ -247,7 +249,7 @@ export function HotspotMarker({
       <button
         className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1.5', cursor)}
         style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
-        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label}
+        onClick={handleClick} onPointerDown={handlePointerDown} aria-label={displayLabel}
       >
         {EditOverlay}
         {anim === 'ping' && (
@@ -262,7 +264,7 @@ export function HotspotMarker({
         {showLbl !== 'never' && (
           <span className={cn('px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap bg-black/75 text-white shadow pointer-events-none select-none',
             showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
-            {hotspot.label}
+            {displayLabel}
           </span>
         )}
       </button>
@@ -274,7 +276,7 @@ export function HotspotMarker({
     <button
       className={cn('absolute z-20 group focus:outline-none flex flex-col items-center gap-1', cursor)}
       style={{ left: x, top: y, transform: 'translate(-50%, -50%)', filter: markerShadow }}
-      onClick={handleClick} onPointerDown={handlePointerDown} aria-label={hotspot.label} title={hotspot.label}
+      onClick={handleClick} onPointerDown={handlePointerDown} aria-label={displayLabel} title={displayLabel}
     >
       {EditOverlay}
       {anim === 'ping' && (
@@ -300,7 +302,7 @@ export function HotspotMarker({
         <span className={cn('px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap bg-gray-950/85 text-white backdrop-blur-sm pointer-events-none select-none border border-white/10',
           showLbl === 'hover' && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}
           style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-          {hotspot.label}
+          {displayLabel}
         </span>
       )}
     </button>
