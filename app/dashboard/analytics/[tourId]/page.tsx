@@ -9,13 +9,16 @@ import {
   TourAnalytics, HotspotStat, UnitStat, FunnelStep,
 } from '@/lib/analytics';
 import { getTourById } from '@/lib/db';
+import { getLeadsForTour, Lead } from '@/lib/leads';
+import { getSupabase } from '@/lib/supabase';
 import type { Tour } from '@/types/tour.types';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Eye, MousePointerClick,
   Calendar, FileDown, Share2, Loader2, BarChart2,
   TrendingUp, Building2, ArrowDown, Home, Info, Navigation,
-  Image as ImageIcon, User, ShoppingCart, MapPin,
+  Image as ImageIcon, User, ShoppingCart, MapPin, Download,
+  Phone, Mail, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import React from 'react';
@@ -31,9 +34,11 @@ export default function AnalyticsPage({ params }: PageProps) {
   const [hotspots,    setHotspots]    = useState<HotspotStat[]>([]);
   const [unitStats,   setUnitStats]   = useState<UnitStat[]>([]);
   const [funnel,      setFunnel]      = useState<FunnelStep[]>([]);
+  const [leads,       setLeads]       = useState<Lead[]>([]);
   const [tourData,    setTourData]    = useState<Tour | null>(null);
   const [tourTitle,   setTourTitle]   = useState('');
   const [loading,     setLoading]     = useState(true);
+  const [exporting,   setExporting]   = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -47,16 +52,18 @@ export default function AnalyticsPage({ params }: PageProps) {
         return;
       }
 
-      const [stats, hotspotStats, unitData, funnelData] = await Promise.all([
+      const [stats, hotspotStats, unitData, funnelData, leadsData] = await Promise.all([
         getTourAnalytics(tourId),
         getHotspotAnalytics(tourId),
         getUnitAnalytics(tourId),
         getConversionFunnel(tourId),
+        getLeadsForTour(tourId),
       ]);
       setAnalytics(stats);
       setHotspots(hotspotStats);
       setUnitStats(unitData);
       setFunnel(funnelData);
+      setLeads(leadsData);
       setTourData(tourRow.data);
       setTourTitle(tourRow.title);
       setLoading(false);
@@ -73,6 +80,28 @@ export default function AnalyticsPage({ params }: PageProps) {
   }
 
   const ec = analytics?.eventCounts;
+
+  // ── CSV export ─────────────────────────────────────────────────────────────
+  const handleExportLeads = async () => {
+    setExporting(true);
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      const token = session?.access_token ?? '';
+      const res   = await fetch(`/api/leads/export?tourId=${tourId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `leads-${tourTitle.replace(/\s+/g, '-')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const statCards = [
     { label: 'Vistas totales',    value: analytics?.totalViews ?? 0,   icon: <Eye            className="w-5 h-5" />, color: 'text-blue-400'   },
@@ -415,6 +444,80 @@ export default function AnalyticsPage({ params }: PageProps) {
             </section>
           );
         })()}
+
+        {/* ── Leads section ──────────────────────────────────────────────── */}
+        <section className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-teal-400" />
+              Leads captados ({leads.length})
+            </h2>
+            {leads.length > 0 && (
+              <button
+                onClick={handleExportLeads}
+                disabled={exporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+              >
+                {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                Exportar CSV
+              </button>
+            )}
+          </div>
+
+          {leads.length === 0 ? (
+            <p className="text-sm text-gray-600 py-4 text-center">
+              Aún no hay leads. Activa el botón de contacto en la configuración del tour.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-600 border-b border-gray-800">
+                    <th className="text-left py-2 pr-4 font-semibold">Nombre</th>
+                    <th className="text-left py-2 pr-4 font-semibold">Contacto</th>
+                    <th className="text-left py-2 pr-4 font-semibold">Fuente</th>
+                    <th className="text-left py-2 font-semibold">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {leads.map((lead) => (
+                    <tr key={lead.id} className="hover:bg-gray-800/50 transition-colors">
+                      <td className="py-2.5 pr-4 text-gray-200 font-medium">{lead.name}</td>
+                      <td className="py-2.5 pr-4 text-gray-400">
+                        <div className="flex flex-col gap-0.5">
+                          {lead.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />{lead.phone}
+                            </span>
+                          )}
+                          {lead.email && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3 h-3" />{lead.email}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 pr-4 text-gray-500">
+                        {lead.utm_source ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-blue-400 font-medium">{lead.utm_source}</span>
+                            {lead.utm_medium   && <span>{lead.utm_medium}</span>}
+                            {lead.utm_campaign && <span className="truncate max-w-[120px]">{lead.utm_campaign}</span>}
+                          </div>
+                        ) : (
+                          <span className="text-gray-700">Directo</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-gray-600 whitespace-nowrap">
+                        {new Date(lead.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         {/* Note about table */}
         <p className="text-xs text-gray-700 text-center pb-4">

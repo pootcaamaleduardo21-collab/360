@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   MapPin,
   Map,
+  PlayCircle,
 } from 'lucide-react';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ interface Viewer360Props {
   onOpenBooking?: () => void;
   onOpenLeadCapture?: () => void;
   onOpenPOIPanel?: () => void;
+  onStartGuidedTour?: () => void;
   /** When true, hides CTAs that don't belong in split-screen panels */
   isComparisonPanel?: boolean;
   /** Show media gallery button + overlay */
@@ -73,6 +75,7 @@ export function Viewer360({
   onOpenBooking,
   onOpenLeadCapture,
   onOpenPOIPanel,
+  onStartGuidedTour,
   isComparisonPanel = false,
   onOpenMediaGallery,
 }: Viewer360Props) {
@@ -351,8 +354,8 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Top-left buttons: media gallery + POI */}
-      {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel) && (
+      {/* Top-left buttons: media gallery + POI + guided tour */}
+      {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel || onStartGuidedTour) && (
         <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
           {onOpenMediaGallery && (
             <MediaGalleryButton
@@ -370,6 +373,16 @@ export function Viewer360({
             >
               <Map className="w-3.5 h-3.5 text-blue-300" />
               <span>Lugares</span>
+            </button>
+          )}
+          {onStartGuidedTour && (
+            <button
+              onClick={onStartGuidedTour}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white/80 hover:text-white text-xs font-medium border border-white/10 backdrop-blur-sm transition-colors shadow"
+              title="Recorrido guiado"
+            >
+              <PlayCircle className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Recorrido</span>
             </button>
           )}
         </div>

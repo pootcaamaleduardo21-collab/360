@@ -17,6 +17,12 @@ export interface LeadPayload {
   phone?: string;
   email?: string;
   message?: string;
+  // UTM attribution
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
 }
 
 export interface Lead {
@@ -27,6 +33,11 @@ export interface Lead {
   phone: string | null;
   email: string | null;
   message: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
   created_at: string;
 }
 
@@ -34,12 +45,17 @@ export interface Lead {
 export async function submitLead(payload: LeadPayload): Promise<void> {
   try {
     await getSupabase().from('leads').insert({
-      tour_id:  payload.tourId,
-      scene_id: payload.sceneId ?? null,
-      name:     payload.name,
-      phone:    payload.phone  ?? null,
-      email:    payload.email  ?? null,
-      message:  payload.message ?? null,
+      tour_id:      payload.tourId,
+      scene_id:     payload.sceneId    ?? null,
+      name:         payload.name,
+      phone:        payload.phone      ?? null,
+      email:        payload.email      ?? null,
+      message:      payload.message    ?? null,
+      utm_source:   payload.utm_source   ?? null,
+      utm_medium:   payload.utm_medium   ?? null,
+      utm_campaign: payload.utm_campaign ?? null,
+      utm_content:  payload.utm_content  ?? null,
+      utm_term:     payload.utm_term     ?? null,
     });
   } catch {
     // Silently ignore — table may not exist yet

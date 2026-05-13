@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { getTourById, getTourBySlug } from '@/lib/db';
 import { trackEvent } from '@/lib/analytics';
+import { captureUTMs, getStoredUTMs } from '@/lib/utm';
 import { isSupabaseConfigured, getSupabase } from '@/lib/supabase';
 // Lazy-load all non-critical viewer panels so they don't bloat the initial bundle
 const InventoryOverlay  = dynamic(() => import('@/components/viewer/InventoryOverlay').then(m => m.InventoryOverlay),  { ssr: false });
@@ -19,8 +20,9 @@ const ComparisonViewer  = dynamic(() => import('@/components/viewer/ComparisonVi
 const MediaGallery      = dynamic(() => import('@/components/viewer/MediaGallery').then(m => m.MediaGallery),          { ssr: false });
 const AIAssistant       = dynamic(() => import('@/components/viewer/AIAssistant').then(m => m.AIAssistant),            { ssr: false });
 const LangSwitcher      = dynamic(() => import('@/components/viewer/LangSwitcher').then(m => m.LangSwitcher),          { ssr: false });
-const POIPanel          = dynamic(() => import('@/components/viewer/POIPanel').then(m => m.POIPanel),                  { ssr: false });
-const POIRouteCard      = dynamic(() => import('@/components/viewer/POIRouteCard').then(m => m.POIRouteCard),          { ssr: false });
+const POIPanel           = dynamic(() => import('@/components/viewer/POIPanel').then(m => m.POIPanel),                   { ssr: false });
+const POIRouteCard       = dynamic(() => import('@/components/viewer/POIRouteCard').then(m => m.POIRouteCard),           { ssr: false });
+const GuidedTourOverlay  = dynamic(() => import('@/components/viewer/GuidedTourOverlay').then(m => m.GuidedTourOverlay), { ssr: false });
 import { useViewerLang } from '@/hooks/useViewerLang';
 import { PropertyUnit, PointOfInterest } from '@/types/tour.types';
 import { Loader2, AlertTriangle, Columns2, Share2, MessageCircle, Copy, Check, X } from 'lucide-react';
@@ -74,6 +76,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
   const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const [poiPanelOpen,     setPoiPanelOpen]     = useState(false);
   const [selectedPOI,      setSelectedPOI]      = useState<PointOfInterest | null>(null);
+  const [guidedTourActive, setGuidedTourActive] = useState(false);
   const [shareOpen,        setShareOpen]        = useState(false);
   const [linkCopied,       setLinkCopied]       = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -90,6 +93,9 @@ function ViewerInner({ tourId }: { tourId: string }) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [shareOpen]);
+
+  // ── Capture UTM params once on mount ──────────────────────────────────────
+  useEffect(() => { captureUTMs(); }, []);
 
   // ── Load tour ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -152,10 +158,37 @@ function ViewerInner({ tourId }: { tourId: string }) {
     }
   }, [unitParam, tour, navigateTo]);
 
-  // ── Track scene views (fire-and-forget) ──────────────────────────────────
+  // ── Track scene views + duration (fire-and-forget) ───────────────────────
+  const sceneEnterTimeRef = useRef<number>(0);
+  const prevSceneIdRef    = useRef<string | null>(null);
+
   useEffect(() => {
     if (!tour || !currentSceneId || !unlocked) return;
-    trackEvent({ tourId: tour.id, event: 'scene_view', sceneId: currentSceneId });
+    const utms = getStoredUTMs();
+    const now  = Date.now();
+
+    // Fire scene_exit with duration for previous scene
+    if (prevSceneIdRef.current && prevSceneIdRef.current !== currentSceneId) {
+      const duration_ms = now - sceneEnterTimeRef.current;
+      trackEvent({
+        tourId:  tour.id,
+        event:   'scene_exit',
+        sceneId: prevSceneIdRef.current,
+        metadata: { duration_ms, ...utms },
+      });
+    }
+
+    // Fire scene_view for new scene
+    trackEvent({
+      tourId:  tour.id,
+      event:   'scene_view',
+      sceneId: currentSceneId,
+      metadata: Object.keys(utms).length ? utms : undefined,
+    });
+
+    sceneEnterTimeRef.current = now;
+    prevSceneIdRef.current    = currentSceneId;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSceneId, tour, unlocked]);
 
   // ── Loading / not-found states ────────────────────────────────────────────
@@ -256,6 +289,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
             onOpenLeadCapture={tour.leadCaptureEnabled ? () => { setLeadCaptureOpen(true); trackEvent({ tourId: tour.id, event: 'cta_click', sceneId: currentSceneId ?? undefined }); } : undefined}
             onOpenMediaGallery={(tour.gallery?.length || tour.brochureUrl) ? () => setMediaGalleryOpen(true) : undefined}
             onOpenPOIPanel={(tour.pointsOfInterest?.length ?? 0) > 0 ? () => setPoiPanelOpen(true) : undefined}
+            onStartGuidedTour={tour.guidedTourEnabled && tour.scenes.length > 1 ? () => setGuidedTourActive(true) : undefined}
           />
         )}
       </ErrorBoundary>
@@ -341,6 +375,16 @@ function ViewerInner({ tourId }: { tourId: string }) {
           propertyLat={tour.propertyLat}
           propertyLng={tour.propertyLng}
           onClose={() => setSelectedPOI(null)}
+        />
+      )}
+
+      {/* Guided tour overlay */}
+      {guidedTourActive && currentSceneId && (
+        <GuidedTourOverlay
+          tour={tour}
+          currentSceneId={currentSceneId}
+          onNavigate={navigateTo}
+          onClose={() => setGuidedTourActive(false)}
         />
       )}
 

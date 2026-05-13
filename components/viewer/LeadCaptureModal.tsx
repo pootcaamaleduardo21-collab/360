@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { X, Send, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
-// submitLead kept as fallback; primary submission goes through /api/leads for email notifications
+import { getStoredUTMs } from '@/lib/utm';
 import { cn } from '@/lib/utils';
 
 interface LeadCaptureModalProps {
@@ -52,6 +52,7 @@ export function LeadCaptureModal({
           phone:   phone.trim()   || undefined,
           email:   email.trim()   || undefined,
           message: message.trim() || undefined,
+          ...getStoredUTMs(),
         }),
       });
     } catch {

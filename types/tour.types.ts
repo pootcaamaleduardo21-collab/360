@@ -119,6 +119,7 @@ export interface Scene {
   audioGuideUrl?: string;                   // Auto-play narration when entering this scene
   audioGuideUrls?: Record<string, string>;  // Multi-language: { es: '...', en: '...' }
   measurements?: SceneMeasurements;         // Room/space dimensions shown in viewer
+  featured?: boolean;                       // Highlighted scene shown in guided tour / highlights
 }
 
 // ─── Floor plan / Minimap ─────────────────────────────────────────────────────
@@ -317,6 +318,11 @@ export interface Tour {
   // Property/development geo-location (used as origin for POI distance calculation)
   propertyLat?: number;
   propertyLng?: number;
+
+  // Guided tour (autoplay through scenes in order)
+  guidedTourEnabled?: boolean;
+  guidedTourSceneOrder?: string[];  // ordered sceneIds; defaults to scenes array order
+  guidedTourAutoAdvanceSec?: number; // seconds between scenes (default 8)
 
   // Meta
   createdAt: string;

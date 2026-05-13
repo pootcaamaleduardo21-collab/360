@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Scene } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
-import { Trash2, Star, Volume2, Upload, X, Loader2 } from 'lucide-react';
+import { Trash2, Star, Zap, Volume2, Upload, X, Loader2 } from 'lucide-react';
 import { uploadAsset } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 
@@ -112,6 +112,21 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
                   )}
                 >
                   <Star className="w-3.5 h-3.5" fill={isInitial ? 'currentColor' : 'none'} />
+                </button>
+
+                {/* Featured (guided tour highlight) */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateScene(scene.id, { featured: !scene.featured });
+                  }}
+                  title={scene.featured ? 'Escena destacada (recorrido guiado)' : 'Marcar como destacada'}
+                  className={cn(
+                    'p-1 rounded transition-colors',
+                    scene.featured ? 'text-blue-400' : 'text-gray-600 hover:text-blue-400'
+                  )}
+                >
+                  <Zap className="w-3.5 h-3.5" fill={scene.featured ? 'currentColor' : 'none'} />
                 </button>
 
                 {/* Audio guide toggle */}

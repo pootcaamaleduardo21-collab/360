@@ -22,13 +22,19 @@ function getServiceClient() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tourId, sceneId, name, phone, email, message } = body as {
+    const { tourId, sceneId, name, phone, email, message,
+            utm_source, utm_medium, utm_campaign, utm_content, utm_term } = body as {
       tourId: string;
       sceneId?: string;
       name: string;
       phone?: string;
       email?: string;
       message?: string;
+      utm_source?: string;
+      utm_medium?: string;
+      utm_campaign?: string;
+      utm_content?: string;
+      utm_term?: string;
     };
 
     if (!tourId || !name?.trim()) {
@@ -39,12 +45,17 @@ export async function POST(request: NextRequest) {
 
     // ── 1. Insert lead ──────────────────────────────────────────────────────
     await sb.from('leads').insert({
-      tour_id:  tourId,
-      scene_id: sceneId ?? null,
-      name:     name.trim(),
-      phone:    phone?.trim()   ?? null,
-      email:    email?.trim()   ?? null,
-      message:  message?.trim() ?? null,
+      tour_id:      tourId,
+      scene_id:     sceneId       ?? null,
+      name:         name.trim(),
+      phone:        phone?.trim()   ?? null,
+      email:        email?.trim()   ?? null,
+      message:      message?.trim() ?? null,
+      utm_source:   utm_source      ?? null,
+      utm_medium:   utm_medium      ?? null,
+      utm_campaign: utm_campaign    ?? null,
+      utm_content:  utm_content     ?? null,
+      utm_term:     utm_term        ?? null,
     });
 
     // ── 2. Fetch tour data + owner user_id ──────────────────────────────────
