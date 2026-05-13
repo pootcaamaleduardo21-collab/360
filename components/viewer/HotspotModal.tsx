@@ -170,43 +170,7 @@ export function HotspotModal({ hotspot, currentSceneId, onClose, onNavigate }: H
         )}
 
         {hotspot.type === 'map' && (
-          <div className="p-6">
-            <div className="flex items-start gap-3 mb-5">
-              <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                {hotspot.customIcon
-                  ? <span className="text-2xl leading-none">{hotspot.customIcon}</span>
-                  : <MapPin className="w-5 h-5 text-red-500" />
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-base leading-tight">{hotspot.label}</h3>
-                {hotspot.mapAddress && (
-                  <p className="text-sm text-gray-500 mt-0.5 leading-snug">{hotspot.mapAddress}</p>
-                )}
-                {hotspot.mapDistance && (
-                  <p className="text-sm font-semibold text-blue-600 mt-1.5 flex items-center gap-1">
-                    <Navigation className="w-3.5 h-3.5" />
-                    {hotspot.mapDistance}
-                  </p>
-                )}
-              </div>
-            </div>
-            <a
-              href={(() => {
-                if (hotspot.mapLat && hotspot.mapLng) {
-                  return `https://www.google.com/maps/search/?api=1&query=${hotspot.mapLat},${hotspot.mapLng}`;
-                }
-                const q = hotspot.mapAddress || hotspot.label;
-                return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-              })()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors"
-            >
-              <MapPin className="w-4 h-4" />
-              Ver en Google Maps
-            </a>
-          </div>
+          <MapHotspotContent hotspot={hotspot} />
         )}
 
         {hotspot.type === 'product' && hotspot.product && (
@@ -242,6 +206,97 @@ export function HotspotModal({ hotspot, currentSceneId, onClose, onNavigate }: H
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Map hotspot: embedded iframe + "open in Google Maps" link ─────────────────
+
+const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? '';
+
+function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
+  const tour = useTourStore((s) => s.tour);
+  const propertyLat = tour?.propertyLat;
+  const propertyLng = tour?.propertyLng;
+
+  const hasKey    = !!GMAPS_KEY;
+  const hasOrigin = !!(propertyLat && propertyLng);
+  const hasDest   = !!(hotspot.mapLat && hotspot.mapLng);
+
+  // Build embed src: directions if we have origin+dest, place otherwise
+  const embedSrc = hasKey
+    ? hasOrigin && (hasDest || hotspot.mapAddress)
+      ? `https://www.google.com/maps/embed/v1/directions?key=${GMAPS_KEY}&origin=${propertyLat},${propertyLng}&destination=${hasDest ? `${hotspot.mapLat},${hotspot.mapLng}` : encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}&mode=driving&language=es`
+      : hasDest
+        ? `https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&q=${hotspot.mapLat},${hotspot.mapLng}&language=es`
+        : `https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&q=${encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}&language=es`
+    : null;
+
+  const externalHref = hasDest
+    ? `https://www.google.com/maps/search/?api=1&query=${hotspot.mapLat},${hotspot.mapLng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}`;
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="p-4 flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+          {hotspot.customIcon
+            ? <span className="text-xl leading-none">{hotspot.customIcon}</span>
+            : <MapPin className="w-5 h-5 text-red-500" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-base leading-tight">{hotspot.label}</h3>
+          {hotspot.mapAddress && (
+            <p className="text-sm text-gray-500 mt-0.5 leading-snug">{hotspot.mapAddress}</p>
+          )}
+          {hotspot.mapDistance && (
+            <p className="text-sm font-semibold text-blue-600 mt-1 flex items-center gap-1">
+              <Navigation className="w-3.5 h-3.5" />
+              {hotspot.mapDistance}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Embedded map */}
+      {embedSrc ? (
+        <div className="relative w-full" style={{ height: 240 }}>
+          <iframe
+            key={hotspot.id}
+            src={embedSrc}
+            title={`Mapa: ${hotspot.label}`}
+            width="100%"
+            height="100%"
+            style={{ border: 0, display: 'block' }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+      ) : (
+        <div className="px-4 pb-2 flex flex-col items-center gap-2 text-center">
+          <MapPin className="w-8 h-8 text-blue-400" />
+          <p className="text-xs text-gray-500">
+            Agrega <span className="font-mono">NEXT_PUBLIC_GOOGLE_MAPS_KEY</span> para ver el mapa embebido.
+          </p>
+        </div>
+      )}
+
+      {/* Open in Google Maps */}
+      <div className="p-3">
+        <a
+          href={externalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm"
+        >
+          <MapPin className="w-4 h-4" />
+          Ver en Google Maps
+          <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+        </a>
       </div>
     </div>
   );

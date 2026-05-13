@@ -316,7 +316,13 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
           <Field label="Unidad vinculada">
             <select
               value={selected.unitId ?? ''}
-              onChange={(e) => update({ unitId: e.target.value || undefined })}
+              onChange={(e) => {
+                const unit = tourUnits.find((u) => u.id === e.target.value);
+                update({
+                  unitId: e.target.value || undefined,
+                  ...(unit ? { label: unit.label } : {}),
+                });
+              }}
               className="input-dark"
             >
               <option value="">— Seleccionar unidad —</option>

@@ -52,6 +52,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
 function ViewerInner({ tourId }: { tourId: string }) {
   const searchParams = useSearchParams();
   const unitParam    = searchParams.get('unit');
+  const waPhone      = searchParams.get('wa'); // advisor personalized link: ?wa=521234567890
 
   const tour           = useTourStore((s) => s.tour);
   const currentScene   = useTourStore(selectCurrentScene);
@@ -390,7 +391,24 @@ function ViewerInner({ tourId }: { tourId: string }) {
               </button>
             </div>
             <div className="p-3 space-y-2">
-              {/* WhatsApp */}
+              {/* Advisor contact — only when ?wa=PHONE is in the URL */}
+              {waPhone && (
+                <button
+                  onClick={() => {
+                    const url  = window.location.href;
+                    const text = `Hola, me interesa esta propiedad: ${tour.title}\n\n${url}`;
+                    window.open(`https://wa.me/${waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+                    trackEvent({ tourId: tour.id, event: 'share_click', metadata: { channel: 'whatsapp_advisor' } });
+                    setShareOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-semibold transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Contactar asesor
+                </button>
+              )}
+
+              {/* Share via WhatsApp (enviar link) */}
               <button
                 onClick={() => {
                   const url  = window.location.href;
