@@ -157,12 +157,16 @@ interface HotspotPanelProps {
 }
 
 export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPanelProps) {
-  const updateHotspot  = useTourStore((s) => s.updateHotspot);
-  const removeHotspot  = useTourStore((s) => s.removeHotspot);
-  const selectHotspot  = useTourStore((s) => s.selectHotspot);
-  const tourUnits      = useTourStore((s) => s.tour?.units ?? []);
-  const propertyLat    = useTourStore((s) => s.tour?.propertyLat);
-  const propertyLng    = useTourStore((s) => s.tour?.propertyLng);
+  const updateHotspot   = useTourStore((s) => s.updateHotspot);
+  const removeHotspot   = useTourStore((s) => s.removeHotspot);
+  const selectHotspot   = useTourStore((s) => s.selectHotspot);
+  const tourUnits       = useTourStore((s) => s.tour?.units ?? []);
+  const tourPrototypes  = useTourStore((s) => s.tour?.unitPrototypes ?? []);
+  const propertyLat     = useTourStore((s) => s.tour?.propertyLat);
+  const propertyLng     = useTourStore((s) => s.tour?.propertyLng);
+
+  const [unitSearch,   setUnitSearch]   = useState('');
+  const [protoFilter,  setProtoFilter]  = useState('');
 
   const selected = scene.hotspots.find((h) => h.id === selectedHotspotId) ?? null;
 
@@ -314,30 +318,94 @@ export function HotspotPanel({ scene, selectedHotspotId, allScenes }: HotspotPan
       {selected.type === 'unit' && (
         <>
           <Field label="Unidad vinculada">
-            <select
-              value={selected.unitId ?? ''}
-              onChange={(e) => {
-                const unit = tourUnits.find((u) => u.id === e.target.value);
-                update({
-                  unitId: e.target.value || undefined,
-                  ...(unit ? { label: unit.label } : {}),
-                });
-              }}
-              className="input-dark"
-            >
-              <option value="">— Seleccionar unidad —</option>
-              {tourUnits.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.label} · {UNIT_STATUS_LABELS[u.status]}
-                </option>
-              ))}
-            </select>
+            {tourUnits.length === 0 ? (
+              <p className="text-xs text-amber-500/80">
+                Agrega unidades en la pestaña Inventario primero.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {/* Prototype filter — only shown when prototypes are defined */}
+                {tourPrototypes.length > 0 && (
+                  <select
+                    value={protoFilter}
+                    onChange={(e) => { setProtoFilter(e.target.value); setUnitSearch(''); }}
+                    className="input-dark"
+                  >
+                    <option value="">Todos los prototipos</option>
+                    {tourPrototypes.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Text search — shown when there are more than 6 units */}
+                {tourUnits.length > 6 && (
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre…"
+                    value={unitSearch}
+                    onChange={(e) => setUnitSearch(e.target.value)}
+                    className="input-dark"
+                  />
+                )}
+
+                {/* Filtered unit list */}
+                {(() => {
+                  const q = unitSearch.toLowerCase();
+                  const filtered = tourUnits.filter((u) => {
+                    const matchSearch = !q || u.label.toLowerCase().includes(q);
+                    const matchProto  = !protoFilter || u.prototypeId === protoFilter;
+                    return matchSearch && matchProto;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-xs text-gray-500 py-1">
+                        Sin unidades para esa búsqueda.
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <select
+                      value={selected.unitId ?? ''}
+                      onChange={(e) => {
+                        const unit = tourUnits.find((u) => u.id === e.target.value);
+                        update({
+                          unitId: e.target.value || undefined,
+                          ...(unit ? { label: unit.label } : {}),
+                        });
+                      }}
+                      className="input-dark"
+                      size={Math.min(filtered.length + 1, 7)}
+                    >
+                      <option value="">— Sin asignar —</option>
+                      {filtered.map((u) => {
+                        const proto = tourPrototypes.find((p) => p.id === u.prototypeId);
+                        return (
+                          <option key={u.id} value={u.id}>
+                            {u.label}{proto ? ` [${proto.name}]` : ''} · {UNIT_STATUS_LABELS[u.status]}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  );
+                })()}
+
+                {/* Show currently linked unit */}
+                {selected.unitId && (() => {
+                  const linked = tourUnits.find((u) => u.id === selected.unitId);
+                  if (!linked) return null;
+                  const proto = tourPrototypes.find((p) => p.id === linked.prototypeId);
+                  return (
+                    <p className="text-[10px] text-emerald-400/80">
+                      ✓ {linked.label}{proto ? ` — ${proto.name}` : ''}
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
           </Field>
-          {tourUnits.length === 0 && (
-            <p className="text-xs text-amber-500/80">
-              Agrega unidades en la pestaña Inventario primero.
-            </p>
-          )}
         </>
       )}
 
