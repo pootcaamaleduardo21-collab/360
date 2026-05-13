@@ -326,7 +326,7 @@ export function Viewer360({
 
       {/* Controls toolbar */}
       {config.showControls && (
-        <div className="absolute top-14 right-4 z-20 flex flex-col gap-2">
+        <div className="absolute top-[60px] right-4 z-20 flex flex-col gap-2">
           <ControlButton onClick={zoomIn}    title="Acercar"     icon={<ZoomIn   className="w-4 h-4" />} />
           <ControlButton onClick={zoomOut}   title="Alejar"      icon={<ZoomOut  className="w-4 h-4" />} />
           <ControlButton onClick={resetView} title="Vista inicial" icon={<RotateCcw className="w-4 h-4" />} />
