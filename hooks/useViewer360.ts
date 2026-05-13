@@ -119,7 +119,7 @@ export function useViewer360({
     cameraRef.current = camera;
 
     // Sphere geometry — scale(-1,1,1) flips normals inward so texture shows inside
-    const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 64, 32);
+    const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 48, 24);
     geometry.scale(-1, 1, 1);
 
     const material = new THREE.MeshBasicMaterial({

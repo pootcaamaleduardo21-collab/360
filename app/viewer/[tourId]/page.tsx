@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { getTourById, getTourBySlug } from '@/lib/db';
 import { trackEvent } from '@/lib/analytics';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, getSupabase } from '@/lib/supabase';
 // Lazy-load all non-critical viewer panels so they don't bloat the initial bundle
 const InventoryOverlay  = dynamic(() => import('@/components/viewer/InventoryOverlay').then(m => m.InventoryOverlay),  { ssr: false });
 const CartPanel         = dynamic(() => import('@/components/viewer/CartPanel').then(m => m.CartPanel),                { ssr: false });
@@ -104,7 +104,7 @@ function ViewerInner({ tourId }: { tourId: string }) {
             // getTourBySlug already enforces is_published=true.
             // For raw UUID access, block if draft unless the viewer IS the owner.
             if (isUuid && !row.is_published) {
-              const sb = (await import('@/lib/supabase')).getSupabase();
+              const sb = getSupabase();
               // getSession() reads from cookie — no network call vs getUser()
               const { data: { session } } = await sb.auth.getSession();
               const user = session?.user ?? null;
@@ -115,6 +115,12 @@ function ViewerInner({ tourId }: { tourId: string }) {
               }
             }
             if (row.data) {
+              // Preload first scene texture in parallel with Three.js init
+              const firstImageUrl = row.data.scenes?.[0]?.imageUrl;
+              if (firstImageUrl) {
+                const preloadImg = new Image();
+                preloadImg.src = firstImageUrl;
+              }
               loadTour(row.data);
             } else {
               setNotFound(true);
