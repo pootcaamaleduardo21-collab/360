@@ -71,9 +71,17 @@ interface CartState {
   toggleCart: () => void;
 }
 
+// ─── Wishlist slice ───────────────────────────────────────────────────────────
+
+interface WishlistState {
+  wishlistIds: string[];
+  toggleWishlist: (unitId: string) => void;
+  clearWishlist: () => void;
+}
+
 // ─── Combined store ───────────────────────────────────────────────────────────
 
-type TourStore = EditorState & ViewerState & CartState;
+type TourStore = EditorState & ViewerState & CartState & WishlistState;
 
 export const useTourStore = create<TourStore>()(
   devtools(
@@ -336,14 +344,28 @@ export const useTourStore = create<TourStore>()(
 
         clearCart: () => set({ items: [] }),
         toggleCart: () => set((s) => ({ isCartOpen: !s.isCartOpen })),
+
+        // ── Wishlist ────────────────────────────────────────────────────────
+
+        wishlistIds: [],
+
+        toggleWishlist: (unitId) =>
+          set((s) => ({
+            wishlistIds: s.wishlistIds.includes(unitId)
+              ? s.wishlistIds.filter((id) => id !== unitId)
+              : [...s.wishlistIds, unitId],
+          })),
+
+        clearWishlist: () => set({ wishlistIds: [] }),
       }),
       {
         name: 'tour360-store',
-        // Only persist viewer preferences and cart, not the full tour (managed separately)
+        // Only persist viewer preferences, cart, and wishlist — not the full tour (managed separately)
         partialize: (s) => ({
           viewerConfig: s.viewerConfig,
           tutorialDismissed: s.tutorialDismissed,
           items: s.items,
+          wishlistIds: s.wishlistIds,
         }),
       }
     )

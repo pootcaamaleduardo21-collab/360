@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Tour, PropertyUnit, GalleryItem } from '@/types/tour.types';
+import { Tour, PropertyUnit, GalleryItem, PropertyStatus } from '@/types/tour.types';
 import { POI_CONFIG } from '@/lib/poiTypes';
 import { getNiche } from '@/lib/niches';
 import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useTourStore } from '@/store/tourStore';
 import {
   X, Building2, Images, FileText, MapPin, Globe,
   Download, Play, ChevronRight, ExternalLink,
   Facebook, Instagram, Youtube, Phone, CheckCircle,
   XCircle, Clock, AlertCircle, Maximize2,
+  Heart, SlidersHorizontal, MessageCircle, Trash2,
 } from 'lucide-react';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -43,6 +45,8 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
   const pois = tour.pointsOfInterest ?? [];
   const social = tour.socialLinks ?? {};
 
+  const { wishlistIds, toggleWishlist, clearWishlist } = useTourStore();
+
   // Build available tabs
   const tabs = useMemo(() => {
     const t: { id: PanelTab; label: string; icon: React.ReactNode }[] = [];
@@ -51,13 +55,82 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
     if (tour.brochureUrl)   t.push({ id: 'brochure',label: 'Brochure',   icon: <FileText   className="w-3.5 h-3.5" /> });
     if (pois.length > 0)    t.push({ id: 'poi',     label: 'Lugares',    icon: <MapPin     className="w-3.5 h-3.5" /> });
     return t;
-  }, [units.length, gallery.length, tour.brochureUrl, pois.length]);
+  }, [units.length, gallery.length, tour.brochureUrl, pois.length, niche.salesPanelTitle]);
 
   const [activeTab, setActiveTab] = useState<PanelTab>(tabs[0]?.id ?? 'units');
   const [lightbox,  setLightbox]  = useState<GalleryItem | null>(null);
-  const [unitFilter, setUnitFilter] = useState<'all' | 'available'>('all');
+
+  // ── Filter state ──────────────────────────────────────────────────────────
+  const [showFilters,    setShowFilters]    = useState(false);
+  const [showWishlist,   setShowWishlist]   = useState(false);
+  const [filterStatus,   setFilterStatus]   = useState<PropertyStatus | 'all'>('all');
+  const [filterBedrooms, setFilterBedrooms] = useState<number | null>(null);
+  const [filterMinPrice, setFilterMinPrice] = useState('');
+  const [filterMaxPrice, setFilterMaxPrice] = useState('');
 
   const displayName = tour.brandName ?? tour.title;
+
+  // Derive unique floors and bedroom counts present in units
+  const uniqueFloors = useMemo(
+    () => [...new Set(units.map((u) => u.floor).filter((f): f is number => f != null))].sort((a, b) => a - b),
+    [units]
+  );
+  const uniqueBeds = useMemo(
+    () => [...new Set(units.map((u) => u.bedrooms).filter((b): b is number => b != null))].sort((a, b) => a - b),
+    [units]
+  );
+  const hasPrices = units.some((u) => u.price != null);
+
+  // Active filter count (for badge)
+  const activeFilterCount = [
+    filterStatus !== 'all',
+    filterBedrooms !== null,
+    filterMinPrice !== '',
+    filterMaxPrice !== '',
+  ].filter(Boolean).length;
+
+  // Derived: filtered units
+  const filteredUnits = useMemo(() => {
+    let list = showWishlist ? units.filter((u) => wishlistIds.includes(u.id)) : units;
+    if (filterStatus !== 'all') list = list.filter((u) => u.status === filterStatus);
+    if (filterBedrooms !== null) list = list.filter((u) => (u.bedrooms ?? 0) === filterBedrooms);
+    const minP = parseFloat(filterMinPrice);
+    const maxP = parseFloat(filterMaxPrice);
+    if (!isNaN(minP)) list = list.filter((u) => u.price != null && u.price >= minP);
+    if (!isNaN(maxP)) list = list.filter((u) => u.price != null && u.price <= maxP);
+    return list;
+  }, [units, showWishlist, wishlistIds, filterStatus, filterBedrooms, filterMinPrice, filterMaxPrice]);
+
+  // Wishlist totals
+  const wishlistUnits = useMemo(() => units.filter((u) => wishlistIds.includes(u.id)), [units, wishlistIds]);
+  const wishlistTotal = wishlistUnits.reduce((sum, u) => sum + (u.price ?? 0), 0);
+  const currency = tour.currency ?? 'MXN';
+
+  // WhatsApp share message
+  const buildWhatsAppMessage = () => {
+    const lines = [`🏠 *${displayName}* — Mi lista de propiedades:\n`];
+    wishlistUnits.forEach((u) => {
+      const st = UNIT_STATUS[u.status];
+      const proto = tour.unitPrototypes?.find((p) => p.id === u.prototypeId);
+      const beds = u.bedrooms ?? proto?.bedrooms;
+      const area = u.area ?? proto?.area;
+      const parts = [u.label];
+      if (beds != null) parts.push(`${beds} rec`);
+      if (area != null) parts.push(`${area} m²`);
+      if (u.price) parts.push(formatCurrency(u.price, u.currency ?? currency));
+      parts.push(st.label);
+      lines.push(`• ${parts.join(' · ')}`);
+    });
+    if (wishlistTotal > 0) {
+      lines.push(`\n💰 *Total: ${formatCurrency(wishlistTotal, currency)}*`);
+    }
+    lines.push(`\nVer tour: ${typeof window !== 'undefined' ? window.location.href : ''}`);
+    return encodeURIComponent(lines.join('\n'));
+  };
+
+  const whatsappBase = social.whatsapp
+    ? `https://wa.me/${social.whatsapp.replace(/\D/g, '')}`
+    : 'https://wa.me/';
 
   return (
     <>
@@ -142,37 +215,179 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
           {/* UNITS ─────────────────────────────────────────────────────────── */}
           {activeTab === 'units' && (
             <div>
-              {/* Filter bar */}
-              <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-2 flex gap-2 z-10">
-                {(['all', 'available'] as const).map((f) => (
+              {/* ── Filter toolbar ─────────────────────────────────────── */}
+              <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
+                {/* Top row: quick pills + wishlist + filter toggle */}
+                <div className="flex items-center gap-2 px-3 py-2">
+                  {/* Status quick filter */}
+                  <div className="flex gap-1.5 flex-1 overflow-x-auto scrollbar-none">
+                    {(['all', 'available', 'reserved', 'sold'] as const).map((f) => {
+                      const labels: Record<string, string> = { all: 'Todas', available: 'Disponibles', reserved: 'Reservadas', sold: 'Vendidas' };
+                      return (
+                        <button
+                          key={f}
+                          onClick={() => setFilterStatus(f === 'all' ? 'all' : f as PropertyStatus)}
+                          className={cn(
+                            'flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors whitespace-nowrap',
+                            filterStatus === f ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          )}
+                          style={filterStatus === f ? { background: brand } : undefined}
+                        >
+                          {labels[f]}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Wishlist toggle */}
                   <button
-                    key={f}
-                    onClick={() => setUnitFilter(f)}
+                    onClick={() => setShowWishlist(!showWishlist)}
                     className={cn(
-                      'px-3 py-1 rounded-full text-xs font-semibold transition-colors',
-                      unitFilter === f ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      'relative flex-shrink-0 p-1.5 rounded-full transition-colors',
+                      showWishlist ? 'bg-rose-100 text-rose-500' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
                     )}
-                    style={unitFilter === f ? { background: brand } : undefined}
+                    title="Favoritas"
                   >
-                    {f === 'all' ? 'Todas' : 'Disponibles'}
+                    <Heart className={cn('w-4 h-4', showWishlist && 'fill-rose-500')} />
+                    {wishlistIds.length > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center leading-none">
+                        {wishlistIds.length}
+                      </span>
+                    )}
                   </button>
-                ))}
-                <span className="ml-auto text-xs text-gray-400 self-center">
-                  {units.filter((u) => unitFilter === 'all' || u.status === 'available').length} {niche.overlayCountLabel}
-                </span>
+
+                  {/* Advanced filter toggle */}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={cn(
+                      'relative flex-shrink-0 p-1.5 rounded-full transition-colors',
+                      showFilters ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                    )}
+                    title="Filtros"
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full text-white text-[8px] font-black flex items-center justify-center leading-none"
+                        style={{ background: brand }}>
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Advanced filters panel */}
+                {showFilters && (
+                  <div className="border-t border-gray-100 px-3 py-2.5 space-y-2.5 bg-gray-50">
+                    {/* Bedrooms filter */}
+                    {uniqueBeds.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Recámaras</p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          <FilterPill
+                            label="Todas"
+                            active={filterBedrooms === null}
+                            color={brand}
+                            onClick={() => setFilterBedrooms(null)}
+                          />
+                          {uniqueBeds.map((b) => (
+                            <FilterPill
+                              key={b}
+                              label={`${b}`}
+                              active={filterBedrooms === b}
+                              color={brand}
+                              onClick={() => setFilterBedrooms(filterBedrooms === b ? null : b)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Price range */}
+                    {hasPrices && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Precio</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            placeholder="Mínimo"
+                            value={filterMinPrice}
+                            onChange={(e) => setFilterMinPrice(e.target.value)}
+                            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-gray-400 min-w-0"
+                          />
+                          <span className="text-gray-300 text-xs">—</span>
+                          <input
+                            type="number"
+                            placeholder="Máximo"
+                            value={filterMaxPrice}
+                            onChange={(e) => setFilterMaxPrice(e.target.value)}
+                            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-gray-400 min-w-0"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reset */}
+                    {activeFilterCount > 0 && (
+                      <button
+                        onClick={() => { setFilterStatus('all'); setFilterBedrooms(null); setFilterMinPrice(''); setFilterMaxPrice(''); }}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 underline"
+                      >
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Wishlist mode header */}
+                {showWishlist && (
+                  <div className="flex items-center justify-between border-t border-rose-100 bg-rose-50 px-3 py-1.5">
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                      <Heart className="w-3 h-3 fill-rose-500" />
+                      {wishlistUnits.length} favorita{wishlistUnits.length !== 1 ? 's' : ''}
+                      {wishlistTotal > 0 && <span className="font-normal text-rose-500"> · {formatCurrency(wishlistTotal, currency)}</span>}
+                    </p>
+                    {wishlistIds.length > 0 && (
+                      <button
+                        onClick={clearWishlist}
+                        className="p-1 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-100 transition-colors"
+                        title="Limpiar lista"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Count row */}
+                <div className="px-3 pb-1.5 flex items-center">
+                  <span className="text-[10px] text-gray-400">
+                    {filteredUnits.length} {niche.overlayCountLabel}
+                  </span>
+                </div>
               </div>
 
+              {/* Unit list */}
               <ul className="divide-y divide-gray-50">
-                {units
-                  .filter((u) => unitFilter === 'all' || u.status === 'available')
-                  .map((unit) => {
+                {filteredUnits.length === 0 ? (
+                  <li className="py-12 flex flex-col items-center gap-2 text-center px-4">
+                    {showWishlist
+                      ? <Heart className="w-8 h-8 text-gray-200" />
+                      : <Building2 className="w-8 h-8 text-gray-200" />
+                    }
+                    <p className="text-sm text-gray-400">
+                      {showWishlist ? 'Agrega propiedades a tus favoritas con ❤' : 'Sin resultados con los filtros actuales'}
+                    </p>
+                  </li>
+                ) : (
+                  filteredUnits.map((unit) => {
                     const proto = tour.unitPrototypes?.find((p) => p.id === unit.prototypeId);
                     const st = UNIT_STATUS[unit.status];
                     const area = unit.area ?? proto?.area;
                     const beds = unit.bedrooms ?? proto?.bedrooms;
+                    const isWishlisted = wishlistIds.includes(unit.id);
 
                     return (
-                      <li key={unit.id}>
+                      <li key={unit.id} className="relative">
                         <button
                           onClick={() => onUnitClick?.(unit)}
                           className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
@@ -202,16 +417,47 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
                           <div className="text-right flex-shrink-0">
                             {unit.price ? (
                               <p className="text-sm font-black text-gray-900">
-                                {formatCurrency(unit.price, unit.currency ?? tour.currency ?? 'MXN')}
+                                {formatCurrency(unit.price, unit.currency ?? currency)}
                               </p>
                             ) : null}
                             <ChevronRight className="w-4 h-4 text-gray-300 ml-auto mt-0.5" />
                           </div>
                         </button>
+
+                        {/* Heart toggle — positioned absolute so it doesn't break row layout */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleWishlist(unit.id); }}
+                          className={cn(
+                            'absolute right-8 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-colors',
+                            isWishlisted
+                              ? 'text-rose-500 bg-rose-50 hover:bg-rose-100'
+                              : 'text-gray-300 hover:text-rose-400 hover:bg-rose-50'
+                          )}
+                          title={isWishlisted ? 'Quitar de favoritas' : 'Agregar a favoritas'}
+                        >
+                          <Heart className={cn('w-3.5 h-3.5', isWishlisted && 'fill-rose-500')} />
+                        </button>
                       </li>
                     );
-                  })}
+                  })
+                )}
               </ul>
+
+              {/* WhatsApp export — only shown in wishlist mode with items */}
+              {showWishlist && wishlistUnits.length > 0 && (
+                <div className="px-4 py-4 border-t border-gray-100 bg-white">
+                  <a
+                    href={`${whatsappBase}?text=${buildWhatsAppMessage()}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-semibold text-sm text-white transition-opacity hover:opacity-90"
+                    style={{ background: '#25d366' }}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Compartir por WhatsApp
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -280,7 +526,6 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
           {/* BROCHURE ─────────────────────────────────────────────────────── */}
           {activeTab === 'brochure' && tour.brochureUrl && (
             <div className="p-5 flex flex-col items-center gap-5">
-              {/* Preview — if it's an image show it, otherwise generic PDF */}
               {/\.(jpe?g|png|webp|gif)$/i.test(tour.brochureUrl) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -316,7 +561,6 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
           {activeTab === 'poi' && (
             <div className="p-4 space-y-2">
               <p className="text-xs text-gray-400 mb-3">Puntos de interés cercanos al desarrollo</p>
-              {/* Group by category */}
               {Object.entries(
                 pois.reduce<Record<string, typeof pois>>((acc, poi) => {
                   (acc[poi.category] ??= []).push(poi);
@@ -421,6 +665,28 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
         </div>
       )}
     </>
+  );
+}
+
+// ─── Filter pill ──────────────────────────────────────────────────────────────
+
+function FilterPill({ label, active, color, onClick }: {
+  label: string;
+  active: boolean;
+  color: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors',
+        active ? 'text-white' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-100'
+      )}
+      style={active ? { background: color } : undefined}
+    >
+      {label}
+    </button>
   );
 }
 
