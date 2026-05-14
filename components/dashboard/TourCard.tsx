@@ -291,9 +291,15 @@ export function TourCard({ tour, onDelete, onDuplicate }: TourCardProps) {
           )}
 
           <div className="flex items-center justify-between mt-3 text-xs text-gray-600">
-            <span className="flex items-center gap-1">
-              <Layers className="w-3 h-3" /> {tour.scene_count} escena{tour.scene_count !== 1 ? 's' : ''}
-            </span>
+            {tour.scene_count > 0 ? (
+              <span className="flex items-center gap-1">
+                <Layers className="w-3 h-3" /> {tour.scene_count} escena{tour.scene_count !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Tour 360
+              </span>
+            )}
             {tour.is_published ? (
               <Link
                 href={`/dashboard/analytics/${tour.id}`}

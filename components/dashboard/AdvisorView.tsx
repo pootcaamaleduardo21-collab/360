@@ -138,7 +138,7 @@ function AdvisorTourRow({ tour }: { tour: TourSummary }) {
           </span>
         </div>
         <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-          <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count} escenas</span>
+          <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count > 0 ? `${tour.scene_count} escenas` : 'Tour 360'}</span>
           {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
         </div>
       </div>
