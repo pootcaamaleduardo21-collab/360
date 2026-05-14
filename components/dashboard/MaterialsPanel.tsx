@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Upload, Trash2, Download, Loader2, FolderOpen,
   FileText, AlertCircle, CheckCircle, X, Plus,
+  LayoutGrid, List,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -155,18 +156,11 @@ function UploadForm({ onUploaded }: { onUploaded: (m: TeamMaterial) => void }) {
   );
 }
 
-// ─── Material row ─────────────────────────────────────────────────────────────
+// ─── Shared actions hook ──────────────────────────────────────────────────────
 
-function MaterialRow({
-  material, isAdmin, onDeleted,
-}: {
-  material: TeamMaterial;
-  isAdmin:  boolean;
-  onDeleted: (id: string) => void;
-}) {
+function useMaterialActions(material: TeamMaterial, onDeleted: (id: string) => void) {
   const [downloading, setDownloading] = useState(false);
   const [deleting,    setDeleting]    = useState(false);
-  const cfg = CATEGORY_CONFIG[material.category];
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -182,6 +176,21 @@ function MaterialRow({
     setDeleting(false);
     if (ok) onDeleted(material.id);
   };
+
+  return { downloading, deleting, handleDownload, handleDelete };
+}
+
+// ─── Material row (list view) ─────────────────────────────────────────────────
+
+function MaterialRow({
+  material, isAdmin, onDeleted,
+}: {
+  material: TeamMaterial;
+  isAdmin:  boolean;
+  onDeleted: (id: string) => void;
+}) {
+  const cfg = CATEGORY_CONFIG[material.category];
+  const { downloading, deleting, handleDownload, handleDelete } = useMaterialActions(material, onDeleted);
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors">
@@ -226,6 +235,61 @@ function MaterialRow({
   );
 }
 
+// ─── Material card (grid view) ────────────────────────────────────────────────
+
+function MaterialCard({
+  material, isAdmin, onDeleted,
+}: {
+  material: TeamMaterial;
+  isAdmin:  boolean;
+  onDeleted: (id: string) => void;
+}) {
+  const cfg = CATEGORY_CONFIG[material.category];
+  const { downloading, deleting, handleDownload, handleDelete } = useMaterialActions(material, onDeleted);
+
+  return (
+    <div className="flex flex-col gap-3 p-4 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-4xl">{fileIcon(material.file_type)}</span>
+        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 mt-0.5', cfg.color)}>
+          {cfg.label}
+        </span>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-200 leading-snug line-clamp-2">{material.name}</p>
+        {material.description && (
+          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{material.description}</p>
+        )}
+        <p className="text-[11px] text-gray-600 mt-1.5">
+          {material.file_size ? formatBytes(material.file_size) : material.file_name}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-1.5 pt-1 border-t border-gray-800">
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-semibold transition-colors border border-blue-500/20 disabled:opacity-40"
+        >
+          {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Descargar
+        </button>
+        {isAdmin && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            title="Eliminar"
+            className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-red-500/20 text-gray-600 hover:text-red-400 flex items-center justify-center transition-colors border border-gray-700 disabled:opacity-40"
+          >
+            {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
@@ -233,6 +297,7 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
   const [loading,     setLoading]     = useState(true);
   const [filter,      setFilter]      = useState<MaterialCategory | 'all'>('all');
   const [showUpload,  setShowUpload]  = useState(false);
+  const [viewMode,    setViewMode]    = useState<'list' | 'grid'>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -270,20 +335,45 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
             Materiales internos — visibles solo para tu equipo, nunca para clientes externos.
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowUpload((v) => !v)}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors',
-              showUpload
-                ? 'bg-gray-800 text-gray-300 border border-gray-700'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
-            )}
-          >
-            {showUpload ? <X className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
-            {showUpload ? 'Cancelar' : 'Subir archivo'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center rounded-xl border border-gray-800 bg-gray-900 p-0.5">
+            <button
+              onClick={() => setViewMode('list')}
+              title="Vista lista"
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
+                viewMode === 'list' ? 'bg-gray-700 text-white' : 'text-gray-600 hover:text-gray-400'
+              )}
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Vista cuadrícula"
+              className={cn(
+                'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
+                viewMode === 'grid' ? 'bg-gray-700 text-white' : 'text-gray-600 hover:text-gray-400'
+              )}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => setShowUpload((v) => !v)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors',
+                showUpload
+                  ? 'bg-gray-800 text-gray-300 border border-gray-700'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white'
+              )}
+            >
+              {showUpload ? <X className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+              {showUpload ? 'Cancelar' : 'Subir archivo'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Upload form */}
@@ -342,6 +432,12 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
               </p>
             )}
           </div>
+        </div>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {visible.map((m) => (
+            <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+          ))}
         </div>
       ) : (
         <div className="space-y-2">

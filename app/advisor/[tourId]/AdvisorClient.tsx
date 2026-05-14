@@ -9,12 +9,13 @@ import { useTourStore } from '@/store/tourStore';
 import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
+import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import {
   Link2, Copy, CheckCheck, Download, Play, ExternalLink, QrCode,
   Calendar, MessageCircle, Mail, Phone, LayoutDashboard,
   Building2, CheckCircle, Clock, XCircle, AlertCircle,
   FileText, Image as ImageIcon, Video, ChevronRight, Loader2,
-  Share2, BedDouble, Bath, Car, Ruler, FolderOpen,
+  Share2, BedDouble, Bath, Car, Ruler, FolderOpen, Megaphone,
 } from 'lucide-react';
 
 const Viewer360 = dynamic(
@@ -30,7 +31,7 @@ interface Props {
   shareSlug: string | null;
 }
 
-type Tab = 'link' | 'material' | 'booking' | 'units' | 'kit';
+type Tab = 'link' | 'material' | 'booking' | 'units' | 'kit' | 'novedades';
 
 const STATUS_CONF = {
   available:   { label: 'Disponible',  color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: <CheckCircle  className="w-3 h-3" /> },
@@ -110,7 +111,8 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
     ...(hasMaterial ? [{ id: 'material' as Tab, label: 'Material',  icon: <Download    className="w-4 h-4" /> }] : []),
     ...(hasBooking  ? [{ id: 'booking'  as Tab, label: 'Agendar',   icon: <Calendar    className="w-4 h-4" /> }] : []),
     ...(hasUnits    ? [{ id: 'units'    as Tab, label: 'Inventario',icon: <Building2   className="w-4 h-4" /> }] : []),
-    { id: 'kit',     label: 'Kit Ventas', icon: <FolderOpen  className="w-4 h-4" /> },
+    { id: 'kit',      label: 'Kit Ventas', icon: <FolderOpen  className="w-4 h-4" /> },
+    { id: 'novedades',label: 'Novedades',  icon: <Megaphone   className="w-4 h-4" /> },
   ];
 
   return (
@@ -365,6 +367,13 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
           {tab === 'kit' && (
             <div className="p-4">
               <MaterialsPanel isAdmin={false} />
+            </div>
+          )}
+
+          {/* ── Novedades ─────────────────────────────────────────────────── */}
+          {tab === 'novedades' && (
+            <div className="p-4">
+              <AnnouncementsSection isAdmin={false} />
             </div>
           )}
 

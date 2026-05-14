@@ -10,6 +10,7 @@ import { LeadsPanel } from '@/components/dashboard/LeadsPanel';
 import { OnboardingWelcome } from '@/components/dashboard/OnboardingWelcome';
 import { TeamPanel } from '@/components/dashboard/TeamPanel';
 import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
+import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import { AnalyticsOverview } from '@/components/dashboard/AnalyticsOverview';
 import { CRMPanel } from '@/components/dashboard/CRMPanel';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,13 +22,13 @@ import { useTourStore } from '@/store/tourStore';
 import {
   Plus, LogOut, Loader2, Globe, LayoutGrid, List,
   Shield, Users, Building2, BarChart2,
-  Play, ChevronDown, Bell, MessageSquare, UserCog, FolderOpen,
+  Play, ChevronDown, Bell, MessageSquare, UserCog, FolderOpen, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Role-tab config ──────────────────────────────────────────────────────────
 
-type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team' | 'materials';
+type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team' | 'materials' | 'novedades';
 
 function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
   const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
@@ -35,7 +36,8 @@ function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.
     { id: 'leads',     label: 'Leads',      icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'crm',       label: 'CRM',        icon: <Building2     className="w-4 h-4" /> },
     { id: 'analytics', label: 'Analytics',  icon: <BarChart2     className="w-4 h-4" /> },
-    { id: 'materials', label: 'Kit Ventas', icon: <FolderOpen    className="w-4 h-4" /> },
+    { id: 'materials', label: 'Kit Ventas', icon: <FolderOpen  className="w-4 h-4" /> },
+    { id: 'novedades', label: 'Novedades',  icon: <Megaphone   className="w-4 h-4" /> },
   ];
   if (role === 'super_admin') base.push({ id: 'platform', label: 'Plataforma', icon: <Shield className="w-4 h-4" /> });
   if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
@@ -314,6 +316,12 @@ export default function DashboardPage() {
         {mountedTabs.has('materials') && (
           <div className={cn(activeTab !== 'materials' && 'hidden')}>
             <MaterialsPanel isAdmin={role !== 'advisor'} />
+          </div>
+        )}
+
+        {mountedTabs.has('novedades') && (
+          <div className={cn(activeTab !== 'novedades' && 'hidden')}>
+            <AnnouncementsSection isAdmin={role !== 'advisor'} />
           </div>
         )}
 
