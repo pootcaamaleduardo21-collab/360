@@ -183,11 +183,15 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
 
               // Thumbnail
               patch(name, { uploadProgress: 85 });
-              const srcFile    = toJpgFile(uploadBlob);
-              const dataUrl    = await readFileAsDataURL(srcFile);
-              const thumbUrl   = await generateThumbnail(dataUrl, 320, 160);
-              const thumbResult = await uploadThumbnail(uploadTourId!, thumbUrl);
-              thumbnailUrl = thumbResult.url;
+              try {
+                const srcFile    = toJpgFile(uploadBlob);
+                const dataUrl    = await readFileAsDataURL(srcFile);
+                const thumbUrl   = await generateThumbnail(dataUrl, 320, 160);
+                const thumbResult = await uploadThumbnail(uploadTourId!, thumbUrl);
+                thumbnailUrl = thumbResult.url;
+              } catch (thumbErr) {
+                console.warn('[Upload] Thumbnail upload failed; continuing with scene image only:', thumbErr);
+              }
               supabaseOk = true;
             } catch (supabaseErr) {
               console.error('[Upload] Supabase failed:', supabaseErr);

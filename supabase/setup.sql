@@ -135,48 +135,72 @@ CREATE POLICY "storage: public read thumbs"
   ON storage.objects FOR SELECT
   USING ( bucket_id = 'tour-thumbs' );
 
--- Authenticated users can upload/update/delete only their own files
--- Convention: files are stored under {user_id}/<filename>
+-- Authenticated users can upload/update/delete only files for tours they own.
+-- Convention: files are stored under {tour_id}/<filename>
 CREATE POLICY "storage: owner upload scenes"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'tour-scenes'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND EXISTS (
+      SELECT 1 FROM tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
   );
 
 CREATE POLICY "storage: owner upload assets"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'tour-assets'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND EXISTS (
+      SELECT 1 FROM tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
   );
 
 CREATE POLICY "storage: owner upload thumbs"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'tour-thumbs'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND EXISTS (
+      SELECT 1 FROM tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
   );
 
 CREATE POLICY "storage: owner delete scenes"
   ON storage.objects FOR DELETE
   USING (
     bucket_id = 'tour-scenes'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND EXISTS (
+      SELECT 1 FROM tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
   );
 
 CREATE POLICY "storage: owner delete assets"
   ON storage.objects FOR DELETE
   USING (
     bucket_id = 'tour-assets'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND EXISTS (
+      SELECT 1 FROM tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
   );
 
 CREATE POLICY "storage: owner delete thumbs"
   ON storage.objects FOR DELETE
   USING (
     bucket_id = 'tour-thumbs'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND EXISTS (
+      SELECT 1 FROM tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
   );
 
 -- ── 6. Set a user as super_admin ─────────────────────────────────────────────

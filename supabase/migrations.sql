@@ -140,6 +140,147 @@ CREATE INDEX IF NOT EXISTS tours_user_updated_light_idx
   ON tours(user_id, updated_at DESC);
 
 
+-- ─── Migration 6: Storage policies for tour-based upload paths ──────────────
+--
+-- App uploads files under {tour_id}/{file}. Policies must authorize the owner
+-- of that tour, not auth.uid() as the first path segment.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  ('tour-scenes', 'tour-scenes', true, 52428800, ARRAY['image/jpeg','image/png','image/webp']),
+  ('tour-assets', 'tour-assets', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','audio/mpeg','audio/mp4','audio/wav','application/pdf']),
+  ('tour-thumbs', 'tour-thumbs', true, 5242880,  ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO UPDATE
+SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "storage: public read scenes" ON storage.objects;
+DROP POLICY IF EXISTS "storage: public read assets" ON storage.objects;
+DROP POLICY IF EXISTS "storage: public read thumbs" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner upload scenes" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner upload assets" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner upload thumbs" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner update scenes" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner update assets" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner update thumbs" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner delete scenes" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner delete assets" ON storage.objects;
+DROP POLICY IF EXISTS "storage: owner delete thumbs" ON storage.objects;
+
+CREATE POLICY "storage: public read scenes"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'tour-scenes');
+
+CREATE POLICY "storage: public read assets"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'tour-assets');
+
+CREATE POLICY "storage: public read thumbs"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'tour-thumbs');
+
+CREATE POLICY "storage: owner upload scenes"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'tour-scenes'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner upload assets"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'tour-assets'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner upload thumbs"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'tour-thumbs'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner update scenes"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'tour-scenes'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner update assets"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'tour-assets'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner update thumbs"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'tour-thumbs'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner delete scenes"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'tour-scenes'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner delete assets"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'tour-assets'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "storage: owner delete thumbs"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'tour-thumbs'
+    AND EXISTS (
+      SELECT 1 FROM public.tours
+      WHERE id = ((storage.foldername(name))[1])::uuid
+        AND user_id = auth.uid()
+    )
+  );
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --
