@@ -120,8 +120,7 @@ create trigger tours_sync_light_fields
   for each row execute function public.sync_tour_light_fields();
 
 create index if not exists tours_user_updated_light_idx
-  on public.tours(user_id, updated_at desc)
-  include (title, description, is_published, share_slug, view_count, thumbnail_url, first_scene_url, scene_count);
+  on public.tours(user_id, updated_at desc);
 
 -- Increment view counter (called from the client when a tour is opened)
 create or replace function public.increment_tour_views(tour_id uuid)

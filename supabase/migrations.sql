@@ -137,8 +137,7 @@ SET data = data
 WHERE data IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS tours_user_updated_light_idx
-  ON tours(user_id, updated_at DESC)
-  INCLUDE (title, description, is_published, share_slug, view_count, thumbnail_url, first_scene_url, scene_count);
+  ON tours(user_id, updated_at DESC);
 
 
 -- ─── Verification ─────────────────────────────────────────────────────────────
