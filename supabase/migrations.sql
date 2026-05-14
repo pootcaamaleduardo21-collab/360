@@ -321,8 +321,7 @@ CREATE TABLE IF NOT EXISTS team_materials (
   admin_id    uuid        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name        text        NOT NULL,
   description text,
-  category    text        NOT NULL DEFAULT 'general'
-                CHECK (category IN ('precios', 'apartado', 'promociones', 'descuentos', 'planos', 'comisiones', 'general')),
+  category    text        NOT NULL DEFAULT 'general',
   file_path   text        NOT NULL,
   file_name   text        NOT NULL,
   file_size   bigint,
@@ -331,12 +330,57 @@ CREATE TABLE IF NOT EXISTS team_materials (
 );
 
 ALTER TABLE team_materials DROP CONSTRAINT IF EXISTS team_materials_category_check;
-ALTER TABLE team_materials
-  ADD CONSTRAINT team_materials_category_check
-  CHECK (category IN ('precios', 'apartado', 'promociones', 'descuentos', 'planos', 'comisiones', 'general'));
 
 CREATE INDEX IF NOT EXISTS team_materials_admin_idx
   ON team_materials(admin_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS team_material_categories (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id   uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  key        text NOT NULL,
+  name       text NOT NULL,
+  color      text,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_system  boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(admin_id, key)
+);
+
+ALTER TABLE team_material_categories ENABLE ROW LEVEL SECURITY;
+
+INSERT INTO team_material_categories (admin_id, key, name, color, sort_order, is_system)
+SELECT v.admin_id, v.key, v.name, v.color, v.sort_order, v.is_system
+FROM (VALUES
+  (NULL::uuid, 'precios',     'Precios actuales',       'blue',    10, true),
+  (NULL::uuid, 'apartado',    'Documentos de apartado', 'cyan',    20, true),
+  (NULL::uuid, 'promociones', 'Promociones',            'emerald', 30, true),
+  (NULL::uuid, 'descuentos',  'Descuentos',             'lime',    40, true),
+  (NULL::uuid, 'planos',      'Planos',                 'amber',   50, true),
+  (NULL::uuid, 'comisiones',  'Comisiones',             'purple',  60, true),
+  (NULL::uuid, 'general',     'General',                'gray',    70, true)
+) AS v(admin_id, key, name, color, sort_order, is_system)
+WHERE NOT EXISTS (
+  SELECT 1 FROM team_material_categories c
+  WHERE c.admin_id IS NULL AND c.key = v.key
+);
+
+DROP POLICY IF EXISTS "material categories: admin manages" ON team_material_categories;
+CREATE POLICY "material categories: admin manages" ON team_material_categories
+  FOR ALL USING (admin_id = auth.uid())
+  WITH CHECK (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "material categories: team reads" ON team_material_categories;
+CREATE POLICY "material categories: team reads" ON team_material_categories
+  FOR SELECT USING (
+    admin_id IS NULL
+    OR admin_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM team_invites
+      WHERE team_invites.admin_id        = team_material_categories.admin_id
+        AND team_invites.advisor_user_id = auth.uid()
+        AND team_invites.status          = 'accepted'
+    )
+  );
 
 ALTER TABLE team_materials ENABLE ROW LEVEL SECURITY;
 
@@ -435,6 +479,217 @@ CREATE POLICY "announcements: advisor reads" ON team_announcements
 
 CREATE INDEX IF NOT EXISTS idx_team_announcements_admin_id
   ON team_announcements (admin_id, pinned DESC, created_at DESC);
+
+
+-- ─── Migration 10: Flexible operations and reservation workflow ──────────────
+--
+-- This avoids hard-coding the company structure. "reservas", "precios",
+-- "materiales", "promociones" and "jefe_piso" are default operation areas, but
+-- each admin can create, rename or ignore areas according to their process.
+
+CREATE TABLE IF NOT EXISTS team_operation_areas (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id    uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  key         text NOT NULL,
+  name        text NOT NULL,
+  description text,
+  color       text,
+  sort_order  integer NOT NULL DEFAULT 0,
+  is_system   boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(admin_id, key)
+);
+
+ALTER TABLE team_operation_areas ENABLE ROW LEVEL SECURITY;
+
+INSERT INTO team_operation_areas (admin_id, key, name, description, color, sort_order, is_system)
+SELECT v.admin_id, v.key, v.name, v.description, v.color, v.sort_order, v.is_system
+FROM (VALUES
+  (NULL::uuid, 'reservas',    'Reservas',    'Solicitudes de apartado, reserva y seguimiento documental.', 'emerald', 10, true),
+  (NULL::uuid, 'precios',     'Precios',     'Actualización y validación de listas de precios.',            'blue',    20, true),
+  (NULL::uuid, 'materiales',  'Materiales',  'Carga y orden de recursos para asesores.',                     'purple',  30, true),
+  (NULL::uuid, 'promociones', 'Promociones', 'Campañas, descuentos y vigencias comerciales.',                'amber',   40, true),
+  (NULL::uuid, 'jefe_piso',   'Jefe de piso','Coordinación operativa de ventas y asesoría.',                 'cyan',    50, true)
+) AS v(admin_id, key, name, description, color, sort_order, is_system)
+WHERE NOT EXISTS (
+  SELECT 1 FROM team_operation_areas a
+  WHERE a.admin_id IS NULL AND a.key = v.key
+);
+
+DROP POLICY IF EXISTS "operation areas: admin manages" ON team_operation_areas;
+CREATE POLICY "operation areas: admin manages" ON team_operation_areas
+  FOR ALL USING (admin_id = auth.uid())
+  WITH CHECK (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "operation areas: team reads" ON team_operation_areas;
+CREATE POLICY "operation areas: team reads" ON team_operation_areas
+  FOR SELECT USING (
+    admin_id IS NULL
+    OR admin_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM team_invites
+      WHERE team_invites.admin_id        = team_operation_areas.admin_id
+        AND team_invites.advisor_user_id = auth.uid()
+        AND team_invites.status          = 'accepted'
+    )
+  );
+
+CREATE TABLE IF NOT EXISTS team_operation_assignments (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  area_key     text NOT NULL,
+  can_view     boolean NOT NULL DEFAULT true,
+  can_manage   boolean NOT NULL DEFAULT false,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(admin_id, user_id, area_key)
+);
+
+CREATE INDEX IF NOT EXISTS team_operation_assignments_admin_idx
+  ON team_operation_assignments(admin_id, area_key);
+
+CREATE INDEX IF NOT EXISTS team_operation_assignments_user_idx
+  ON team_operation_assignments(user_id);
+
+ALTER TABLE team_operation_assignments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "operation assignments: admin manages" ON team_operation_assignments;
+CREATE POLICY "operation assignments: admin manages" ON team_operation_assignments
+  FOR ALL USING (admin_id = auth.uid())
+  WITH CHECK (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "operation assignments: assigned user reads" ON team_operation_assignments;
+CREATE POLICY "operation assignments: assigned user reads" ON team_operation_assignments
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE TABLE IF NOT EXISTS reservation_requests (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id            uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tour_id             uuid NOT NULL REFERENCES tours(id) ON DELETE CASCADE,
+  unit_id             text NOT NULL,
+  unit_label          text,
+  prototype_id        text,
+  advisor_user_id     uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  assigned_to_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  status              text NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'documents_needed', 'in_review', 'approved', 'rejected', 'cancelled')),
+  client_name         text,
+  client_phone        text,
+  client_email        text,
+  notes               text,
+  missing_documents   text[] NOT NULL DEFAULT '{}',
+  internal_notes      text,
+  metadata            jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS reservation_requests_admin_status_idx
+  ON reservation_requests(admin_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS reservation_requests_tour_unit_idx
+  ON reservation_requests(tour_id, unit_id);
+
+CREATE INDEX IF NOT EXISTS reservation_requests_advisor_idx
+  ON reservation_requests(advisor_user_id, created_at DESC);
+
+ALTER TABLE reservation_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "reservation requests: admin manages" ON reservation_requests;
+CREATE POLICY "reservation requests: admin manages" ON reservation_requests
+  FOR ALL USING (admin_id = auth.uid())
+  WITH CHECK (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "reservation requests: advisor creates" ON reservation_requests;
+CREATE POLICY "reservation requests: advisor creates" ON reservation_requests
+  FOR INSERT WITH CHECK (
+    advisor_user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM team_invites
+      WHERE team_invites.admin_id        = reservation_requests.admin_id
+        AND team_invites.advisor_user_id = auth.uid()
+        AND team_invites.status          = 'accepted'
+    )
+  );
+
+DROP POLICY IF EXISTS "reservation requests: advisor reads own" ON reservation_requests;
+CREATE POLICY "reservation requests: advisor reads own" ON reservation_requests
+  FOR SELECT USING (advisor_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "reservation requests: assignee reads" ON reservation_requests;
+CREATE POLICY "reservation requests: assignee reads" ON reservation_requests
+  FOR SELECT USING (assigned_to_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "reservation requests: assignee updates" ON reservation_requests;
+CREATE POLICY "reservation requests: assignee updates" ON reservation_requests
+  FOR UPDATE USING (assigned_to_user_id = auth.uid())
+  WITH CHECK (assigned_to_user_id = auth.uid());
+
+CREATE TABLE IF NOT EXISTS team_tasks (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id            uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  area_key            text NOT NULL DEFAULT 'general',
+  title               text NOT NULL,
+  description         text,
+  status              text NOT NULL DEFAULT 'open'
+                        CHECK (status IN ('open', 'in_progress', 'blocked', 'done', 'cancelled')),
+  priority            text NOT NULL DEFAULT 'normal'
+                        CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+  created_by_user_id  uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  assigned_to_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  related_tour_id     uuid REFERENCES tours(id) ON DELETE SET NULL,
+  related_unit_id     text,
+  metadata            jsonb NOT NULL DEFAULT '{}'::jsonb,
+  due_at              timestamptz,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS team_tasks_admin_area_status_idx
+  ON team_tasks(admin_id, area_key, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS team_tasks_assignee_idx
+  ON team_tasks(assigned_to_user_id, status, created_at DESC);
+
+ALTER TABLE team_tasks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "team tasks: admin manages" ON team_tasks;
+CREATE POLICY "team tasks: admin manages" ON team_tasks
+  FOR ALL USING (admin_id = auth.uid())
+  WITH CHECK (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "team tasks: assignee reads" ON team_tasks;
+CREATE POLICY "team tasks: assignee reads" ON team_tasks
+  FOR SELECT USING (assigned_to_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "team tasks: assignee updates" ON team_tasks;
+CREATE POLICY "team tasks: assignee updates" ON team_tasks
+  FOR UPDATE USING (assigned_to_user_id = auth.uid())
+  WITH CHECK (assigned_to_user_id = auth.uid());
+
+CREATE TABLE IF NOT EXISTS price_update_logs (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id            uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tour_id             uuid NOT NULL REFERENCES tours(id) ON DELETE CASCADE,
+  changed_by_user_id  uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  filter              jsonb NOT NULL DEFAULT '{}'::jsonb,
+  changes             jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS price_update_logs_tour_idx
+  ON price_update_logs(tour_id, created_at DESC);
+
+ALTER TABLE price_update_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "price logs: admin reads" ON price_update_logs;
+CREATE POLICY "price logs: admin reads" ON price_update_logs
+  FOR SELECT USING (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "price logs: admin inserts" ON price_update_logs;
+CREATE POLICY "price logs: admin inserts" ON price_update_logs
+  FOR INSERT WITH CHECK (admin_id = auth.uid());
 
 
 -- ─── Verification ─────────────────────────────────────────────────────────────
