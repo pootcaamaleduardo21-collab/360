@@ -327,6 +327,30 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
               </div>
             )}
 
+            {/* Advisor portal link */}
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                <Link2 className="w-3 h-3" /> Portal del asesor
+              </p>
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-600/10 border border-blue-500/25">
+                <span className="flex-1 text-xs text-gray-300 truncate">
+                  {baseUrl.replace('/viewer/', '/advisor/')}
+                </span>
+                <button
+                  onClick={() => copy(baseUrl.replace('/viewer/', '/advisor/'), 'advisor_portal')}
+                  className="text-blue-400 hover:text-white transition-colors flex-shrink-0"
+                >
+                  {copied === 'advisor_portal' ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+                <a href={baseUrl.replace('/viewer/', '/advisor/')} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-white transition-colors flex-shrink-0">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+              <p className="text-[10px] text-gray-600">
+                Comparte este link con tus asesores. Verán el tour, su link personal, el material y las herramientas de venta.
+              </p>
+            </div>
+
             {/* Advisor referral link */}
             {tour.salesAdvisor?.phone ? (
               <div className="space-y-1.5 pt-1">
