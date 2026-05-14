@@ -164,17 +164,19 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
 
           // ── Try Supabase (permanent URL) ───────────────────────────────
           let supabaseOk = false;
-          if (tour?.id && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          const uploadTourId = tour?.id;
+          const shouldUploadToSupabase = Boolean(uploadTourId && process.env.NEXT_PUBLIC_SUPABASE_URL);
+          if (shouldUploadToSupabase) {
             try {
               if (uploadBlob instanceof File) {
-                const result = await uploadSceneImage(tour.id, uploadBlob, (pct) =>
+                const result = await uploadSceneImage(uploadTourId!, uploadBlob, (pct) =>
                   patch(name, { uploadProgress: 5 + pct * 0.75 })
                 );
                 url = result.url;
               } else {
                 patch(name, { uploadProgress: 30 });
                 const dataUrl = await blobToDataUrl(uploadBlob);
-                const result  = await uploadSceneDataUrl(tour.id, dataUrl, 'jpg');
+                const result  = await uploadSceneDataUrl(uploadTourId!, dataUrl, 'jpg');
                 url = result.url;
                 patch(name, { uploadProgress: 80 });
               }
@@ -184,16 +186,17 @@ export function ImageUploader({ onImagesReady, maxFiles = 20, className }: Image
               const srcFile    = toJpgFile(uploadBlob);
               const dataUrl    = await readFileAsDataURL(srcFile);
               const thumbUrl   = await generateThumbnail(dataUrl, 320, 160);
-              const thumbResult = await uploadThumbnail(tour.id, thumbUrl);
+              const thumbResult = await uploadThumbnail(uploadTourId!, thumbUrl);
               thumbnailUrl = thumbResult.url;
               supabaseOk = true;
             } catch (supabaseErr) {
-              // Supabase failed — fall through to local data URL fallback
-              console.warn('[Upload] Supabase failed, using local data URL:', supabaseErr);
+              console.error('[Upload] Supabase failed:', supabaseErr);
+              throw new Error('No se pudo subir a Supabase Storage. Verifica buckets y permisos antes de guardar el tour.');
             }
           }
 
-          // ── Fallback: local data URL (works in current browser session) ─
+          // ── Local dev fallback only. In production, persisting data URLs makes
+          // the tour JSON huge and causes slow editor/viewer loads.
           if (!supabaseOk) {
             const localFile = toJpgFile(uploadBlob);
             url = await readFileAsDataURL(localFile);

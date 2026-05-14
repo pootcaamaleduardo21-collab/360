@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getUserRole } from '@/lib/roles';
 import { getTourById, saveTour, createTour } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
+import { externalizeEmbeddedTourImages, tourHasEmbeddedImages } from '@/lib/tourAssetRepair';
 import { HotspotType } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
 import { ImageUploader }    from '@/components/editor/ImageUploader';
@@ -132,6 +133,7 @@ function EditorInner() {
   const [dbLoading,    setDbLoading]    = useState(false);
   const [saveStatus,   setSaveStatus]   = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
   const [isMobile,     setIsMobile]     = useState(false);
+  const [repairStatus, setRepairStatus] = useState<'idle' | 'repairing' | 'done' | 'error'>('idle');
 
   // ── Mobile detection ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -152,6 +154,7 @@ function EditorInner() {
       return;
     }
 
+    const startedAt = performance.now();
     setDbLoading(true);
     // Fetch tour + auth session in parallel — no need to wait for auth state to settle
     Promise.all([
@@ -169,6 +172,27 @@ function EditorInner() {
         }
         skipNextSaveRef.current = true;
         loadTour(row.data);
+        if (process.env.NODE_ENV === 'development') {
+          const payloadKb = Math.round(JSON.stringify(row.data).length / 1024);
+          console.info(`[Editor] Tour loaded in ${Math.round(performance.now() - startedAt)}ms (${payloadKb}KB JSON)`);
+        }
+
+        if (tourHasEmbeddedImages(row.data)) {
+          setRepairStatus('repairing');
+          externalizeEmbeddedTourImages(row.data)
+            .then(async (repairedTour) => {
+              skipNextSaveRef.current = true;
+              loadTour(repairedTour);
+              await saveTour(repairedTour);
+              setRepairStatus('done');
+              setTimeout(() => setRepairStatus('idle'), 4000);
+            })
+            .catch((err) => {
+              console.warn('[Editor] Embedded image repair failed:', err);
+              setRepairStatus('error');
+              setTimeout(() => setRepairStatus('idle'), 6000);
+            });
+        }
       })
       .catch(() => router.push('/dashboard'))
       .finally(() => setDbLoading(false));
@@ -331,6 +355,21 @@ function EditorInner() {
                     {saveStatus === 'saving'  && 'Guardando…'}
                     {saveStatus === 'saved'   && 'Guardado'}
                     {saveStatus === 'error'   && 'Error al guardar'}
+                  </span>
+                )}
+                {repairStatus !== 'idle' && (
+                  <span className={cn(
+                    'hidden lg:flex items-center gap-1 text-[11px] transition-colors',
+                    repairStatus === 'repairing' && 'text-amber-400',
+                    repairStatus === 'done' && 'text-emerald-400',
+                    repairStatus === 'error' && 'text-red-400',
+                  )}>
+                    {repairStatus === 'repairing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {repairStatus === 'done' && <Check className="w-3 h-3" />}
+                    {repairStatus === 'error' && <CloudOff className="w-3 h-3" />}
+                    {repairStatus === 'repairing' && 'Optimizando imágenes'}
+                    {repairStatus === 'done' && 'Optimizado'}
+                    {repairStatus === 'error' && 'Optimización falló'}
                   </span>
                 )}
                 <button
