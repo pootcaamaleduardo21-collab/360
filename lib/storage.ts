@@ -93,6 +93,7 @@ export async function uploadThumbnail(tourId: string, dataUrl: string): Promise<
 export function generateThumbnail(imageDataUrl: string, width = 320, height = 160): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width  = width;

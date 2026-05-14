@@ -15,6 +15,10 @@ interface SceneManagerProps {
 
 const LANG_LABELS: Record<string, string> = { es: 'Español', en: 'English' };
 
+function canUseSceneImageAsPreview(imageUrl?: string): imageUrl is string {
+  return Boolean(imageUrl && !imageUrl.startsWith('data:') && !imageUrl.startsWith('blob:'));
+}
+
 export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneManagerProps) {
   const setCurrentScene  = useTourStore((s) => s.setCurrentScene);
   const removeScene      = useTourStore((s) => s.removeScene);
@@ -130,7 +134,10 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
                 <div className="flex-shrink-0 w-14 h-7 rounded-md overflow-hidden bg-gray-800 border border-gray-700">
                   {scene.thumbnailUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={scene.thumbnailUrl} alt={scene.name} className="w-full h-full object-cover" />
+                    <img src={scene.thumbnailUrl} alt={scene.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                  ) : canUseSceneImageAsPreview(scene.imageUrl) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={scene.imageUrl} alt={scene.name} loading="lazy" decoding="async" className="w-full h-full object-cover opacity-80" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-800">
                       <ImageIcon className="w-3.5 h-3.5 text-gray-600" />
