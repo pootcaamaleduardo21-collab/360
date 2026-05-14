@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 
 // ─── Role-tab config ──────────────────────────────────────────────────────────
 
-type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team' | 'materials' | 'novedades';
+type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team' | 'salesHub';
 
 function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
   const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
@@ -36,10 +36,8 @@ function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.
     { id: 'leads',     label: 'Leads',      icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'crm',       label: 'CRM',        icon: <Building2     className="w-4 h-4" /> },
     { id: 'analytics', label: 'Analytics',  icon: <BarChart2     className="w-4 h-4" /> },
-    { id: 'materials', label: 'Kit Ventas', icon: <FolderOpen    className="w-4 h-4" /> },
-    { id: 'novedades', label: 'Novedades',  icon: <Megaphone     className="w-4 h-4" /> },
+    { id: 'salesHub',  label: 'Kit comercial', icon: <FolderOpen className="w-4 h-4" /> },
   ];
-  if (role === 'super_admin') base.push({ id: 'platform', label: 'Plataforma', icon: <Shield className="w-4 h-4" /> });
   if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
   return base;
 }
@@ -95,6 +93,11 @@ export default function DashboardPage() {
     if (!authLoading && !user) router.push('/auth/login');
   }, [authLoading, user, router]);
 
+  useEffect(() => {
+    if (activeTab === 'platform' && role !== 'super_admin') switchTab('tours');
+    if (activeTab === 'team' && role === 'advisor') switchTab('tours');
+  }, [activeTab, role, switchTab]);
+
   const handleNewTour = () => {
     initTour('Nuevo tour');
     router.push('/editor');
@@ -141,14 +144,14 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 text-gray-100">
 
       {/* ── Top nav ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3 sm:gap-4">
+      <header className="sticky top-0 z-30 border-b border-gray-800/80 bg-gray-950/85 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-4">
 
           {/* Logo */}
-          <Link href="/" className="text-lg font-black tracking-tight flex-shrink-0">
+          <Link href="/" className="text-xl font-black tracking-tight flex-shrink-0">
             Eleva<span className="text-blue-400">360</span>
           </Link>
 
@@ -160,10 +163,10 @@ export default function DashboardPage() {
                   key={tab.id}
                   onClick={() => switchTab(tab.id)}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors',
+                    'flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-semibold transition-all',
                     activeTab === tab.id
-                      ? 'bg-gray-800 text-white'
-                      : 'text-gray-500 hover:text-gray-300'
+                      ? 'bg-blue-500/10 text-white ring-1 ring-blue-500/40 shadow-sm shadow-blue-950/40'
+                      : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800/70'
                   )}
                 >
                   {tab.icon} {tab.label}
@@ -235,6 +238,17 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-500 truncate">{user?.email}</p>
                 </div>
                 <div className="py-1">
+                  {role === 'super_admin' && (
+                    <>
+                      <button
+                        onClick={() => { setMenuOpen(false); switchTab('platform'); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                      >
+                        <Shield className="w-3.5 h-3.5" /> Panel de plataforma
+                      </button>
+                      <div className="my-1 border-t border-gray-800" />
+                    </>
+                  )}
                   <Link
                     href="/settings/profile"
                     onClick={() => setMenuOpen(false)}
@@ -258,12 +272,12 @@ export default function DashboardPage() {
 
       {/* ── Mobile tab bar (only shown on small screens when >1 tab) ────── */}
       {roleTabs.length > 1 && (
-        <div className="md:hidden border-b border-gray-800 bg-gray-900/80 backdrop-blur-md">
+        <div className="md:hidden border-b border-gray-800 bg-gray-950/90 backdrop-blur-md">
           <div className="flex overflow-x-auto scrollbar-none">
             {roleTabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => switchTab(tab.id)}
                 className={cn(
                   'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0',
                   activeTab === tab.id
@@ -279,7 +293,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-7 sm:py-10">
 
         {/* ── Tabs: mount-once, hide with CSS to preserve state + avoid re-fetches ── */}
 
@@ -313,15 +327,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {mountedTabs.has('materials') && (
-          <div className={cn(activeTab !== 'materials' && 'hidden')}>
-            <MaterialsPanel isAdmin={role !== 'advisor'} />
-          </div>
-        )}
-
-        {mountedTabs.has('novedades') && (
-          <div className={cn(activeTab !== 'novedades' && 'hidden')}>
-            <AnnouncementsSection isAdmin={role !== 'advisor'} />
+        {mountedTabs.has('salesHub') && (
+          <div className={cn(activeTab !== 'salesHub' && 'hidden')}>
+            <SalesHubPanel isAdmin={role !== 'advisor'} />
           </div>
         )}
 
@@ -438,6 +446,47 @@ export default function DashboardPage() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SalesHubPanel({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <div className="space-y-7">
+      <section className="overflow-hidden rounded-3xl border border-gray-800 bg-gray-900/70">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-300">
+              <FolderOpen className="h-4 w-4" />
+              Kit comercial
+            </div>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              Ventas y novedades en un solo lugar
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-gray-400">
+              Materiales para vender, comunicados del equipo y actualizaciones importantes conviven en una vista más limpia.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[340px]">
+            <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
+              <FolderOpen className="h-5 w-5 text-blue-400" />
+              <p className="mt-3 text-sm font-bold text-gray-100">Kit de ventas</p>
+              <p className="mt-1 text-xs text-gray-500">Recursos y archivos</p>
+            </div>
+            <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
+              <Megaphone className="h-5 w-5 text-amber-300" />
+              <p className="mt-3 text-sm font-bold text-gray-100">Novedades</p>
+              <p className="mt-1 text-xs text-gray-500">Avisos operativos</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid items-start gap-7 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+        <MaterialsPanel isAdmin={isAdmin} />
+        <AnnouncementsSection isAdmin={isAdmin} />
+      </div>
+    </div>
+  );
+}
 
 function StatMini({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
   return (
