@@ -1,11 +1,13 @@
-export type MaterialCategory = 'precios' | 'descuentos' | 'planos' | 'comisiones' | 'general';
+export type MaterialCategory = 'precios' | 'apartado' | 'promociones' | 'descuentos' | 'planos' | 'comisiones' | 'general';
 
 export const CATEGORY_CONFIG: Record<MaterialCategory, { label: string; color: string }> = {
-  precios:     { label: 'Precios',     color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-  descuentos:  { label: 'Descuentos', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-  planos:      { label: 'Planos',     color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  comisiones:  { label: 'Comisiones', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-  general:     { label: 'General',    color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+  precios:      { label: 'Precios actuales',       color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+  apartado:     { label: 'Documentos de apartado', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+  promociones:  { label: 'Promociones',            color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  descuentos:   { label: 'Descuentos',             color: 'bg-lime-500/20 text-lime-300 border-lime-500/30' },
+  planos:       { label: 'Planos',                 color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  comisiones:   { label: 'Comisiones',             color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+  general:      { label: 'General',                color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
 };
 
 export interface TeamMaterial {

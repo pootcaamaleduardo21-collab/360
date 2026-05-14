@@ -322,13 +322,18 @@ CREATE TABLE IF NOT EXISTS team_materials (
   name        text        NOT NULL,
   description text,
   category    text        NOT NULL DEFAULT 'general'
-                CHECK (category IN ('precios', 'descuentos', 'planos', 'comisiones', 'general')),
+                CHECK (category IN ('precios', 'apartado', 'promociones', 'descuentos', 'planos', 'comisiones', 'general')),
   file_path   text        NOT NULL,
   file_name   text        NOT NULL,
   file_size   bigint,
   file_type   text,
   created_at  timestamptz DEFAULT now()
 );
+
+ALTER TABLE team_materials DROP CONSTRAINT IF EXISTS team_materials_category_check;
+ALTER TABLE team_materials
+  ADD CONSTRAINT team_materials_category_check
+  CHECK (category IN ('precios', 'apartado', 'promociones', 'descuentos', 'planos', 'comisiones', 'general'));
 
 CREATE INDEX IF NOT EXISTS team_materials_admin_idx
   ON team_materials(admin_id, created_at DESC);
@@ -376,6 +381,26 @@ CREATE POLICY "materials: admin delete" ON storage.objects
     bucket_id = 'team-materials'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
+
+
+-- ─── Migration 8b: Advisor profile photos ───────────────────────────────────
+--
+-- Public bucket for small advisor avatars. The app uploads through a server
+-- route that validates the authenticated user and updates user metadata.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'advisor-avatars', 'advisor-avatars', true, 5242880,
+  ARRAY['image/jpeg','image/png','image/webp']
+) ON CONFLICT (id) DO UPDATE
+SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "advisor avatars: public read" ON storage.objects;
+CREATE POLICY "advisor avatars: public read" ON storage.objects
+  FOR SELECT USING (bucket_id = 'advisor-avatars');
 
 
 -- ─── Migration 9: Team announcements (Novedades) ─────────────────────────────

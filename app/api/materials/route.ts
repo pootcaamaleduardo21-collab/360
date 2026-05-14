@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase';
 
 const BUCKET = 'team-materials';
 
-const VALID_CATEGORIES = ['precios', 'descuentos', 'planos', 'comisiones', 'general'] as const;
+const VALID_CATEGORIES = ['precios', 'apartado', 'promociones', 'descuentos', 'planos', 'comisiones', 'general'] as const;
 
 function getServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;

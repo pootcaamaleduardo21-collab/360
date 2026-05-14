@@ -14,7 +14,7 @@ import { formatCurrency } from '@/lib/utils';
 import {
   Plus, Trash2, Home, CheckCircle, XCircle, Clock, AlertCircle,
   Building2, User, ChevronDown, ChevronUp, Upload, Loader2, X,
-  FileSpreadsheet, Download, AlertTriangle,
+  FileSpreadsheet, Download, AlertTriangle, DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -136,6 +136,10 @@ function UnitsTab({ tour, updateTour }: { tour: Tour; updateTour: (p: any) => vo
   const [expanded,  setExpanded]  = useState<string | null>(null);
   const [csvPreview, setCsvPreview] = useState<PropertyUnit[] | null>(null);
   const [csvError,   setCsvError]   = useState<string | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<PropertyStatus | 'all'>('all');
+  const [bulkPrototype, setBulkPrototype] = useState('all');
+  const [bulkMode, setBulkMode] = useState<'set' | 'increase' | 'decrease'>('set');
+  const [bulkValue, setBulkValue] = useState('');
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const setUnits = (next: PropertyUnit[]) => updateTour({ units: next });
@@ -186,6 +190,31 @@ function UnitsTab({ tour, updateTour }: { tour: Tour; updateTour: (p: any) => vo
     reserved:     units.filter((u) => u.status === 'reserved').length,
     sold:         units.filter((u) => u.status === 'sold').length,
     'in-process': units.filter((u) => u.status === 'in-process').length,
+  };
+
+  const bulkMatches = units.filter((unit) => {
+    const statusMatch = bulkStatus === 'all' || unit.status === bulkStatus;
+    const prototypeMatch = bulkPrototype === 'all' || unit.prototypeId === bulkPrototype;
+    return statusMatch && prototypeMatch;
+  });
+
+  const applyBulkPrice = () => {
+    const value = Number(bulkValue);
+    if (!Number.isFinite(value) || value < 0 || bulkMatches.length === 0) return;
+    const confirmed = confirm(`Actualizar precio de ${bulkMatches.length} unidad${bulkMatches.length !== 1 ? 'es' : ''}?`);
+    if (!confirmed) return;
+    const matchIds = new Set(bulkMatches.map((unit) => unit.id));
+    setUnits(units.map((unit) => {
+      if (!matchIds.has(unit.id)) return unit;
+      const current = unit.price ?? 0;
+      const price = bulkMode === 'set'
+        ? value
+        : bulkMode === 'increase'
+          ? Math.round(current * (1 + value / 100))
+          : Math.max(0, Math.round(current * (1 - value / 100)));
+      return { ...unit, price };
+    }));
+    setBulkValue('');
   };
 
   return (
@@ -311,6 +340,57 @@ function UnitsTab({ tour, updateTour }: { tour: Tour; updateTour: (p: any) => vo
           </select>
         </Field>
       </div>
+
+      {units.length > 0 && (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-3">
+          <div className="flex items-start gap-2">
+            <DollarSign className="w-4 h-4 text-blue-300 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-blue-200">Cambio masivo de precios</p>
+              <p className="text-[11px] text-gray-500">Filtra por estado o prototipo y aplica un precio fijo o ajuste porcentual.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Estado">
+              <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as PropertyStatus | 'all')} className="input-dark text-xs">
+                <option value="all">Todos</option>
+                {(Object.keys(STATUS_STYLE) as PropertyStatus[]).map((status) => (
+                  <option key={status} value={status}>{niche.statusLabels[status]}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Prototipo">
+              <select value={bulkPrototype} onChange={(e) => setBulkPrototype(e.target.value)} className="input-dark text-xs">
+                <option value="all">Todos</option>
+                {(tour.unitPrototypes ?? []).map((prototype) => (
+                  <option key={prototype.id} value={prototype.id}>{prototype.name}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <Field label="Acción">
+              <select value={bulkMode} onChange={(e) => setBulkMode(e.target.value as typeof bulkMode)} className="input-dark text-xs">
+                <option value="set">Fijar precio</option>
+                <option value="increase">Subir %</option>
+                <option value="decrease">Bajar %</option>
+              </select>
+            </Field>
+            <Field label={bulkMode === 'set' ? `Valor (${tour.currency ?? 'MXN'})` : 'Porcentaje'}>
+              <input value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} type="number" min={0} className="input-dark text-xs" placeholder={bulkMode === 'set' ? '2500000' : '5'} />
+            </Field>
+            <button
+              onClick={applyBulkPrice}
+              disabled={!bulkValue || bulkMatches.length === 0}
+              className="mb-0.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-40"
+            >
+              Aplicar ({bulkMatches.length})
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats bar */}
       {units.length > 0 && (

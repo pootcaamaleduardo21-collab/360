@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import QRCode from 'qrcode';
@@ -13,7 +13,7 @@ import { getSupabase } from '@/lib/supabase';
 import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
 import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import {
-  Link2, Copy, CheckCheck, Download, Play, ExternalLink, QrCode,
+  Link2, Copy, CheckCheck, Download, Upload, Play, ExternalLink, QrCode,
   Calendar, MessageCircle, Mail, Phone, LayoutDashboard,
   Building2, CheckCircle, Clock, XCircle, AlertCircle,
   FileText, Image as ImageIcon, Video, ChevronRight, Loader2,
@@ -95,6 +95,8 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   const [prototypeFilter, setPrototypeFilter] = useState('all');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [advisorDraft, setAdvisorDraft] = useState<SalesAdvisor>(() => ({
     name: tour.salesAdvisor?.name ?? '',
@@ -177,6 +179,23 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
     }
   }, [advisorDraft]);
 
+  const uploadAdvisorPhoto = useCallback(async (file: File) => {
+    setPhotoUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/advisor/photo', { method: 'POST', body: form });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'No se pudo subir la foto.');
+      setAdvisorDraft((prev) => ({ ...prev, photoUrl: json.photoUrl }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo subir la foto.');
+    } finally {
+      setPhotoUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  }, []);
+
   if (!storeTour || !currentScene) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-950">
@@ -196,7 +215,7 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gray-950 overflow-hidden">
+    <div className="relative flex flex-col md:flex-row h-screen bg-gray-950 overflow-hidden">
 
       {/* ── Viewer ──────────────────────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 h-[45vh] md:h-full md:flex-1">
@@ -237,7 +256,7 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
 
         <button
           onClick={() => setToolsOpen((v) => !v)}
-          className="absolute bottom-4 right-4 z-20 hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-black/55 backdrop-blur-sm text-white/70 hover:text-white text-xs font-semibold border border-white/10 transition-colors"
+          className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-black/55 backdrop-blur-sm text-white/70 hover:text-white text-xs font-semibold border border-white/10 transition-colors"
           title={toolsOpen ? 'Contraer herramientas' : 'Abrir herramientas'}
         >
           {toolsOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
@@ -248,7 +267,8 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
       {/* ── Tools panel ─────────────────────────────────────────────────────── */}
       <div className={cn(
         'flex flex-col flex-shrink-0 w-full bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 overflow-hidden transition-all duration-300',
-        toolsOpen ? 'md:w-80 lg:w-96' : 'md:w-0 md:border-l-0'
+        'fixed inset-x-0 bottom-0 z-40 max-h-[58vh] rounded-t-3xl shadow-2xl md:static md:max-h-none md:rounded-none md:shadow-none',
+        toolsOpen ? 'translate-y-0 md:w-80 lg:w-96' : 'translate-y-[calc(100%-52px)] md:translate-y-0 md:w-0 md:border-l-0'
       )}>
         <div className="min-w-0 md:min-w-80 lg:min-w-96 h-full flex flex-col">
 
@@ -355,6 +375,28 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-800/40 p-3">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadAdvisorPhoto(file);
+                  }}
+                />
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={photoUploading}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gray-800 px-3 py-3 text-sm font-semibold text-gray-200 transition-colors hover:bg-gray-700 disabled:opacity-60"
+                >
+                  {photoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {photoUploading ? 'Subiendo foto...' : 'Cargar foto desde mi teléfono'}
+                </button>
+                <p className="mt-2 text-center text-[10px] text-gray-600">JPG, PNG o WEBP. Máximo 5 MB.</p>
+              </div>
+
               <AdvisorField label="Nombre">
                 <input value={advisorDraft.name} onChange={(e) => setAdvisorDraft((p) => ({ ...p, name: e.target.value }))} className="input-dark" placeholder="Tu nombre" />
               </AdvisorField>
@@ -367,10 +409,6 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
               <AdvisorField label="Empresa">
                 <input value={advisorDraft.company ?? ''} onChange={(e) => setAdvisorDraft((p) => ({ ...p, company: e.target.value }))} className="input-dark" placeholder="Nombre de la inmobiliaria" />
               </AdvisorField>
-              <AdvisorField label="Foto URL">
-                <input value={advisorDraft.photoUrl ?? ''} onChange={(e) => setAdvisorDraft((p) => ({ ...p, photoUrl: e.target.value }))} className="input-dark" placeholder="https://..." />
-              </AdvisorField>
-
               <button
                 onClick={saveAdvisorProfile}
                 disabled={profileSaving}

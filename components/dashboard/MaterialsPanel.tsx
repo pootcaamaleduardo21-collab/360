@@ -320,6 +320,14 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
     ? materials
     : materials.filter((m) => m.category === filter);
 
+  const groupedVisible = CATEGORIES
+    .map(([cat, cfg]) => ({
+      cat,
+      cfg,
+      items: visible.filter((m) => m.category === cat),
+    }))
+    .filter((group) => group.items.length > 0);
+
   const countByCategory = (cat: MaterialCategory) => materials.filter((m) => m.category === cat).length;
 
   return (
@@ -432,6 +440,32 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
               </p>
             )}
           </div>
+        </div>
+      ) : filter === 'all' ? (
+        <div className="space-y-5">
+          {groupedVisible.map((group) => (
+            <section key={group.cat} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className={cn('rounded-full border px-2 py-1 text-[10px] font-bold', group.cfg.color)}>
+                  {group.cfg.label}
+                </span>
+                <span className="text-[10px] text-gray-600">{group.items.length} archivo{group.items.length !== 1 ? 's' : ''}</span>
+              </div>
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {group.items.map((m) => (
+                    <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {group.items.map((m) => (
+                    <MaterialRow key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
