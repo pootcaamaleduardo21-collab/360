@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase';
 
 const BUCKET = 'team-materials';
 
-const VALID_CATEGORIES = ['precios', 'apartado', 'promociones', 'descuentos', 'planos', 'comisiones', 'general'] as const;
+const CATEGORY_KEY_RE = /^[a-z0-9_]{1,48}$/;
 
 function getServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     if (!file || !name) {
       return NextResponse.json({ error: 'Archivo y nombre son requeridos.' }, { status: 400 });
     }
-    if (!VALID_CATEGORIES.includes(category as typeof VALID_CATEGORIES[number])) {
+    if (!CATEGORY_KEY_RE.test(category)) {
       return NextResponse.json({ error: 'Categoría inválida.' }, { status: 400 });
     }
     if (file.size > 52_428_800) {

@@ -18,7 +18,7 @@ import {
   Building2, CheckCircle, Clock, XCircle, AlertCircle,
   FileText, Image as ImageIcon, Video, ChevronRight, Loader2,
   Share2, BedDouble, Bath, Car, Ruler, FolderOpen, Megaphone,
-  UserCog, Save, PanelRightClose, PanelRightOpen, Filter,
+  UserCog, Save, PanelRightClose, PanelRightOpen, Filter, X,
 } from 'lucide-react';
 
 const Viewer360 = dynamic(
@@ -96,6 +96,8 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [reserveUnit, setReserveUnit] = useState<PropertyUnit | null>(null);
+  const [reservationSaving, setReservationSaving] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [advisorDraft, setAdvisorDraft] = useState<SalesAdvisor>(() => ({
@@ -195,6 +197,35 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
       if (photoInputRef.current) photoInputRef.current.value = '';
     }
   }, []);
+
+  const submitReservationRequest = useCallback(async (payload: {
+    clientName: string;
+    clientPhone: string;
+    clientEmail: string;
+    notes: string;
+  }) => {
+    if (!reserveUnit) return;
+    setReservationSaving(true);
+    try {
+      const res = await fetch('/api/reservation-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tourId: tour.id,
+          unitId: reserveUnit.id,
+          ...payload,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'No se pudo solicitar la reserva.');
+      setReserveUnit(null);
+      alert('Solicitud enviada. El equipo encargado la revisará.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo solicitar la reserva.');
+    } finally {
+      setReservationSaving(false);
+    }
+  }, [reserveUnit, tour.id]);
 
   if (!storeTour || !currentScene) {
     return (
@@ -535,7 +566,7 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
               {/* Unit list */}
               <div className="space-y-1.5">
                 {filterUnits(tour.units ?? [], unitStatus, prototypeFilter).map((unit) => (
-                  <UnitRow key={unit.id} unit={unit} tour={tour} onNavigate={navigateTo} />
+                  <UnitRow key={unit.id} unit={unit} tour={tour} onNavigate={navigateTo} onReserve={setReserveUnit} />
                 ))}
                 {filterUnits(tour.units ?? [], unitStatus, prototypeFilter).length === 0 && (
                   <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-800/40 p-5 text-center text-xs text-gray-500">
@@ -563,6 +594,15 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
         </div>
         </div>
       </div>
+
+      {reserveUnit && (
+        <ReservationModal
+          unit={reserveUnit}
+          saving={reservationSaving}
+          onClose={() => setReserveUnit(null)}
+          onSubmit={submitReservationRequest}
+        />
+      )}
     </div>
   );
 }
@@ -805,7 +845,12 @@ function UnitSummary({ units }: { units: PropertyUnit[] }) {
   );
 }
 
-function UnitRow({ unit, tour, onNavigate }: { unit: PropertyUnit; tour: Tour; onNavigate: (id: string) => void }) {
+function UnitRow({ unit, tour, onNavigate, onReserve }: {
+  unit: PropertyUnit;
+  tour: Tour;
+  onNavigate: (id: string) => void;
+  onReserve: (unit: PropertyUnit) => void;
+}) {
   const conf   = STATUS_CONF[unit.status];
   const proto  = tour.unitPrototypes?.find((p) => p.id === unit.prototypeId);
   const area   = unit.area    ?? proto?.area;
@@ -815,47 +860,111 @@ function UnitRow({ unit, tour, onNavigate }: { unit: PropertyUnit; tour: Tour; o
   const currency = unit.currency ?? tour.currency ?? 'MXN';
 
   return (
-    <button
-      onClick={() => { if (unit.sceneId) onNavigate(unit.sceneId); }}
-      disabled={!unit.sceneId}
-      className={cn(
-        'w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors',
-        unit.sceneId
-          ? 'bg-gray-800 border-gray-700 hover:border-gray-500 cursor-pointer'
-          : 'bg-gray-800/50 border-gray-700/50 cursor-default'
-      )}
-    >
-      {/* Status dot */}
-      <div className={cn('w-2 h-2 rounded-full flex-shrink-0', {
-        'bg-emerald-500': unit.status === 'available',
-        'bg-amber-500':   unit.status === 'reserved',
-        'bg-red-500':     unit.status === 'sold',
-        'bg-blue-500':    unit.status === 'in-process',
-      })} />
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white truncate">{unit.label}</span>
-          {proto && <span className="text-[10px] text-gray-500 truncate hidden sm:block">{proto.name}</span>}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          {area  != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><Ruler      className="w-2.5 h-2.5" />{area}m²</span>}
-          {beds  != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><BedDouble  className="w-2.5 h-2.5" />{beds}</span>}
-          {baths != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><Bath        className="w-2.5 h-2.5" />{baths}</span>}
-          {park  != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><Car         className="w-2.5 h-2.5" />{park}</span>}
-        </div>
-      </div>
-
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        {unit.price && (
-          <span className="text-xs font-bold text-white">{formatCurrency(unit.price, currency)}</span>
+    <div className="rounded-xl border border-gray-700 bg-gray-800 p-3">
+      <button
+        onClick={() => { if (unit.sceneId) onNavigate(unit.sceneId); }}
+        disabled={!unit.sceneId}
+        className={cn(
+          'w-full flex items-center gap-3 text-left transition-colors',
+          unit.sceneId ? 'cursor-pointer' : 'cursor-default'
         )}
-        <span className={cn('text-[10px] font-semibold flex items-center gap-0.5', conf.color)}>
-          {conf.icon} {conf.label}
-        </span>
-      </div>
+      >
+        <div className={cn('w-2 h-2 rounded-full flex-shrink-0', {
+          'bg-emerald-500': unit.status === 'available',
+          'bg-amber-500':   unit.status === 'reserved',
+          'bg-red-500':     unit.status === 'sold',
+          'bg-blue-500':    unit.status === 'in-process',
+        })} />
 
-      {unit.sceneId && <ChevronRight className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />}
-    </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-white truncate">{unit.label}</span>
+            {proto && <span className="text-[10px] text-gray-500 truncate hidden sm:block">{proto.name}</span>}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {area  != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><Ruler      className="w-2.5 h-2.5" />{area}m²</span>}
+            {beds  != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><BedDouble  className="w-2.5 h-2.5" />{beds}</span>}
+            {baths != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><Bath        className="w-2.5 h-2.5" />{baths}</span>}
+            {park  != null && <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><Car         className="w-2.5 h-2.5" />{park}</span>}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {unit.price && (
+            <span className="text-xs font-bold text-white">{formatCurrency(unit.price, currency)}</span>
+          )}
+          <span className={cn('text-[10px] font-semibold flex items-center gap-0.5', conf.color)}>
+            {conf.icon} {conf.label}
+          </span>
+        </div>
+
+        {unit.sceneId && <ChevronRight className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />}
+      </button>
+
+      {unit.status === 'available' && (
+        <button
+          onClick={() => onReserve(unit)}
+          className="mt-3 w-full rounded-xl bg-emerald-600/15 border border-emerald-500/25 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/25 transition-colors"
+        >
+          Solicitar reserva
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ReservationModal({
+  unit,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  unit: PropertyUnit;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: { clientName: string; clientPhone: string; clientEmail: string; notes: string }) => void;
+}) {
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [notes, setNotes] = useState('');
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-3xl border border-gray-700 bg-gray-900 p-4 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-white">Solicitar reserva</p>
+            <p className="text-xs text-gray-500 mt-0.5">{unit.label}</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-2 text-gray-500 hover:bg-gray-800 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <AdvisorField label="Nombre del cliente">
+            <input value={clientName} onChange={(e) => setClientName(e.target.value)} className="input-dark" placeholder="Nombre completo" />
+          </AdvisorField>
+          <AdvisorField label="Teléfono">
+            <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} className="input-dark" placeholder="+52..." />
+          </AdvisorField>
+          <AdvisorField label="Email (opcional)">
+            <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="input-dark" placeholder="cliente@email.com" />
+          </AdvisorField>
+          <AdvisorField label="Notas">
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-dark min-h-20 resize-none" placeholder="Comentarios, forma de pago, documentos pendientes..." />
+          </AdvisorField>
+        </div>
+
+        <button
+          onClick={() => onSubmit({ clientName, clientPhone, clientEmail, notes })}
+          disabled={saving || !clientName.trim() || !clientPhone.trim()}
+          className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+        >
+          {saving ? 'Enviando...' : 'Enviar solicitud'}
+        </button>
+      </div>
+    </div>
   );
 }

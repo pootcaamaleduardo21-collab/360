@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getTeamInvites, inviteAdvisor, removeInvite, TeamInvite } from '@/lib/team';
 import {
   Users, Mail, Send, Trash2, Clock, CheckCircle,
-  Loader2, AlertCircle, Info,
+  Loader2, AlertCircle, Info, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +20,25 @@ const ROLE_CONFIG = {
     color: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   },
 } as const;
+
+interface ReservationRequest {
+  id: string;
+  unit_label: string | null;
+  status: 'pending' | 'documents_needed' | 'in_review' | 'approved' | 'rejected' | 'cancelled';
+  client_name: string | null;
+  client_phone: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+const RESERVATION_STATUS: Record<ReservationRequest['status'], { label: string; color: string }> = {
+  pending:          { label: 'Pendiente', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+  documents_needed: { label: 'Faltan docs', color: 'bg-orange-500/15 text-orange-300 border-orange-500/30' },
+  in_review:        { label: 'En revisión', color: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
+  approved:         { label: 'Aprobada', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+  rejected:         { label: 'Rechazada', color: 'bg-red-500/15 text-red-300 border-red-500/30' },
+  cancelled:        { label: 'Cancelada', color: 'bg-gray-500/15 text-gray-300 border-gray-500/30' },
+};
 
 export function TeamPanel() {
   const [invites,  setInvites]  = useState<TeamInvite[]>([]);
@@ -68,7 +87,7 @@ export function TeamPanel() {
     new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-8 max-w-3xl">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Users className="w-5 h-5 text-blue-400" />
@@ -216,6 +235,101 @@ export function TeamPanel() {
           </div>
         ))}
       </div>
+
+      <ReservationRequestsPanel />
     </div>
+  );
+}
+
+function ReservationRequestsPanel() {
+  const [requests, setRequests] = useState<ReservationRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/reservation-requests');
+      setRequests(res.ok ? await res.json() : []);
+    } catch {
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const updateStatus = async (id: string, status: ReservationRequest['status']) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch('/api/reservation-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setRequests((prev) => prev.map((item) => item.id === id ? updated : item));
+      }
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-3">
+        <ClipboardList className="w-5 h-5 text-emerald-400" />
+        <div>
+          <h2 className="text-base font-bold text-white">Solicitudes de reserva</h2>
+          <p className="text-xs text-gray-500">Aquí llegarán las solicitudes enviadas por asesores desde el panel móvil.</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5 text-sm text-gray-500">
+          Aún no hay solicitudes de reserva.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {requests.map((request) => {
+            const cfg = RESERVATION_STATUS[request.status];
+            return (
+              <div key={request.id} className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-white">{request.unit_label ?? 'Unidad'}</p>
+                      <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold', cfg.color)}>
+                        {cfg.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {request.client_name ?? 'Cliente'} {request.client_phone ? `· ${request.client_phone}` : ''}
+                    </p>
+                    {request.notes && <p className="mt-2 text-xs text-gray-400">{request.notes}</p>}
+                  </div>
+                  <select
+                    value={request.status}
+                    disabled={updatingId === request.id}
+                    onChange={(e) => updateStatus(request.id, e.target.value as ReservationRequest['status'])}
+                    className="rounded-xl border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-200"
+                  >
+                    {Object.entries(RESERVATION_STATUS).map(([status, statusCfg]) => (
+                      <option key={status} value={status}>{statusCfg.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

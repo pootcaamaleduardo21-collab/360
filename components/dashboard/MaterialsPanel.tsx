@@ -9,15 +9,15 @@ import {
 import { cn } from '@/lib/utils';
 import {
   getMaterials, uploadMaterial, deleteMaterial, getDownloadUrl,
-  CATEGORY_CONFIG, formatBytes, fileIcon,
-  type TeamMaterial, type MaterialCategory,
+  DEFAULT_MATERIAL_CATEGORIES, categoryClasses, categoryLabel,
+  createMaterialCategory, getMaterialCategories,
+  formatBytes, fileIcon,
+  type TeamMaterial, type MaterialCategory, type MaterialCategoryRecord,
 } from '@/lib/materials';
-
-const CATEGORIES = Object.entries(CATEGORY_CONFIG) as [MaterialCategory, { label: string; color: string }][];
 
 // ─── Upload form ──────────────────────────────────────────────────────────────
 
-function UploadForm({ onUploaded }: { onUploaded: (m: TeamMaterial) => void }) {
+function UploadForm({ categories, onUploaded }: { categories: MaterialCategoryRecord[]; onUploaded: (m: TeamMaterial) => void }) {
   const fileRef  = useRef<HTMLInputElement>(null);
   const dropRef  = useRef<HTMLDivElement>(null);
   const [file,        setFile]        = useState<File | null>(null);
@@ -121,8 +121,8 @@ function UploadForm({ onUploaded }: { onUploaded: (m: TeamMaterial) => void }) {
             onChange={(e) => setCategory(e.target.value as MaterialCategory)}
             className="w-full px-3 py-2 text-sm rounded-xl bg-gray-800 border border-gray-700 text-gray-200 outline-none focus:border-blue-500 transition-colors"
           >
-            {CATEGORIES.map(([value, cfg]) => (
-              <option key={value} value={value}>{cfg.label}</option>
+            {categories.map((cat) => (
+              <option key={cat.key} value={cat.key}>{cat.name}</option>
             ))}
           </select>
         </div>
@@ -183,13 +183,13 @@ function useMaterialActions(material: TeamMaterial, onDeleted: (id: string) => v
 // ─── Material row (list view) ─────────────────────────────────────────────────
 
 function MaterialRow({
-  material, isAdmin, onDeleted,
+  material, categories, isAdmin, onDeleted,
 }: {
   material: TeamMaterial;
+  categories: MaterialCategoryRecord[];
   isAdmin:  boolean;
   onDeleted: (id: string) => void;
 }) {
-  const cfg = CATEGORY_CONFIG[material.category];
   const { downloading, deleting, handleDownload, handleDelete } = useMaterialActions(material, onDeleted);
 
   return (
@@ -199,8 +199,8 @@ function MaterialRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-gray-200 truncate">{material.name}</p>
-          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0', cfg.color)}>
-            {cfg.label}
+          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0', categoryClasses(categories, material.category))}>
+            {categoryLabel(categories, material.category)}
           </span>
         </div>
         {material.description && (
@@ -238,21 +238,21 @@ function MaterialRow({
 // ─── Material card (grid view) ────────────────────────────────────────────────
 
 function MaterialCard({
-  material, isAdmin, onDeleted,
+  material, categories, isAdmin, onDeleted,
 }: {
   material: TeamMaterial;
+  categories: MaterialCategoryRecord[];
   isAdmin:  boolean;
   onDeleted: (id: string) => void;
 }) {
-  const cfg = CATEGORY_CONFIG[material.category];
   const { downloading, deleting, handleDownload, handleDelete } = useMaterialActions(material, onDeleted);
 
   return (
     <div className="flex flex-col gap-3 p-4 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <span className="text-4xl">{fileIcon(material.file_type)}</span>
-        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 mt-0.5', cfg.color)}>
-          {cfg.label}
+        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 mt-0.5', categoryClasses(categories, material.category))}>
+          {categoryLabel(categories, material.category)}
         </span>
       </div>
 
@@ -294,14 +294,23 @@ function MaterialCard({
 
 export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
   const [materials,   setMaterials]   = useState<TeamMaterial[]>([]);
+  const [categories,  setCategories]  = useState<MaterialCategoryRecord[]>(DEFAULT_MATERIAL_CATEGORIES);
   const [loading,     setLoading]     = useState(true);
   const [filter,      setFilter]      = useState<MaterialCategory | 'all'>('all');
   const [showUpload,  setShowUpload]  = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
   const [viewMode,    setViewMode]    = useState<'list' | 'grid'>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
-    setMaterials(await getMaterials());
+    const [nextMaterials, nextCategories] = await Promise.all([
+      getMaterials(),
+      getMaterialCategories(),
+    ]);
+    setMaterials(nextMaterials);
+    setCategories(nextCategories);
     setLoading(false);
   }, []);
 
@@ -320,15 +329,30 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
     ? materials
     : materials.filter((m) => m.category === filter);
 
-  const groupedVisible = CATEGORIES
-    .map(([cat, cfg]) => ({
+  const groupedVisible = categories
+    .map((cat) => ({
       cat,
-      cfg,
-      items: visible.filter((m) => m.category === cat),
+      items: visible.filter((m) => m.category === cat.key),
     }))
     .filter((group) => group.items.length > 0);
 
   const countByCategory = (cat: MaterialCategory) => materials.filter((m) => m.category === cat).length;
+
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newCategory.trim();
+    if (!name) return;
+    setSavingCategory(true);
+    const result = await createMaterialCategory({ name, color: 'gray' });
+    setSavingCategory(false);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+    if (result.data) setCategories((prev) => [...prev, result.data!]);
+    setNewCategory('');
+    setShowCategoryForm(false);
+  };
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -381,11 +405,37 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
               {showUpload ? 'Cancelar' : 'Subir archivo'}
             </button>
           )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowCategoryForm((v) => !v)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Espacio
+            </button>
+          )}
         </div>
       </div>
 
+      {isAdmin && showCategoryForm && (
+        <form onSubmit={handleCreateCategory} className="flex gap-2 rounded-2xl border border-gray-800 bg-gray-900 p-3">
+          <input
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            placeholder="Ej. Documentos legales, Plan de pagos, Amenidades"
+            className="flex-1 px-3 py-2 text-sm rounded-xl bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-600 outline-none focus:border-blue-500 transition-colors"
+          />
+          <button
+            disabled={savingCategory || !newCategory.trim()}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
+          >
+            {savingCategory ? 'Creando...' : 'Crear'}
+          </button>
+        </form>
+      )}
+
       {/* Upload form */}
-      {isAdmin && showUpload && <UploadForm onUploaded={handleUploaded} />}
+      {isAdmin && showUpload && <UploadForm categories={categories} onUploaded={handleUploaded} />}
 
       {/* Category filter chips */}
       {materials.length > 0 && (
@@ -401,19 +451,19 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
           >
             Todos ({materials.length})
           </button>
-          {CATEGORIES.map(([cat, cfg]) => {
-            const count = countByCategory(cat);
+          {categories.map((cat) => {
+            const count = countByCategory(cat.key);
             if (!count) return null;
             return (
               <button
-                key={cat}
-                onClick={() => setFilter(cat)}
+                key={cat.key}
+                onClick={() => setFilter(cat.key)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors',
-                  filter === cat ? `${cfg.color} opacity-100` : 'bg-gray-900 border-gray-800 text-gray-500 hover:border-gray-700'
+                  filter === cat.key ? `${categoryClasses(categories, cat.key)} opacity-100` : 'bg-gray-900 border-gray-800 text-gray-500 hover:border-gray-700'
                 )}
               >
-                {cfg.label} <span className="opacity-60">({count})</span>
+                {cat.name} <span className="opacity-60">({count})</span>
               </button>
             );
           })}
@@ -432,7 +482,7 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-500">
-              {filter !== 'all' ? `Sin materiales en "${CATEGORY_CONFIG[filter].label}"` : 'Sin materiales aún'}
+              {filter !== 'all' ? `Sin materiales en "${categoryLabel(categories, filter)}"` : 'Sin materiales aún'}
             </p>
             {isAdmin && filter === 'all' && (
               <p className="text-xs text-gray-600 mt-1">
@@ -444,23 +494,23 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
       ) : filter === 'all' ? (
         <div className="space-y-5">
           {groupedVisible.map((group) => (
-            <section key={group.cat} className="space-y-2">
+            <section key={group.cat.key} className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className={cn('rounded-full border px-2 py-1 text-[10px] font-bold', group.cfg.color)}>
-                  {group.cfg.label}
+                <span className={cn('rounded-full border px-2 py-1 text-[10px] font-bold', categoryClasses(categories, group.cat.key))}>
+                  {group.cat.name}
                 </span>
                 <span className="text-[10px] text-gray-600">{group.items.length} archivo{group.items.length !== 1 ? 's' : ''}</span>
               </div>
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {group.items.map((m) => (
-                    <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+                    <MaterialCard key={m.id} material={m} categories={categories} isAdmin={isAdmin} onDeleted={handleDeleted} />
                   ))}
                 </div>
               ) : (
                 <div className="space-y-2">
                   {group.items.map((m) => (
-                    <MaterialRow key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+                    <MaterialRow key={m.id} material={m} categories={categories} isAdmin={isAdmin} onDeleted={handleDeleted} />
                   ))}
                 </div>
               )}
@@ -470,13 +520,13 @@ export function MaterialsPanel({ isAdmin }: { isAdmin: boolean }) {
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {visible.map((m) => (
-            <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+            <MaterialCard key={m.id} material={m} categories={categories} isAdmin={isAdmin} onDeleted={handleDeleted} />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {visible.map((m) => (
-            <MaterialRow key={m.id} material={m} isAdmin={isAdmin} onDeleted={handleDeleted} />
+            <MaterialRow key={m.id} material={m} categories={categories} isAdmin={isAdmin} onDeleted={handleDeleted} />
           ))}
         </div>
       )}
