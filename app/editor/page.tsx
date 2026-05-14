@@ -519,6 +519,7 @@ function EditorInner() {
                 onNavigate={navigateTo}
                 onHotspotAdded={handleHotspotAdded}
                 onHotspotSelected={selectHotspot}
+                preloadAdjacentScenes={false}
                 onSetStartView={(yaw, pitch) => {
                   if (currentSceneId) updateScene(currentSceneId, { initialYaw: yaw, initialPitch: pitch });
                 }}

@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Scene } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
-import { Trash2, Star, Volume2, Upload, X, Loader2, Pencil, Check } from 'lucide-react';
+import { Trash2, Star, Volume2, Upload, X, Loader2, Pencil, Check, ImageIcon } from 'lucide-react';
 import { uploadAsset } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 
@@ -107,8 +107,9 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={scene.thumbnailUrl} alt={scene.name} className="w-full h-full object-cover" />
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={scene.imageUrl} alt={scene.name} className="w-full h-full object-cover opacity-70" />
+                    <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                      <ImageIcon className="w-3.5 h-3.5 text-gray-600" />
+                    </div>
                   )}
                 </div>
 

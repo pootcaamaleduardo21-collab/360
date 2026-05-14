@@ -58,6 +58,8 @@ interface Viewer360Props {
   onOpenMediaGallery?: () => void;
   /** Editor only: called with current yaw+pitch so the scene's starting view can be saved */
   onSetStartView?: (yaw: number, pitch: number) => void;
+  /** Preload all other scene panoramas after mount. Disable in editor to avoid loading dozens of full 360s at once. */
+  preloadAdjacentScenes?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export function Viewer360({
   isComparisonPanel = false,
   onOpenMediaGallery,
   onSetStartView,
+  preloadAdjacentScenes = true,
 }: Viewer360Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
@@ -103,8 +106,10 @@ export function Viewer360({
     if (tutorialDismissed) setShowTutorial(false);
   }, [tutorialDismissed]);
 
-  // Silently preload all other scene images after 2 s so navigation feels instant
+  // Silently preload all other scene images after 2 s so navigation feels instant.
+  // The editor disables this to avoid competing with the active panorama load.
   useEffect(() => {
+    if (!preloadAdjacentScenes) return;
     if (tour.scenes.length <= 1) return;
     const timer = setTimeout(() => {
       tour.scenes.forEach((s) => {
@@ -116,7 +121,7 @@ export function Viewer360({
     }, 2000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // once on mount — all scenes available via closure
+  }, [preloadAdjacentScenes]); // once on mount — all scenes available via closure
 
   // Scene transition overlay — instant black on scene change, guaranteed 400ms, then fade out
   useEffect(() => {
