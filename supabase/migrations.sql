@@ -95,6 +95,52 @@ ALTER TABLE team_invites
     CHECK (role IN ('admin', 'advisor'));
 
 
+-- ─── Migration 5: Lightweight tour list fields ──────────────────────────────
+--
+-- Avoids loading the heavy JSONB `data` field for dashboards/cards. These
+-- columns are derived from the first scene and kept in sync automatically.
+
+ALTER TABLE tours
+  ADD COLUMN IF NOT EXISTS thumbnail_url text,
+  ADD COLUMN IF NOT EXISTS first_scene_url text,
+  ADD COLUMN IF NOT EXISTS scene_count integer NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION public.sync_tour_light_fields()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  first_scene jsonb;
+  scenes jsonb;
+BEGIN
+  scenes := CASE
+    WHEN jsonb_typeof(new.data->'scenes') = 'array' THEN new.data->'scenes'
+    ELSE '[]'::jsonb
+  END;
+  first_scene := scenes->0;
+
+  new.thumbnail_url := nullif(first_scene->>'thumbnailUrl', '');
+  new.first_scene_url := nullif(first_scene->>'imageUrl', '');
+  new.scene_count := jsonb_array_length(scenes);
+
+  RETURN new;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tours_sync_light_fields ON tours;
+CREATE TRIGGER tours_sync_light_fields
+  BEFORE INSERT OR UPDATE OF data
+  ON tours
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_tour_light_fields();
+
+UPDATE tours
+SET data = data
+WHERE data IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS tours_user_updated_light_idx
+  ON tours(user_id, updated_at DESC)
+  INCLUDE (title, description, is_published, share_slug, view_count, thumbnail_url, first_scene_url, scene_count);
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --

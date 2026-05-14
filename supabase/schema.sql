@@ -51,6 +51,11 @@ create table if not exists public.tours (
   -- Full Tour object stored as JSONB (scenes, hotspots, units, etc.)
   data            jsonb not null default '{}',
 
+  -- Lightweight fields derived from data for fast dashboards/lists
+  thumbnail_url   text,
+  first_scene_url text,
+  scene_count     integer not null default 0,
+
   -- Publishing
   is_published    boolean not null default false,
   share_slug      text unique,          -- custom slug for the public URL
@@ -87,6 +92,36 @@ drop trigger if exists tours_updated_at on public.tours;
 create trigger tours_updated_at
   before update on public.tours
   for each row execute function public.update_updated_at();
+
+-- Keep lightweight listing fields in sync with the JSONB tour data
+create or replace function public.sync_tour_light_fields()
+returns trigger language plpgsql as $$
+declare
+  scenes jsonb;
+  first_scene jsonb;
+begin
+  scenes := case
+    when jsonb_typeof(new.data->'scenes') = 'array' then new.data->'scenes'
+    else '[]'::jsonb
+  end;
+  first_scene := scenes->0;
+
+  new.thumbnail_url := nullif(first_scene->>'thumbnailUrl', '');
+  new.first_scene_url := nullif(first_scene->>'imageUrl', '');
+  new.scene_count := jsonb_array_length(scenes);
+
+  return new;
+end;
+$$;
+
+drop trigger if exists tours_sync_light_fields on public.tours;
+create trigger tours_sync_light_fields
+  before insert or update of data on public.tours
+  for each row execute function public.sync_tour_light_fields();
+
+create index if not exists tours_user_updated_light_idx
+  on public.tours(user_id, updated_at desc)
+  include (title, description, is_published, share_slug, view_count, thumbnail_url, first_scene_url, scene_count);
 
 -- Increment view counter (called from the client when a tour is opened)
 create or replace function public.increment_tour_views(tour_id uuid)

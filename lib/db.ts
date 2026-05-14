@@ -14,6 +14,9 @@ export interface TourRow {
   title: string;
   description: string | null;
   data: Tour;
+  thumbnail_url: string | null;
+  first_scene_url: string | null;
+  scene_count: number;
   is_published: boolean;
   share_slug: string | null;
   view_count: number;
@@ -34,19 +37,27 @@ export interface TourSummary {
   updated_at: string;
 }
 
-// ─── Read ─────────────────────────────────────────────────────────────────────
+function getTourLightFields(tour: Tour) {
+  const firstScene = tour.scenes?.[0];
+  return {
+    thumbnail_url:    firstScene?.thumbnailUrl ?? null,
+    first_scene_url:  firstScene?.imageUrl ?? null,
+    scene_count:      tour.scenes?.length ?? 0,
+  };
+}
 
-/** Fetch lightweight tour rows for the dashboard; avoid transferring heavy tour JSON. */
-export async function listUserTours(): Promise<TourSummary[]> {
-  const sb = getSupabase();
-  const { data, error } = await sb
-    .from('tours')
-    .select('id, title, description, is_published, share_slug, view_count, created_at, updated_at')
-    .order('updated_at', { ascending: false });
+function getTourWritePayload(tour: Tour, userId: string, includeLightFields = true) {
+  return {
+    user_id:     userId,
+    title:       tour.title,
+    description: tour.description ?? null,
+    data:        tour,
+    ...(includeLightFields ? getTourLightFields(tour) : {}),
+  };
+}
 
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((row) => ({
+function toTourSummary(row: any): TourSummary {
+  return {
     id:           row.id,
     title:        row.title,
     description:  row.description,
@@ -55,9 +66,35 @@ export async function listUserTours(): Promise<TourSummary[]> {
     view_count:   row.view_count,
     created_at:   row.created_at,
     updated_at:   row.updated_at,
-    thumbnail:    null,
-    scene_count:  0,
-  }));
+    thumbnail:    row.thumbnail_url ?? row.first_scene_url ?? null,
+    scene_count:  row.scene_count ?? 0,
+  };
+}
+
+// ─── Read ─────────────────────────────────────────────────────────────────────
+
+/** Fetch lightweight tour rows for the dashboard; avoid transferring heavy tour JSON. */
+export async function listUserTours(): Promise<TourSummary[]> {
+  const sb = getSupabase();
+  const lightResult = await sb
+    .from('tours')
+    .select('id, title, description, is_published, share_slug, view_count, thumbnail_url, first_scene_url, scene_count, created_at, updated_at')
+    .order('updated_at', { ascending: false });
+
+  if (!lightResult.error) {
+    return (lightResult.data ?? []).map(toTourSummary);
+  }
+
+  // Migration-safe fallback: keeps the dashboard working before light columns
+  // have been applied in Supabase, without fetching heavy tour JSON.
+  const { data, error } = await sb
+    .from('tours')
+    .select('id, title, description, is_published, share_slug, view_count, created_at, updated_at')
+    .order('updated_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map(toTourSummary);
 }
 
 /**
@@ -146,17 +183,21 @@ export async function createTour(tour: Tour): Promise<string> {
   const user = session?.user;
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await sb
+  let result = await sb
     .from('tours')
-    .insert({
-      user_id:     user.id,
-      title:       tour.title,
-      description: tour.description ?? null,
-      data:        tour,
-    })
+    .insert(getTourWritePayload(tour, user.id))
     .select('id')
     .single();
 
+  if (result.error) {
+    result = await sb
+      .from('tours')
+      .insert(getTourWritePayload(tour, user.id, false))
+      .select('id')
+      .single();
+  }
+
+  const { data, error } = result;
   if (error) throw new Error(error.message);
   return data.id;
 }
@@ -168,19 +209,29 @@ export async function saveTour(tour: Tour): Promise<void> {
   const user = session?.user;
   if (!user) throw new Error('Not authenticated');
 
-  const { error } = await sb
+  let result = await sb
     .from('tours')
     .upsert(
       {
         id:          tour.id,
-        user_id:     user.id,
-        title:       tour.title,
-        description: tour.description ?? null,
-        data:        tour,
+        ...getTourWritePayload(tour, user.id),
       },
       { onConflict: 'id' }
     );
 
+  if (result.error) {
+    result = await sb
+      .from('tours')
+      .upsert(
+        {
+          id:          tour.id,
+          ...getTourWritePayload(tour, user.id, false),
+        },
+        { onConflict: 'id' }
+      );
+  }
+
+  const { error } = result;
   if (error) throw new Error(error.message);
 }
 
