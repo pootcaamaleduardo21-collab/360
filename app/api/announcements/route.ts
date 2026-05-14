@@ -1,0 +1,74 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase';
+
+export async function GET() {
+  try {
+    const sb = createSupabaseServerClient(cookies());
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
+
+    // Determine if user is an advisor and find their admin_id
+    const { data: invite } = await sb
+      .from('team_invites')
+      .select('admin_id')
+      .eq('advisor_user_id', user.id)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    const targetAdminId = invite?.admin_id ?? user.id;
+
+    const { data, error } = await sb
+      .from('team_announcements')
+      .select('*')
+      .eq('admin_id', targetAdminId)
+      .order('pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data ?? []);
+  } catch {
+    return NextResponse.json({ error: 'Error interno.' }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const sb = createSupabaseServerClient(cookies());
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
+
+    // Only admins (non-advisors) can post
+    const { data: invite } = await sb
+      .from('team_invites')
+      .select('id')
+      .eq('advisor_user_id', user.id)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    if (invite) return NextResponse.json({ error: 'Solo administradores pueden publicar novedades.' }, { status: 403 });
+
+    const body = await req.json();
+    const { title, message, type, pinned } = body;
+
+    if (!title?.trim() || !message?.trim()) {
+      return NextResponse.json({ error: 'Título y mensaje son requeridos.' }, { status: 400 });
+    }
+
+    const validTypes = ['announcement', 'news', 'motivation'];
+    if (!validTypes.includes(type)) {
+      return NextResponse.json({ error: 'Tipo inválido.' }, { status: 400 });
+    }
+
+    const { data, error } = await sb
+      .from('team_announcements')
+      .insert({ admin_id: user.id, title: title.trim(), message: message.trim(), type, pinned: !!pinned })
+      .select()
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: 'Error interno.' }, { status: 500 });
+  }
+}

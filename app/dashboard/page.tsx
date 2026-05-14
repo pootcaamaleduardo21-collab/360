@@ -9,22 +9,26 @@ import { AdvisorView } from '@/components/dashboard/AdvisorView';
 import { LeadsPanel } from '@/components/dashboard/LeadsPanel';
 import { OnboardingWelcome } from '@/components/dashboard/OnboardingWelcome';
 import { TeamPanel } from '@/components/dashboard/TeamPanel';
+import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
+import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import { AnalyticsOverview } from '@/components/dashboard/AnalyticsOverview';
 import { CRMPanel } from '@/components/dashboard/CRMPanel';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserRole, ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
+import { useRole } from '@/hooks/useRole';
+import { ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
+import { DevRolePanel } from '@/components/DevRolePanel';
 import { listUserTours, deleteTour, type TourSummary } from '@/lib/db';
 import { useTourStore } from '@/store/tourStore';
 import {
   Plus, LogOut, Loader2, Globe, LayoutGrid, List,
   Shield, Users, Building2, BarChart2,
-  Play, ChevronDown, Bell, MessageSquare, UserCog,
+  Play, ChevronDown, Bell, MessageSquare, UserCog, FolderOpen, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Role-tab config ──────────────────────────────────────────────────────────
 
-type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team';
+type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team' | 'materials' | 'novedades';
 
 function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
   const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
@@ -32,6 +36,8 @@ function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.
     { id: 'leads',     label: 'Leads',      icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'crm',       label: 'CRM',        icon: <Building2     className="w-4 h-4" /> },
     { id: 'analytics', label: 'Analytics',  icon: <BarChart2     className="w-4 h-4" /> },
+    { id: 'materials', label: 'Kit Ventas', icon: <FolderOpen    className="w-4 h-4" /> },
+    { id: 'novedades', label: 'Novedades',  icon: <Megaphone     className="w-4 h-4" /> },
   ];
   if (role === 'super_admin') base.push({ id: 'platform', label: 'Plataforma', icon: <Shield className="w-4 h-4" /> });
   if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
@@ -46,7 +52,7 @@ export default function DashboardPage() {
 
   const initTour = useTourStore((s) => s.initTour);
 
-  const role     = getUserRole(user);
+  const { role, baseRole } = useRole();
   const roleTabs = getRoleTabs(role);
 
   const [tours,            setTours]            = useState<TourSummary[]>([]);
@@ -175,6 +181,9 @@ export default function DashboardPage() {
             <Play className="w-3 h-3 fill-current" /> Demo
           </Link>
 
+          {/* Dev role tester — super admin only */}
+          <DevRolePanel tourId={tours[0]?.id} />
+
           {/* Notifications */}
           <div className="relative">
             <button
@@ -213,8 +222,8 @@ export default function DashboardPage() {
                 {initials || 'U'}
               </div>
               <span className="hidden sm:block text-xs text-gray-300 max-w-[120px] truncate">{userName}</span>
-              <span className={cn('hidden sm:block px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', ROLE_COLORS[role])}>
-                {ROLE_LABELS[role]}
+              <span className={cn('hidden sm:block px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', ROLE_COLORS[baseRole])}>
+                {ROLE_LABELS[baseRole]}
               </span>
               <ChevronDown className="w-3 h-3 text-gray-500" />
             </button>
@@ -301,6 +310,18 @@ export default function DashboardPage() {
         {mountedTabs.has('team') && (
           <div className={cn(activeTab !== 'team' && 'hidden')}>
             <TeamPanel />
+          </div>
+        )}
+
+        {mountedTabs.has('materials') && (
+          <div className={cn(activeTab !== 'materials' && 'hidden')}>
+            <MaterialsPanel isAdmin={role !== 'advisor'} />
+          </div>
+        )}
+
+        {mountedTabs.has('novedades') && (
+          <div className={cn(activeTab !== 'novedades' && 'hidden')}>
+            <AnnouncementsSection isAdmin={role !== 'advisor'} />
           </div>
         )}
 

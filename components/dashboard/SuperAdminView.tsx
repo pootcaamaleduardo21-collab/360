@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
 import {
   Users, Globe, Eye, BarChart2, Zap,
-  Shield, CheckCircle, AlertCircle, RefreshCw, Loader2,
+  Shield, CheckCircle, AlertCircle, RefreshCw, Loader2, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,10 +30,11 @@ interface UserRow {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SuperAdminView() {
-  const [stats,   setStats]   = useState<PlatformStats | null>(null);
-  const [users,   setUsers]   = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [stats,      setStats]      = useState<PlatformStats | null>(null);
+  const [users,      setUsers]      = useState<UserRow[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
 
@@ -60,6 +61,24 @@ export function SuperAdminView() {
   };
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar a "${name}"? Se borrarán su cuenta y todos sus datos. Esta acción no se puede deshacer.`)) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Error ${res.status}`);
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      if (stats) setStats({ ...stats, totalUsers: stats.totalUsers - 1 });
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Error al eliminar usuario.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const STAT_CARDS = [
     { label: 'Tours creados',    value: stats?.totalTours     ?? 0, icon: <Globe      className="w-5 h-5" />, color: 'text-blue-400',    bg: 'bg-blue-500/10'    },
@@ -172,6 +191,7 @@ export function SuperAdminView() {
                   <th className="px-5 py-3 text-left">Rol</th>
                   <th className="px-5 py-3 text-left hidden sm:table-cell">Tours</th>
                   <th className="px-5 py-3 text-left hidden md:table-cell">Registro</th>
+                  <th className="px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
@@ -198,6 +218,18 @@ export function SuperAdminView() {
                     </td>
                     <td className="px-5 py-3 text-xs text-gray-500 hidden md:table-cell">
                       {new Date(u.created_at).toLocaleDateString('es-MX')}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(u.id, u.full_name || u.email)}
+                        disabled={deletingId === u.id}
+                        title="Eliminar usuario"
+                        className="w-7 h-7 rounded-lg bg-gray-800 hover:bg-red-500/20 text-gray-600 hover:text-red-400 flex items-center justify-center transition-colors border border-gray-700 disabled:opacity-40"
+                      >
+                        {deletingId === u.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Trash2 className="w-3 h-3" />}
+                      </button>
                     </td>
                   </tr>
                 ))}

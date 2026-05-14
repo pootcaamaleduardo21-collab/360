@@ -281,10 +281,141 @@ CREATE POLICY "storage: owner delete thumbs"
   );
 
 
+-- ─── Migration 7: Advisor tour access + account isolation ────────────────────
+
+ALTER TABLE team_invites
+  ADD COLUMN IF NOT EXISTS advisor_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS team_invites_advisor_idx
+  ON team_invites(advisor_user_id)
+  WHERE advisor_user_id IS NOT NULL;
+
+ALTER POLICY "tours: public read if published" ON tours
+  TO anon;
+
+DROP POLICY IF EXISTS "tours: advisor reads admin tours" ON tours;
+CREATE POLICY "tours: advisor reads admin tours" ON tours
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM team_invites
+      WHERE team_invites.admin_id        = tours.user_id
+        AND team_invites.advisor_user_id = auth.uid()
+        AND team_invites.status          = 'accepted'
+    )
+  );
+
+ALTER TABLE team_invites DROP CONSTRAINT IF EXISTS team_invites_admin_id_email_key;
+ALTER TABLE team_invites ADD CONSTRAINT team_invites_email_unique UNIQUE (email);
+
+DROP INDEX IF EXISTS team_invites_advisor_unique;
+CREATE UNIQUE INDEX team_invites_advisor_unique
+  ON team_invites(advisor_user_id)
+  WHERE advisor_user_id IS NOT NULL;
+
+
+-- ─── Migration 8: Internal materials vault (Kit de Ventas) ───────────────────
+
+CREATE TABLE IF NOT EXISTS team_materials (
+  id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  admin_id    uuid        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name        text        NOT NULL,
+  description text,
+  category    text        NOT NULL DEFAULT 'general'
+                CHECK (category IN ('precios', 'descuentos', 'planos', 'comisiones', 'general')),
+  file_path   text        NOT NULL,
+  file_name   text        NOT NULL,
+  file_size   bigint,
+  file_type   text,
+  created_at  timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS team_materials_admin_idx
+  ON team_materials(admin_id, created_at DESC);
+
+ALTER TABLE team_materials ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "materials: admin manages" ON team_materials;
+CREATE POLICY "materials: admin manages" ON team_materials
+  FOR ALL USING (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "materials: advisor reads" ON team_materials;
+CREATE POLICY "materials: advisor reads" ON team_materials
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM team_invites
+      WHERE team_invites.admin_id        = team_materials.admin_id
+        AND team_invites.advisor_user_id = auth.uid()
+        AND team_invites.status          = 'accepted'
+    )
+  );
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'team-materials', 'team-materials', false, 52428800,
+  ARRAY[
+    'application/pdf','image/jpeg','image/png','image/webp',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/csv'
+  ]
+) ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "materials: admin upload" ON storage.objects;
+CREATE POLICY "materials: admin upload" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'team-materials'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+DROP POLICY IF EXISTS "materials: admin delete" ON storage.objects;
+CREATE POLICY "materials: admin delete" ON storage.objects
+  FOR DELETE USING (
+    bucket_id = 'team-materials'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+
+-- ─── Migration 9: Team announcements (Novedades) ─────────────────────────────
+
+CREATE TABLE IF NOT EXISTS team_announcements (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id   uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title      text NOT NULL,
+  message    text NOT NULL,
+  type       text NOT NULL DEFAULT 'announcement'
+               CHECK (type IN ('announcement', 'news', 'motivation')),
+  pinned     boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE team_announcements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "announcements: admin manages" ON team_announcements;
+CREATE POLICY "announcements: admin manages" ON team_announcements
+  FOR ALL USING (admin_id = auth.uid());
+
+DROP POLICY IF EXISTS "announcements: advisor reads" ON team_announcements;
+CREATE POLICY "announcements: advisor reads" ON team_announcements
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM team_invites
+      WHERE team_invites.admin_id        = team_announcements.admin_id
+        AND team_invites.advisor_user_id = auth.uid()
+        AND team_invites.status          = 'accepted'
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_team_announcements_admin_id
+  ON team_announcements (admin_id, pinned DESC, created_at DESC);
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public';
 --
--- Deberías ver: tours, profiles, tour_events, leads, team_invites
+-- Deberías ver: tours, profiles, tour_events, leads, team_invites, team_materials, team_announcements
