@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTourStore, selectCurrentScene } from '@/store/tourStore';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserRole } from '@/lib/roles';
+import { useRole } from '@/hooks/useRole';
+import { DevRolePanel } from '@/components/DevRolePanel';
 import { getTourById, saveTour, createTour } from '@/lib/db';
 import { HotspotType } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
@@ -101,7 +102,7 @@ function EditorInner() {
   const tourId       = searchParams.get('id');
 
   const { user } = useAuth();
-  const role = getUserRole(user);
+  const { role } = useRole();
   const isAdvisor = role === 'advisor';
 
   // Filter tabs by role — advisors only see Scenes (read) + Compartir
@@ -304,6 +305,9 @@ function EditorInner() {
                   Eleva<span className="text-blue-400">360</span>
                 </span>
               )}
+              {/* Role tester — only renders for super_admin */}
+              <DevRolePanel tourId={tourId ?? undefined} />
+
               {/* Save status inline */}
               {saveStatus !== 'idle' && (
                 <span className={cn(
@@ -436,9 +440,20 @@ function EditorInner() {
         {/* Hotspot toolbar */}
         <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800 bg-gray-900 flex-shrink-0">
           {isAdvisor ? (
-            <span className="text-xs text-amber-400/80 font-medium flex items-center gap-1.5">
-              <Lock className="w-3 h-3" /> Vista de asesor — solo lectura
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-amber-400/80 font-medium flex items-center gap-1.5">
+                <Lock className="w-3 h-3" /> Vista de asesor — solo lectura
+              </span>
+              {tourId && (
+                <Link
+                  href={`/advisor/${tourId}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Abrir Portal de Ventas
+                </Link>
+              )}
+            </div>
           ) : (
             <>
               <span className="text-xs text-gray-500 font-medium hidden sm:block">Hotspot:</span>

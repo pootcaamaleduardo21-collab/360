@@ -60,6 +60,10 @@ export function TeamPanel() {
   };
 
   const handleRemove = async (invite: TeamInvite) => {
+    const msg = invite.status === 'accepted'
+      ? `¿Revocar el acceso de ${invite.email}? Ya no podrá ver tus tours.`
+      : `¿Cancelar la invitación a ${invite.email}?`;
+    if (!confirm(msg)) return;
     await removeInvite(invite.email);
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
   };
@@ -72,14 +76,14 @@ export function TeamPanel() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Users className="w-5 h-5 text-blue-400" />
-        <h2 className="text-base font-bold text-white">Equipo de asesores</h2>
+        <h2 className="text-base font-bold text-white">Equipo</h2>
       </div>
 
       {/* How it works */}
       <div className="flex gap-3 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-sm text-blue-300">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <p>
-          Los asesores invitados recibirán un correo para crear su cuenta. Una vez registrados, verán los tours publicados de tu cuenta y podrán compartirlos con clientes.
+          Invita asesores o administradores a tu equipo. Los <strong>asesores</strong> pueden ver y compartir tus tours con clientes desde su portal. Los <strong>administradores</strong> tienen acceso completo al editor.
         </p>
       </div>
 

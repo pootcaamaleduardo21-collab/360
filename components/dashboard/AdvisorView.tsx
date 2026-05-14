@@ -5,7 +5,7 @@ import { TourSummary } from '@/lib/db';
 import {
   Globe, Lock, Eye, Layers, ExternalLink,
   MessageCircle, BarChart2, CheckCircle,
-  Clock, XCircle, AlertCircle,
+  Clock, XCircle, AlertCircle, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -81,9 +81,9 @@ export function AdvisorView({ tours, userName }: AdvisorViewProps) {
         <h3 className="text-sm font-bold text-gray-300">Consejos para asesores</h3>
         <ul className="space-y-2">
           {[
+            'Abre tu Portal de Ventas para generar tu link personalizado con QR descargable.',
             'Comparte el link del tour antes de la visita para generar expectativa.',
             'Usa el botón "Enviar info" en cada unidad para mandar specs por WhatsApp.',
-            'El link ?unit=ID abre directamente la ficha de una unidad específica.',
             'El QR del tour es ideal para imprimir en material de venta físico.',
           ].map((tip) => (
             <li key={tip} className="flex items-start gap-2 text-xs text-gray-500">
@@ -100,60 +100,60 @@ export function AdvisorView({ tours, userName }: AdvisorViewProps) {
 // ─── Tour row for advisors ────────────────────────────────────────────────────
 
 function AdvisorTourRow({ tour }: { tour: TourSummary }) {
-  const baseUrl  = typeof window !== 'undefined' ? window.location.origin : '';
+  const baseUrl   = typeof window !== 'undefined' ? window.location.origin : '';
   const viewerUrl = `${baseUrl}/viewer/${tour.share_slug ?? tour.id}`;
-
-  const handleWhatsApp = () => {
-    const text = encodeURIComponent(`🏠 *${tour.title}*\nTour virtual 360° completo:\n${viewerUrl}`);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(viewerUrl);
-  };
+  const portalUrl = `/advisor/${tour.id}`;
+  const waText    = encodeURIComponent(`🏠 *${tour.title}*\nTour virtual 360° completo:\n${viewerUrl}`);
 
   return (
-    <div className="p-4 rounded-2xl bg-gray-900 border border-gray-800 flex items-center gap-4">
-      {/* Thumbnail */}
-      <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
-        {tour.thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={tour.thumbnail} alt={tour.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Layers className="w-5 h-5 text-gray-600" />
+    <div className="p-4 rounded-2xl bg-gray-900 border border-gray-800 space-y-3">
+      {/* Top row: thumbnail + info + icon actions */}
+      <div className="flex items-center gap-4">
+        {/* Thumbnail */}
+        <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
+          {tour.thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={tour.thumbnail} alt={tour.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Layers className="w-5 h-5 text-gray-600" />
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-200 truncate">{tour.title}</p>
+            <span className={cn(
+              'flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
+              tour.is_published
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-gray-700 border-gray-600 text-gray-500'
+            )}>
+              {tour.is_published
+                ? <><Globe className="w-2.5 h-2.5" /> Activo</>
+                : <><Lock className="w-2.5 h-2.5" /> Borrador</>}
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-gray-200 truncate">{tour.title}</p>
-          <span className={cn(
-            'flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-            tour.is_published ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-gray-700 border-gray-600 text-gray-500'
-          )}>
-            {tour.is_published ? <><Globe className="w-2.5 h-2.5" /> Activo</> : <><Lock className="w-2.5 h-2.5" /> Borrador</>}
-          </span>
+          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+            <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count} escenas</span>
+            {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
+          </div>
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-          <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count} escenas</span>
-          {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
-        </div>
-      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Icon actions — only for published */}
         {tour.is_published && (
-          <>
-            <button
-              onClick={handleWhatsApp}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <a
+              href={`https://wa.me/?text=${waText}`}
+              target="_blank"
+              rel="noopener noreferrer"
               title="Compartir por WhatsApp"
               className="w-8 h-8 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-colors border border-[#25D366]/20"
             >
               <MessageCircle className="w-4 h-4" />
-            </button>
+            </a>
             <a
               href={viewerUrl}
               target="_blank"
@@ -170,9 +170,20 @@ function AdvisorTourRow({ tour }: { tour: TourSummary }) {
             >
               <BarChart2 className="w-4 h-4" />
             </Link>
-          </>
+          </div>
         )}
       </div>
+
+      {/* Portal CTA — full width, only for published */}
+      {tour.is_published && (
+        <Link
+          href={portalUrl}
+          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors"
+        >
+          <Briefcase className="w-4 h-4" />
+          Abrir Portal de Ventas
+        </Link>
+      )}
     </div>
   );
 }

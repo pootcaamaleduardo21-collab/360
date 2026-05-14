@@ -54,6 +54,8 @@ interface Viewer360Props {
   onOpenPOIPanel?: () => void;
   /** When true, hides CTAs that don't belong in split-screen panels */
   isComparisonPanel?: boolean;
+  /** Pre-fetch adjacent scene textures on mount (default true; editor sets false) */
+  preloadAdjacentScenes?: boolean;
   /** Show media gallery button + overlay */
   onOpenMediaGallery?: () => void;
   /** Editor only: called with current yaw+pitch so the scene's starting view can be saved */

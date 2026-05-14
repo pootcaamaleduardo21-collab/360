@@ -52,16 +52,23 @@ export async function POST(request: NextRequest) {
 
     const adminClient = getServiceRoleClient();
 
-    // 3. Check if already invited (idempotent)
+    // 3. Check for any existing invite — from this admin OR any other.
+    //    One email can only belong to one team at a time to prevent account mixing.
     const { data: existing } = await adminClient
       .from('team_invites')
-      .select('id, status')
-      .eq('admin_id', user.id)
+      .select('id, status, admin_id')
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
     if (existing) {
-      return NextResponse.json({ error: 'Este correo ya fue invitado.' }, { status: 409 });
+      if (existing.admin_id === user.id) {
+        return NextResponse.json({ error: 'Este correo ya fue invitado a tu equipo.' }, { status: 409 });
+      }
+      // Belongs to a different admin's team — hard block to preserve isolation
+      return NextResponse.json(
+        { error: 'Este correo ya pertenece al equipo de otra cuenta. No puede pertenecer a dos equipos al mismo tiempo.' },
+        { status: 409 }
+      );
     }
 
     // 4. Record the invitation first (so it's visible even if email fails)
@@ -83,10 +90,33 @@ export async function POST(request: NextRequest) {
     });
 
     if (inviteError) {
-      // If the user already exists in Auth, the invite email fails — that's OK,
-      // the invite record is still created and we return a soft warning.
+      // If the user already exists in Auth, the invite email can't be re-sent but
+      // we can still update their role metadata and link them to this admin directly.
       if (inviteError.message.includes('already registered')) {
-        return NextResponse.json({ warning: 'El usuario ya tiene cuenta. Se registró la invitación.' });
+        const { data: usersPage } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const existingUser = usersPage?.users?.find(
+          (u) => u.email?.toLowerCase() === email.toLowerCase()
+        );
+
+        if (existingUser) {
+          // Update the user's role to what the admin requested
+          await adminClient.auth.admin.updateUserById(existingUser.id, {
+            user_metadata: {
+              ...existingUser.user_metadata,
+              role,
+              invited_by: user.id,
+            },
+          });
+          // Mark the invite as accepted immediately and store advisor_user_id
+          // so the RLS policy grants them access to this admin's tours right away.
+          await adminClient
+            .from('team_invites')
+            .update({ status: 'accepted', advisor_user_id: existingUser.id })
+            .eq('admin_id', user.id)
+            .eq('email', email.toLowerCase());
+        }
+
+        return NextResponse.json({ warning: 'El usuario ya tenía cuenta. Su rol fue actualizado y ya tiene acceso.' });
       }
       // Roll back invite record on other errors
       await adminClient.from('team_invites').delete().eq('admin_id', user.id).eq('email', email.toLowerCase());
@@ -116,9 +146,35 @@ export async function DELETE(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
     const adminClient = getServiceRoleClient();
+
+    // Fetch the invite before deleting to get advisor_user_id (if accepted)
+    const { data: invite } = await adminClient
+      .from('team_invites')
+      .select('advisor_user_id, status, role')
+      .eq('admin_id', user.id)
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+
+    // Delete the invite record — this is enough to revoke tour access via RLS
     await adminClient.from('team_invites').delete()
       .eq('admin_id', user.id)
       .eq('email', email.toLowerCase());
+
+    // If the invite was accepted, also clear the invited_by metadata from the user
+    // so they know their relationship with this admin is severed.
+    // We do NOT remove their role — that would be too destructive (they may be on
+    // another admin's team). The RLS policy already prevents tour access without
+    // an accepted team_invites record.
+    if (invite?.status === 'accepted' && invite.advisor_user_id) {
+      const { data: userData } = await adminClient.auth.admin.getUserById(invite.advisor_user_id);
+      if (userData?.user) {
+        const meta = { ...userData.user.user_metadata };
+        delete meta.invited_by;
+        await adminClient.auth.admin.updateUserById(invite.advisor_user_id, {
+          user_metadata: meta,
+        });
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch {

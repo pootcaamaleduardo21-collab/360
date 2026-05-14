@@ -50,9 +50,10 @@ export async function GET(request: NextRequest) {
       if (invitedBy) {
         const adminClient = getServiceRoleClient();
         if (adminClient && data.user.email) {
+          // Mark accepted AND store advisor_user_id so the RLS policy can join on it.
           await adminClient
             .from('team_invites')
-            .update({ status: 'accepted' })
+            .update({ status: 'accepted', advisor_user_id: data.user.id })
             .eq('admin_id', invitedBy)
             .eq('email', data.user.email.toLowerCase());
         }
