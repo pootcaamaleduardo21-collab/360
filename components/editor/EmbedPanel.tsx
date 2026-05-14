@@ -10,6 +10,7 @@ import {
   Loader2, AlertCircle, RefreshCw, Link2,
   Eye, EyeOff, Calendar, Phone, Mail, Shield, MessageSquare,
 } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 async function sha256hex(text: string): Promise<string> {
@@ -41,11 +42,30 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
   const [isPublished,  setIsPublished]  = useState(false);
   const [slug,         setSlug]         = useState('');
   const [saveStatus,   setSaveStatus]   = useState<SaveStatus>('idle');
+  const [stateLoaded,  setStateLoaded]  = useState(false);
   const [saveError,    setSaveError]    = useState<string | null>(null);
   const [copied,       setCopied]       = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState(0);
   const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
   const qrRef = useRef<HTMLCanvasElement>(null);
+
+  // ── Load current publish state from DB on mount ──────────────────────────
+  useEffect(() => {
+    if (!tour.id) return;
+    getSupabase()
+      .from('tours')
+      .select('is_published, share_slug')
+      .eq('id', tour.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setIsPublished(!!data.is_published);
+          setSlug(data.share_slug ?? '');
+        }
+        setStateLoaded(true);
+      }, () => setStateLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour.id]);
 
   // ── Password protection ──────────────────────────────────────────────────
   const [pwEnabled,   setPwEnabled]   = useState(!!tour.passwordEnabled);
@@ -164,6 +184,14 @@ export function EmbedPanel({ tour }: EmbedPanelProps) {
 
   // sync booking changes to store on each field change
   useEffect(() => { saveBooking(); }, [bkEnabled, bkMethod, bkPhone, bkEmail, bkCalendly, bkLabel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!stateLoaded) {
+    return (
+      <div className="p-4 flex items-center justify-center gap-2 text-gray-500 text-xs">
+        <Loader2 className="w-4 h-4 animate-spin" /> Cargando estado…
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-5">
