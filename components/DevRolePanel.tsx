@@ -6,7 +6,7 @@ import { Beaker, ChevronDown, X, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
 import { cn } from '@/lib/utils';
-import type { UserRole } from '@/lib/roles';
+import { ROLE_COLORS, ROLE_LABELS, type UserRole } from '@/lib/roles';
 
 interface RoleOption {
   value: UserRole | null;
@@ -15,26 +15,38 @@ interface RoleOption {
   color: string;
 }
 
-const ROLE_OPTIONS: RoleOption[] = [
+const SIMULATED_ROLE_OPTIONS: RoleOption[] = [
   {
-    value: null,
+    value: 'super_admin',
     label: 'Super Admin',
-    desc: 'Tu rol real',
-    color: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    desc: 'Plataforma completa',
+    color: ROLE_COLORS.super_admin,
   },
   {
     value: 'admin',
     label: 'Administrador',
     desc: 'Editor completo + equipo',
-    color: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    color: ROLE_COLORS.admin,
   },
   {
     value: 'advisor',
     label: 'Asesor',
     desc: 'Dashboard asesor + portal',
-    color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    color: ROLE_COLORS.advisor,
   },
 ];
+
+function getRoleOptions(baseRole: UserRole): RoleOption[] {
+  return [
+    {
+      value: null,
+      label: ROLE_LABELS[baseRole],
+      desc: 'Tu rol real',
+      color: ROLE_COLORS[baseRole],
+    },
+    ...SIMULATED_ROLE_OPTIONS.filter((option) => option.value !== baseRole),
+  ];
+}
 
 interface Props {
   /** Tour ID — if provided, shows a direct link to the advisor portal for quick testing. */
@@ -43,14 +55,13 @@ interface Props {
 
 export function DevRolePanel({ tourId }: Props) {
   const { user } = useAuth();
-  const { baseRole, role, isOverridden, setOverride } = useRole();
+  const { baseRole, role, canOverride, isOverridden, setOverride } = useRole();
   const [open, setOpen] = useState(false);
 
-  // Only visible to the exact super-admin email — no one else, ever.
-  const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL ?? '';
-  if (baseRole !== 'super_admin' || !superAdminEmail || user?.email !== superAdminEmail) return null;
+  if (!user || !canOverride) return null;
 
-  const active = ROLE_OPTIONS.find((o) => o.value === (isOverridden ? role : null)) ?? ROLE_OPTIONS[0];
+  const roleOptions = getRoleOptions(baseRole);
+  const active = roleOptions.find((o) => o.value === (isOverridden ? role : null)) ?? roleOptions[0];
 
   return (
     <div className="relative">
@@ -88,7 +99,7 @@ export function DevRolePanel({ tourId }: Props) {
             </div>
 
             <div className="p-2 space-y-1">
-              {ROLE_OPTIONS.map((opt) => {
+              {roleOptions.map((opt) => {
                 const isCurrent = (isOverridden ? role : null) === opt.value;
                 return (
                   <button

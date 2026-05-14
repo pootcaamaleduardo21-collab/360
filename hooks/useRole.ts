@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
-import { getUserRole, type UserRole } from '@/lib/roles';
+import { getUserRole, isRoleTesterEmail, type UserRole } from '@/lib/roles';
 
 const SS_KEY = '__dev_role__';
 
@@ -14,7 +14,7 @@ function readOverride(): UserRole | null {
   if (_cache !== 'unread') return _cache;
   try {
     const v = sessionStorage.getItem(SS_KEY) as string | null;
-    _cache = (['admin', 'advisor'] as string[]).includes(v ?? '') ? (v as UserRole) : null;
+    _cache = (['super_admin', 'admin', 'advisor'] as string[]).includes(v ?? '') ? (v as UserRole) : null;
   } catch {
     _cache = null;
   }
@@ -30,8 +30,9 @@ function writeOverride(role: UserRole | null) {
 }
 
 /**
- * Like getUserRole() but super_admins can temporarily override their visible role
- * to test what other users see. The override lives in sessionStorage only.
+ * Like getUserRole() but authorized tester accounts can temporarily override
+ * their visible role to test what other users see. The override lives in
+ * sessionStorage only; server-side permissions remain unchanged.
  */
 export function useRole() {
   const { user, isLoading } = useAuth();
@@ -44,21 +45,23 @@ export function useRole() {
   }, []);
 
   const baseRole = getUserRole(user);
-  // Only the designated super-admin email can activate role overrides.
-  const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL ?? '';
-  const canOverride = baseRole === 'super_admin'
-    && !!superAdminEmail
-    && user?.email === superAdminEmail;
+  const canOverride = isRoleTesterEmail(user?.email) || baseRole === 'super_admin';
   const role: UserRole = canOverride && override ? override : baseRole;
 
   const setOverride = useCallback((r: UserRole | null) => {
+    if (!canOverride) {
+      writeOverride(null);
+      setOverrideState(null);
+      return;
+    }
     writeOverride(r);
     setOverrideState(r);
-  }, []);
+  }, [canOverride]);
 
   return {
     role,
     baseRole,
+    canOverride,
     isOverridden: canOverride && !!override,
     setOverride,
     isLoading,
