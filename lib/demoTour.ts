@@ -39,6 +39,8 @@ export const DEMO_TOUR: Tour = {
   tagline:        'Vive en las alturas',
   currency:       'MXN',
   listingType:    'sale',
+  propertyLat:    21.1619,
+  propertyLng:    -86.8515,
   createdAt:      '2025-01-01T00:00:00.000Z',
   updatedAt:      '2025-01-01T00:00:00.000Z',
 
@@ -121,10 +123,42 @@ export const DEMO_TOUR: Tour = {
   ],
 
   pointsOfInterest: [
-    { id: 'demo-p1', label: 'Colegio Americano',  category: 'school',    distance: '5 min' },
-    { id: 'demo-p2', label: 'Centro Comercial',   category: 'mall',      distance: '8 min' },
-    { id: 'demo-p3', label: 'Hospital Ángeles',   category: 'hospital',  distance: '10 min' },
-    { id: 'demo-p4', label: 'Playa pública',       category: 'beach',     distance: '3 min' },
+    {
+      id: 'demo-p1',
+      label: 'Colegio Americano',
+      category: 'school',
+      distance: '7 min en auto · 3.4 km',
+      address: 'Av. Bonampak, Cancun',
+      lat: 21.1487,
+      lng: -86.8286,
+    },
+    {
+      id: 'demo-p2',
+      label: 'Puerto Cancun Marina Town Center',
+      category: 'mall',
+      distance: '5 min en auto · 2.1 km',
+      address: 'Blvd. Kukulcan km 1.5, Cancun',
+      lat: 21.1606,
+      lng: -86.8075,
+    },
+    {
+      id: 'demo-p3',
+      label: 'Hospital Amerimed Cancun',
+      category: 'hospital',
+      distance: '9 min en auto · 4.2 km',
+      address: 'Av. Bonampak, Cancun',
+      lat: 21.1448,
+      lng: -86.8232,
+    },
+    {
+      id: 'demo-p4',
+      label: 'Playa Las Perlas',
+      category: 'beach',
+      distance: '8 min en auto · 4.0 km',
+      address: 'Zona Hotelera, Cancun',
+      lat: 21.1458,
+      lng: -86.7879,
+    },
   ],
 
   scenes: [

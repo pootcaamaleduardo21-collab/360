@@ -9,12 +9,20 @@ import { InventoryOverlay } from '@/components/viewer/InventoryOverlay';
 import { UnitDetailModal } from '@/components/viewer/UnitDetailModal';
 import { SalesPanel } from '@/components/viewer/SalesPanel';
 import { BookingModal } from '@/components/viewer/BookingModal';
-import { PropertyUnit } from '@/types/tour.types';
+import { PointOfInterest, PropertyUnit } from '@/types/tour.types';
 import { Loader2, ArrowLeft, Sparkles, X } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const Viewer360 = dynamic(
   () => import('@/components/viewer/Viewer360').then((m) => m.Viewer360),
+  { ssr: false }
+);
+const POIPanel = dynamic(
+  () => import('@/components/viewer/POIPanel').then((m) => m.POIPanel),
+  { ssr: false }
+);
+const POIRouteCard = dynamic(
+  () => import('@/components/viewer/POIRouteCard').then((m) => m.POIRouteCard),
   { ssr: false }
 );
 
@@ -38,7 +46,9 @@ function DemoInner() {
   const navigateTo     = useTourStore((s) => s.navigateTo);
 
   const [activeUnit,     setActiveUnit]     = useState<PropertyUnit | null>(null);
+  const [selectedPOI,    setSelectedPOI]    = useState<PointOfInterest | null>(null);
   const [salesPanelOpen, setSalesPanelOpen] = useState(false);
+  const [poiPanelOpen,   setPoiPanelOpen]   = useState(false);
   const [bookingOpen,    setBookingOpen]    = useState(false);
   const [showBanner,     setShowBanner]     = useState(true);
 
@@ -103,6 +113,7 @@ function DemoInner() {
             onNavigate={navigateTo}
             onOpenSalesPanel={() => setSalesPanelOpen(true)}
             onOpenBooking={() => setBookingOpen(true)}
+            onOpenPOIPanel={(tour.pointsOfInterest?.length ?? 0) > 0 ? () => setPoiPanelOpen(true) : undefined}
           />
         </ErrorBoundary>
 
@@ -131,6 +142,24 @@ function DemoInner() {
           onClose={() => setSalesPanelOpen(false)}
           onUnitClick={(u) => { setActiveUnit(u); setSalesPanelOpen(false); }}
           onNavigate={(id) => { navigateTo(id); setSalesPanelOpen(false); }}
+        />
+      )}
+
+      {poiPanelOpen && (
+        <POIPanel
+          tour={tour}
+          selectedPOIId={selectedPOI?.id ?? null}
+          onSelectPOI={setSelectedPOI}
+          onClose={() => { setPoiPanelOpen(false); setSelectedPOI(null); }}
+        />
+      )}
+
+      {selectedPOI && (
+        <POIRouteCard
+          poi={selectedPOI}
+          propertyLat={tour.propertyLat}
+          propertyLng={tour.propertyLng}
+          onClose={() => setSelectedPOI(null)}
         />
       )}
 

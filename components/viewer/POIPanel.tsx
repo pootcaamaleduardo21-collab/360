@@ -204,7 +204,7 @@ function POICard({
             </span>
           )}
         </div>
-        <p className="text-[10px] text-gray-500 mt-0.5">{cfg.label}</p>
+        <p className="text-[10px] text-gray-500 mt-0.5 truncate">{poi.address ?? cfg.label}</p>
         {poi.description && (
           <p className="text-[11px] text-gray-400 mt-1 leading-snug line-clamp-2">{poi.description}</p>
         )}

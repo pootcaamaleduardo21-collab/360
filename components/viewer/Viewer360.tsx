@@ -446,7 +446,7 @@ export function Viewer360({
       )}
 
       {/* Property location button (bottom-left, above lead capture) */}
-      {!isEditing && !isComparisonPanel && tour.propertyLat && tour.propertyLng && (
+      {!isEditing && !isComparisonPanel && tour.propertyLat != null && tour.propertyLng != null && (
         <a
           href={`https://www.google.com/maps?q=${tour.propertyLat},${tour.propertyLng}`}
           target="_blank"

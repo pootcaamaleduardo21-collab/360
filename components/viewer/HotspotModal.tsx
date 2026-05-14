@@ -221,8 +221,8 @@ function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
   const propertyLng = tour?.propertyLng;
 
   const hasKey    = !!GMAPS_KEY;
-  const hasOrigin = !!(propertyLat && propertyLng);
-  const hasDest   = !!(hotspot.mapLat && hotspot.mapLng);
+  const hasOrigin = propertyLat != null && propertyLng != null;
+  const hasDest   = hotspot.mapLat != null && hotspot.mapLng != null;
 
   // Build embed src: directions if we have origin+dest, place otherwise
   const embedSrc = hasKey

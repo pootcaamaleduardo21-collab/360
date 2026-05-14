@@ -155,6 +155,10 @@ export interface PointOfInterest {
   category: POICategory;
   distance?: string;    // "5 min", "2.3 km"
   description?: string;
+  address?: string;     // Human-readable address/place name
+  lat?: number;         // Precise latitude for route destination
+  lng?: number;         // Precise longitude for route destination
+  googlePlaceId?: string;
 }
 
 // ─── Gallery ─────────────────────────────────────────────────────────────────
