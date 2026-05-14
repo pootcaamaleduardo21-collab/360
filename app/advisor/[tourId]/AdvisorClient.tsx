@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import QRCode from 'qrcode';
-import type { Tour, GalleryItem, PropertyUnit } from '@/types/tour.types';
+import type { Tour, GalleryItem, PropertyUnit, SalesAdvisor, UnitPrototype } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { getSupabase } from '@/lib/supabase';
 import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
 import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import {
@@ -16,6 +18,7 @@ import {
   Building2, CheckCircle, Clock, XCircle, AlertCircle,
   FileText, Image as ImageIcon, Video, ChevronRight, Loader2,
   Share2, BedDouble, Bath, Car, Ruler, FolderOpen, Megaphone,
+  UserCog, Save, PanelRightClose, PanelRightOpen, Filter,
 } from 'lucide-react';
 
 const Viewer360 = dynamic(
@@ -31,7 +34,8 @@ interface Props {
   shareSlug: string | null;
 }
 
-type Tab = 'link' | 'material' | 'booking' | 'units' | 'kit' | 'novedades';
+type Tab = 'link' | 'profile' | 'material' | 'booking' | 'units' | 'kit' | 'novedades';
+type InventoryStatusFilter = 'all' | PropertyUnit['status'];
 
 const STATUS_CONF = {
   available:   { label: 'Disponible',  color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: <CheckCircle  className="w-3 h-3" /> },
@@ -50,11 +54,30 @@ function youtubeThumbnail(url: string): string | null {
   return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null;
 }
 
+function buildAdvisorUrl(baseUrl: string, advisor: SalesAdvisor): string {
+  if (!advisor.phone && !advisor.name && !advisor.title) return baseUrl;
+  const params = new URLSearchParams();
+  if (advisor.phone) params.set('wa', advisor.phone.replace(/\D/g, ''));
+  if (advisor.name) params.set('advisor', advisor.name);
+  if (advisor.title) params.set('title', advisor.title);
+  const query = params.toString();
+  return query ? `${baseUrl}?${query}` : baseUrl;
+}
+
+function filterUnits(units: PropertyUnit[], status: InventoryStatusFilter, prototypeId: string) {
+  return units.filter((unit) => {
+    const statusMatch = status === 'all' || unit.status === status;
+    const prototypeMatch = prototypeId === 'all' || unit.prototypeId === prototypeId;
+    return statusMatch && prototypeMatch;
+  });
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   // Load tour into store synchronously before first render
   useState(() => { useTourStore.getState().loadTour(tour); });
+  const { user } = useAuth();
 
   const storeTour      = useTourStore((s) => s.tour);
   const currentScene   = useTourStore((s) => {
@@ -67,13 +90,45 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   const [tab,      setTab]      = useState<Tab>('link');
   const [copied,   setCopied]   = useState<string | null>(null);
   const [qrUrl,    setQrUrl]    = useState<string | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(true);
+  const [unitStatus, setUnitStatus] = useState<InventoryStatusFilter>('all');
+  const [prototypeFilter, setPrototypeFilter] = useState('all');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
 
-  const advisor   = tour.salesAdvisor;
+  const [advisorDraft, setAdvisorDraft] = useState<SalesAdvisor>(() => ({
+    name: tour.salesAdvisor?.name ?? '',
+    phone: tour.salesAdvisor?.phone ?? '',
+    email: tour.salesAdvisor?.email ?? '',
+    photoUrl: tour.salesAdvisor?.photoUrl ?? '',
+    title: tour.salesAdvisor?.title ?? '',
+    company: tour.salesAdvisor?.company ?? '',
+  }));
+
+  useEffect(() => {
+    if (!user) return;
+    const meta = user.user_metadata ?? {};
+    setAdvisorDraft((prev) => ({
+      name: (meta.full_name as string | undefined) ?? prev.name,
+      phone: (meta.whatsapp as string | undefined) ?? (meta.phone as string | undefined) ?? prev.phone,
+      email: user.email ?? prev.email,
+      photoUrl: (meta.avatar_url as string | undefined) ?? (meta.photo_url as string | undefined) ?? prev.photoUrl,
+      title: (meta.advisor_title as string | undefined) ?? prev.title,
+      company: (meta.company as string | undefined) ?? prev.company,
+    }));
+  }, [user]);
+
+  const advisor: SalesAdvisor = {
+    name: advisorDraft.name || tour.salesAdvisor?.name || 'Asesor',
+    phone: advisorDraft.phone || tour.salesAdvisor?.phone || '',
+    email: advisorDraft.email || tour.salesAdvisor?.email,
+    photoUrl: advisorDraft.photoUrl || tour.salesAdvisor?.photoUrl,
+    title: advisorDraft.title || tour.salesAdvisor?.title,
+    company: advisorDraft.company || tour.salesAdvisor?.company,
+  };
   const origin    = typeof window !== 'undefined' ? window.location.origin : '';
   const baseUrl   = `${origin}/viewer/${shareSlug || tourId}`;
-  const advisorUrl = advisor?.phone
-    ? `${baseUrl}?wa=${advisor.phone.replace(/\D/g, '')}`
-    : baseUrl;
+  const advisorUrl = buildAdvisorUrl(baseUrl, advisor);
 
   const hasMaterial = !!(tour.brochureUrl || (tour.gallery?.length ?? 0) > 0);
   const hasBooking  = !!(tour.bookingEnabled && tour.bookingConfig);
@@ -98,6 +153,30 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
     setTimeout(() => setCopied(null), 2000);
   }, []);
 
+  const saveAdvisorProfile = useCallback(async () => {
+    setProfileSaving(true);
+    setProfileSaved(false);
+    try {
+      const { error } = await getSupabase().auth.updateUser({
+        data: {
+          full_name: advisorDraft.name.trim() || undefined,
+          phone: advisorDraft.phone.trim() || undefined,
+          whatsapp: advisorDraft.phone.trim() || undefined,
+          advisor_title: advisorDraft.title?.trim() || undefined,
+          company: advisorDraft.company?.trim() || undefined,
+          photo_url: advisorDraft.photoUrl?.trim() || undefined,
+        },
+      });
+      if (error) throw error;
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2500);
+    } catch {
+      alert('No se pudo guardar tu perfil. Intenta de nuevo.');
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [advisorDraft]);
+
   if (!storeTour || !currentScene) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-950">
@@ -108,6 +187,7 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'link',    label: 'Mi Link',    icon: <Link2      className="w-4 h-4" /> },
+    { id: 'profile', label: 'Perfil',     icon: <UserCog    className="w-4 h-4" /> },
     ...(hasMaterial ? [{ id: 'material' as Tab, label: 'Material',  icon: <Download   className="w-4 h-4" /> }] : []),
     ...(hasBooking  ? [{ id: 'booking'  as Tab, label: 'Agendar',   icon: <Calendar   className="w-4 h-4" /> }] : []),
     ...(hasUnits    ? [{ id: 'units'    as Tab, label: 'Inventario',icon: <Building2  className="w-4 h-4" /> }] : []),
@@ -130,19 +210,9 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
             <p className="text-white font-bold text-sm leading-tight truncate">{tour.title}</p>
             {tour.brandName && <p className="text-white/50 text-xs truncate">{tour.brandName}</p>}
           </div>
-          {advisor && (
-            <div className="flex items-center gap-2 pointer-events-auto">
-              {advisor.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={advisor.photoUrl} alt={advisor.name} className="w-8 h-8 rounded-full object-cover border border-white/20" />
-              ) : (
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold border border-white/20"
-                  style={{ background: tour.brandColor ?? '#1e40af' }}
-                >
-                  {advisor.name.charAt(0).toUpperCase()}
-                </div>
-              )}
+          {advisor.name && (
+            <div className="flex items-center gap-2 pointer-events-auto rounded-full border border-white/10 bg-black/30 px-2 py-1 backdrop-blur-sm">
+              <AdvisorAvatar advisor={advisor} color={tour.brandColor} size="sm" />
               <span className="text-white/80 text-xs font-medium hidden sm:block">{advisor.name}</span>
             </div>
           )}
@@ -164,19 +234,32 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
           <LayoutDashboard className="w-3 h-3" />
           <span className="hidden sm:inline">Dashboard</span>
         </Link>
+
+        <button
+          onClick={() => setToolsOpen((v) => !v)}
+          className="absolute bottom-4 right-4 z-20 hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-black/55 backdrop-blur-sm text-white/70 hover:text-white text-xs font-semibold border border-white/10 transition-colors"
+          title={toolsOpen ? 'Contraer herramientas' : 'Abrir herramientas'}
+        >
+          {toolsOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+          {toolsOpen ? 'Presentar' : 'Herramientas'}
+        </button>
       </div>
 
       {/* ── Tools panel ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-shrink-0 w-full md:w-80 lg:w-96 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 overflow-hidden">
+      <div className={cn(
+        'flex flex-col flex-shrink-0 w-full bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 overflow-hidden transition-all duration-300',
+        toolsOpen ? 'md:w-80 lg:w-96' : 'md:w-0 md:border-l-0'
+      )}>
+        <div className="min-w-0 md:min-w-80 lg:min-w-96 h-full flex flex-col">
 
         {/* Tab bar */}
-        <div className="flex border-b border-white/10 flex-shrink-0">
+        <div className="flex border-b border-white/10 flex-shrink-0 overflow-x-auto scrollbar-none">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                'flex-1 flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition-colors',
+                'min-w-[76px] flex-1 flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition-colors',
                 tab === t.id
                   ? 'text-white border-b-2 border-blue-500'
                   : 'text-gray-500 hover:text-gray-300'
@@ -224,7 +307,7 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
                   </a>
                 </div>
                 <p className="text-[10px] text-gray-600">
-                  Cuando el cliente abre este link, el botón de WhatsApp se conecta directamente contigo.
+                  Cuando el cliente abre este link, el botón de WhatsApp se conecta con tu número y muestra tu nombre.
                 </p>
               </div>
 
@@ -253,6 +336,49 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* ── Perfil ───────────────────────────────────────────────────── */}
+          {tab === 'profile' && (
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Perfil del asesor</p>
+                <p className="text-xs text-gray-500 mt-1">Estos datos personalizan tu link, QR y contacto de WhatsApp.</p>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-2xl border border-gray-700 bg-gray-800/60 p-3">
+                <AdvisorAvatar advisor={advisor} color={tour.brandColor} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{advisor.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{advisor.title || advisor.company || user?.email}</p>
+                </div>
+              </div>
+
+              <AdvisorField label="Nombre">
+                <input value={advisorDraft.name} onChange={(e) => setAdvisorDraft((p) => ({ ...p, name: e.target.value }))} className="input-dark" placeholder="Tu nombre" />
+              </AdvisorField>
+              <AdvisorField label="WhatsApp">
+                <input value={advisorDraft.phone} onChange={(e) => setAdvisorDraft((p) => ({ ...p, phone: e.target.value }))} className="input-dark" placeholder="+52 984 000 0000" />
+              </AdvisorField>
+              <AdvisorField label="Cargo">
+                <input value={advisorDraft.title ?? ''} onChange={(e) => setAdvisorDraft((p) => ({ ...p, title: e.target.value }))} className="input-dark" placeholder="Asesor inmobiliario" />
+              </AdvisorField>
+              <AdvisorField label="Empresa">
+                <input value={advisorDraft.company ?? ''} onChange={(e) => setAdvisorDraft((p) => ({ ...p, company: e.target.value }))} className="input-dark" placeholder="Nombre de la inmobiliaria" />
+              </AdvisorField>
+              <AdvisorField label="Foto URL">
+                <input value={advisorDraft.photoUrl ?? ''} onChange={(e) => setAdvisorDraft((p) => ({ ...p, photoUrl: e.target.value }))} className="input-dark" placeholder="https://..." />
+              </AdvisorField>
+
+              <button
+                onClick={saveAdvisorProfile}
+                disabled={profileSaving}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
+              >
+                {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : profileSaved ? <CheckCheck className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                {profileSaved ? 'Perfil guardado' : 'Guardar cambios'}
+              </button>
             </div>
           )}
 
@@ -359,11 +485,25 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
               {/* Status summary chips */}
               <UnitSummary units={tour.units ?? []} />
 
+              <InventoryFilters
+                units={tour.units ?? []}
+                prototypes={tour.unitPrototypes ?? []}
+                status={unitStatus}
+                prototypeId={prototypeFilter}
+                onStatusChange={setUnitStatus}
+                onPrototypeChange={setPrototypeFilter}
+              />
+
               {/* Unit list */}
               <div className="space-y-1.5">
-                {(tour.units ?? []).map((unit) => (
+                {filterUnits(tour.units ?? [], unitStatus, prototypeFilter).map((unit) => (
                   <UnitRow key={unit.id} unit={unit} tour={tour} onNavigate={navigateTo} />
                 ))}
+                {filterUnits(tour.units ?? [], unitStatus, prototypeFilter).length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-800/40 p-5 text-center text-xs text-gray-500">
+                    No hay unidades con esos filtros.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -383,12 +523,108 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
           )}
 
         </div>
+        </div>
       </div>
     </div>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function AdvisorAvatar({ advisor, color, size = 'md' }: { advisor: SalesAdvisor; color?: string; size?: 'sm' | 'md' }) {
+  const className = size === 'sm' ? 'w-8 h-8 text-sm' : 'w-11 h-11 text-base';
+  if (advisor.photoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={advisor.photoUrl} alt={advisor.name} className={cn(className, 'rounded-full object-cover border border-white/20 flex-shrink-0')} />
+    );
+  }
+  return (
+    <div
+      className={cn(className, 'rounded-full flex items-center justify-center text-white font-bold border border-white/20 flex-shrink-0')}
+      style={{ background: color ?? '#1e40af' }}
+    >
+      {(advisor.name || 'A').charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+function AdvisorField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-xs font-semibold text-gray-400">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function InventoryFilters({
+  units,
+  prototypes,
+  status,
+  prototypeId,
+  onStatusChange,
+  onPrototypeChange,
+}: {
+  units: PropertyUnit[];
+  prototypes: UnitPrototype[];
+  status: InventoryStatusFilter;
+  prototypeId: string;
+  onStatusChange: (status: InventoryStatusFilter) => void;
+  onPrototypeChange: (prototypeId: string) => void;
+}) {
+  const availableStatuses = (Object.keys(STATUS_CONF) as PropertyUnit['status'][]).filter((key) =>
+    units.some((unit) => unit.status === key)
+  );
+
+  return (
+    <div className="rounded-2xl border border-gray-700 bg-gray-800/45 p-3 space-y-3">
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+        <Filter className="w-3.5 h-3.5" />
+        Filtros
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => onStatusChange('all')}
+          className={cn(
+            'rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors',
+            status === 'all' ? 'border-blue-400 bg-blue-500/15 text-blue-200' : 'border-gray-700 text-gray-400 hover:text-white'
+          )}
+        >
+          Todos
+        </button>
+        {availableStatuses.map((key) => {
+          const conf = STATUS_CONF[key];
+          return (
+            <button
+              key={key}
+              onClick={() => onStatusChange(key)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors',
+                status === key ? `${conf.bg} ${conf.color} border-current/50` : 'border-gray-700 text-gray-400 hover:text-white'
+              )}
+            >
+              {conf.icon}
+              {conf.label}
+            </button>
+          );
+        })}
+      </div>
+      {prototypes.length > 0 && (
+        <select
+          value={prototypeId}
+          onChange={(e) => onPrototypeChange(e.target.value)}
+          className="input-dark text-xs"
+        >
+          <option value="all">Todos los prototipos</option>
+          {prototypes.map((prototype) => (
+            <option key={prototype.id} value={prototype.id}>{prototype.name}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
 
 function GalleryImageCard({ item }: { item: GalleryItem }) {
   return (

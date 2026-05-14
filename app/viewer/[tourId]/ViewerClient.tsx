@@ -48,6 +48,8 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
   const searchParams = useSearchParams();
   const unitParam    = searchParams.get('unit');
   const waPhone      = searchParams.get('wa');
+  const advisorParam = searchParams.get('advisor');
+  const advisorTitle = searchParams.get('title');
 
   // If initialTour was provided by the server component, load it synchronously
   // before the first render so there's no loading flash.
@@ -357,7 +359,8 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
 
       {(() => {
         const advisorPhone = waPhone ?? tour.salesAdvisor?.phone ?? null;
-        const advisorName  = tour.salesAdvisor?.name ?? 'Asesor';
+        const advisorName  = advisorParam ?? tour.salesAdvisor?.name ?? 'Asesor';
+        const advisorRole  = advisorTitle ?? tour.salesAdvisor?.title ?? 'Asesor inmobiliario';
 
         return (
           <div ref={shareRef} className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
@@ -387,7 +390,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-white truncate">{advisorName}</p>
-                        <p className="text-[10px] text-gray-400 truncate">{tour.salesAdvisor?.title ?? 'Asesor inmobiliario'}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{advisorRole}</p>
                       </div>
                     </div>
                     <button
