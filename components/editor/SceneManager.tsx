@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Scene } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { Trash2, Star, Volume2, Upload, X, Loader2, Pencil, Check, ImageIcon } from 'lucide-react';
-import { uploadAsset } from '@/lib/storage';
+import { generateThumbnail, uploadAsset, uploadThumbnail } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 
 interface SceneManagerProps {
@@ -30,11 +30,36 @@ export function SceneManager({ scenes, currentSceneId, initialSceneId }: SceneMa
   const nameInputRef                        = useRef<HTMLInputElement>(null);
   const fileInputRef                        = useRef<HTMLInputElement>(null);
   const uploadingForRef                     = useRef<string | null>(null);
+  const thumbnailJobsRef                    = useRef<Set<string>>(new Set());
 
   // Focus the name input when editing starts
   useEffect(() => {
     if (editingSceneId) nameInputRef.current?.focus();
   }, [editingSceneId]);
+
+  useEffect(() => {
+    if (!tour) return;
+
+    for (const scene of scenes) {
+      if (scene.thumbnailUrl || !scene.imageUrl || thumbnailJobsRef.current.has(scene.id)) continue;
+      if (scene.imageUrl.startsWith('blob:')) continue;
+
+      thumbnailJobsRef.current.add(scene.id);
+      generateThumbnail(scene.imageUrl, 320, 160)
+        .then(async (thumbnailDataUrl) => {
+          try {
+            const { url } = await uploadThumbnail(tour.id, thumbnailDataUrl);
+            updateScene(scene.id, { thumbnailUrl: url });
+          } catch (err) {
+            console.warn('[SceneManager] Thumbnail upload failed:', err);
+            thumbnailJobsRef.current.delete(scene.id);
+          }
+        })
+        .catch(() => {
+          thumbnailJobsRef.current.delete(scene.id);
+        });
+    }
+  }, [scenes, tour, updateScene]);
 
   const startRename = (scene: Scene, e: React.MouseEvent) => {
     e.stopPropagation();
