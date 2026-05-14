@@ -6,6 +6,17 @@
 import { getSupabase } from './supabase';
 import { Tour } from '@/types/tour.types';
 
+const SUPABASE_QUERY_TIMEOUT_MS = 8000;
+
+async function withQueryTimeout<T>(promise: PromiseLike<T>): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Supabase query timed out')), SUPABASE_QUERY_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TourRow {
@@ -36,13 +47,15 @@ export interface TourSummary {
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
-/** Fetch all tours for the current user (summary only, no heavy JSON). */
+/** Fetch all tours for the current user with enough data to build dashboard cards. */
 export async function listUserTours(): Promise<TourSummary[]> {
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('tours')
-    .select('id, title, description, is_published, share_slug, view_count, created_at, updated_at, data')
-    .order('updated_at', { ascending: false });
+  const { data, error } = await withQueryTimeout(
+    sb
+      .from('tours')
+      .select('id, title, description, is_published, share_slug, view_count, created_at, updated_at, data')
+      .order('updated_at', { ascending: false })
+  );
 
   if (error) throw new Error(error.message);
 
@@ -66,11 +79,13 @@ export async function listUserTours(): Promise<TourSummary[]> {
  */
 export async function getTourSceneNames(id: string): Promise<Map<string, string>> {
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('tours')
-    .select('data')
-    .eq('id', id)
-    .single();
+  const { data, error } = await withQueryTimeout(
+    sb
+      .from('tours')
+      .select('data')
+      .eq('id', id)
+      .single()
+  );
 
   if (error || !data) return new Map();
   const scenes: { id: string; name: string }[] = data.data?.scenes ?? [];
@@ -80,11 +95,13 @@ export async function getTourSceneNames(id: string): Promise<Map<string, string>
 /** Fetch a single tour by its UUID (requires ownership or published). */
 export async function getTourById(id: string): Promise<TourRow | null> {
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('tours')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await withQueryTimeout(
+    sb
+      .from('tours')
+      .select('*')
+      .eq('id', id)
+      .single()
+  );
 
   if (error?.code === 'PGRST116') return null; // not found
   if (error) throw new Error(error.message);
@@ -94,12 +111,14 @@ export async function getTourById(id: string): Promise<TourRow | null> {
 /** Fetch a published tour by its slug (public viewer). */
 export async function getTourBySlug(slug: string): Promise<TourRow | null> {
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('tours')
-    .select('*')
-    .eq('share_slug', slug)
-    .eq('is_published', true)
-    .single();
+  const { data, error } = await withQueryTimeout(
+    sb
+      .from('tours')
+      .select('*')
+      .eq('share_slug', slug)
+      .eq('is_published', true)
+      .single()
+  );
 
   if (error?.code === 'PGRST116') return null;
   if (error) throw new Error(error.message);
@@ -120,10 +139,12 @@ export interface CRMUnit {
 /** Fetch all tours and extract every unit, keyed by tour. Used in the CRM dashboard panel. */
 export async function listToursWithUnits(): Promise<CRMUnit[]> {
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('tours')
-    .select('id, title, data')
-    .order('updated_at', { ascending: false });
+  const { data, error } = await withQueryTimeout(
+    sb
+      .from('tours')
+      .select('id, title, data')
+      .order('updated_at', { ascending: false })
+  );
 
   if (error) throw new Error(error.message);
 

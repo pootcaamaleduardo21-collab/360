@@ -7,6 +7,15 @@ import { ViewerClient } from './ViewerClient';
 
 interface Props { params: { tourId: string } }
 
+const TOUR_PREFETCH_TIMEOUT_MS = 2500;
+
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T | null> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
+
 export default async function ViewerPage({ params }: Props) {
   const { tourId } = params;
   let initialTour: Tour | null = null;
@@ -18,20 +27,28 @@ export default async function ViewerPage({ params }: Props) {
 
     if (!isUuid) {
       // Public slug — fetch server-side so the HTML already contains tour data
-      const { data } = await sb
-        .from('tours')
-        .select('data')
-        .eq('share_slug', tourId)
-        .eq('is_published', true)
-        .single();
+      const result = await withTimeout(
+        sb
+          .from('tours')
+          .select('data')
+          .eq('share_slug', tourId)
+          .eq('is_published', true)
+          .single(),
+        TOUR_PREFETCH_TIMEOUT_MS
+      );
+      const data = result?.data;
       initialTour = (data?.data as Tour) ?? null;
     } else {
       // UUID — only pre-load if published; unpublished tours require client-side auth check
-      const { data } = await sb
-        .from('tours')
-        .select('data, is_published')
-        .eq('id', tourId)
-        .single();
+      const result = await withTimeout(
+        sb
+          .from('tours')
+          .select('data, is_published')
+          .eq('id', tourId)
+          .single(),
+        TOUR_PREFETCH_TIMEOUT_MS
+      );
+      const data = result?.data;
       if (data?.is_published) {
         initialTour = (data.data as Tour) ?? null;
       }

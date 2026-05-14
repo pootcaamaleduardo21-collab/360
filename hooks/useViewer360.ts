@@ -13,6 +13,26 @@ export interface HotspotScreenPosition {
   visible: boolean;
 }
 
+function areHotspotPositionsEqual(
+  a: HotspotScreenPosition[],
+  b: HotspotScreenPosition[]
+): boolean {
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].id !== b[i].id ||
+      a[i].visible !== b[i].visible ||
+      Math.abs(a[i].x - b[i].x) > HOTSPOT_POSITION_EPSILON ||
+      Math.abs(a[i].y - b[i].y) > HOTSPOT_POSITION_EPSILON
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 interface UseViewer360Options {
   containerRef: React.RefObject<HTMLDivElement>;
   scene: Scene | null;
@@ -26,6 +46,7 @@ interface UseViewer360Options {
 
 const SPHERE_RADIUS = 500;
 const DRAG_SENSITIVITY = 0.1;
+const HOTSPOT_POSITION_EPSILON = 0.25;
 
 // ─── Coordinate conversion helpers ────────────────────────────────────────────
 
@@ -83,6 +104,7 @@ export function useViewer360({
   const clickStartPos      = useRef({ x: 0, y: 0 });
   const textureLoaderRef   = useRef(new THREE.TextureLoader());
   const currentTextureRef  = useRef<THREE.Texture | null>(null);
+  const hotspotPositionsRef = useRef<HotspotScreenPosition[]>([]);
   // Ref so the animate loop always calls the latest version (avoids stale closure)
   const updatePositionsRef = useRef<() => void>(() => {});
 
@@ -336,10 +358,19 @@ export function useViewer360({
     const container = containerRef.current;
     if (!camera || !container || !scene) return;
 
+    const hotspots = scene.hotspots ?? [];
+    if (hotspots.length === 0) {
+      if (hotspotPositionsRef.current.length > 0) {
+        hotspotPositionsRef.current = [];
+        setHotspotPositions([]);
+      }
+      return;
+    }
+
     const w = container.clientWidth;
     const h = container.clientHeight;
 
-    const positions = (scene.hotspots ?? []).map((hotspot) => {
+    const positions = hotspots.map((hotspot) => {
       // World-space position on the sphere
       const worldPos = sphericalToVector3(hotspot.yaw, hotspot.pitch)
         .multiplyScalar(SPHERE_RADIUS);
@@ -356,6 +387,9 @@ export function useViewer360({
       return { id: hotspot.id, x, y, visible };
     });
 
+    if (areHotspotPositionsEqual(hotspotPositionsRef.current, positions)) return;
+
+    hotspotPositionsRef.current = positions;
     setHotspotPositions(positions);
   }, [scene, containerRef]);
 
