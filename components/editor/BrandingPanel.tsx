@@ -77,7 +77,7 @@ export function BrandingPanel({ tour }: { tour: Tour }) {
 
       {/* ── POI ────────────────────────────────────────────────────────────── */}
       {activeTab === 'poi' && (
-        <POITab items={tour.pointsOfInterest ?? []} onUpdate={updatePOIs} />
+        <POITab tour={tour} items={tour.pointsOfInterest ?? []} onUpdate={updatePOIs} />
       )}
     </div>
   );
@@ -380,11 +380,67 @@ function BrochureTab({ tour, updateTour }: { tour: Tour; updateTour: (p: Partial
 
 // ─── POI tab ──────────────────────────────────────────────────────────────────
 
-function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: PointOfInterest[]) => void }) {
+interface PlaceSuggestion {
+  placeId:       string;
+  description:   string;
+  mainText:      string;
+  secondaryText: string;
+}
+
+function POITab({ tour, items, onUpdate }: { tour: Tour; items: PointOfInterest[]; onUpdate: (i: PointOfInterest[]) => void }) {
   const [category,    setCategory]    = useState<POICategory>('school');
   const [label,       setLabel]       = useState('');
   const [distance,    setDistance]    = useState('');
   const [description, setDescription] = useState('');
+  const [address,     setAddress]     = useState('');
+  const [lat,         setLat]         = useState<number | undefined>();
+  const [lng,         setLng]         = useState<number | undefined>();
+  const [query,       setQuery]       = useState('');
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [searching,   setSearching]   = useState(false);
+  const [resolving,   setResolving]   = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Session token groups autocomplete + details into one billing session
+  const sessionRef  = useRef(crypto.randomUUID());
+
+  const hasOrigin = tour.propertyLat != null && tour.propertyLng != null;
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!value.trim()) { setSuggestions([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(value)}&sessiontoken=${sessionRef.current}`);
+        if (res.ok) setSuggestions(await res.json());
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  }, []);
+
+  const pickSuggestion = useCallback(async (s: PlaceSuggestion) => {
+    setSuggestions([]);
+    setQuery('');
+    setResolving(true);
+    try {
+      const res = await fetch(`/api/places/${s.placeId}?sessiontoken=${sessionRef.current}`);
+      sessionRef.current = crypto.randomUUID(); // new session after details call
+      if (!res.ok) { setAddress(s.description); return; }
+      const { lat: pLat, lng: pLng, formattedAddress, name } = await res.json();
+      const km = (hasOrigin && pLat != null && pLng != null)
+        ? haversineKm(tour.propertyLat!, tour.propertyLng!, pLat, pLng)
+        : null;
+      setLat(pLat ?? undefined);
+      setLng(pLng ?? undefined);
+      setAddress(formattedAddress || s.description);
+      if (km != null) setDistance(`${formatDriveTime(km)} · ${formatDistance(km)}`);
+      setLabel((cur) => cur || name || s.mainText);
+    } finally {
+      setResolving(false);
+    }
+  }, [hasOrigin, tour.propertyLat, tour.propertyLng]);
 
   const addPOI = () => {
     if (!label.trim()) return;
@@ -394,11 +450,19 @@ function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: P
       category,
       distance: distance.trim() || undefined,
       description: description.trim() || undefined,
+      address: address.trim() || undefined,
+      lat,
+      lng,
     };
     onUpdate([...items, poi]);
     setLabel('');
     setDistance('');
     setDescription('');
+    setAddress('');
+    setLat(undefined);
+    setLng(undefined);
+    setQuery('');
+    setSuggestions([]);
   };
 
   return (
@@ -406,6 +470,11 @@ function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: P
       {/* Add POI form */}
       <div className="bg-gray-800/40 rounded-xl p-3 space-y-2.5">
         <p className="text-xs font-semibold text-gray-400">Agregar lugar cercano</p>
+        {!hasOrigin && (
+          <p className="text-[10px] text-amber-500/80 leading-snug">
+            Configura primero la ubicación del desarrollo en Marca para calcular distancias automáticamente.
+          </p>
+        )}
 
         {/* Category grid */}
         <div className="grid grid-cols-4 gap-1">
@@ -435,15 +504,67 @@ function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: P
           className="input-dark"
           placeholder={`Nombre — ej. ${POI_CONFIG[category].label}`}
         />
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={distance}
-            onChange={(e) => setDistance(e.target.value)}
-            className="input-dark flex-1"
-            placeholder="Distancia — 5 min, 1.2 km"
-          />
+        {/* Google Places autocomplete */}
+        <div className="relative">
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              className="input-dark pl-8 pr-8"
+              placeholder="Buscar con Google Maps…"
+              autoComplete="off"
+            />
+            {(searching || resolving) && (
+              <Loader2 className="absolute right-2.5 w-3.5 h-3.5 text-blue-400 animate-spin" />
+            )}
+          </div>
+          {suggestions.length > 0 && (
+            <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
+              {suggestions.map((s) => (
+                <button
+                  key={s.placeId}
+                  type="button"
+                  onClick={() => pickSuggestion(s)}
+                  className="w-full text-left px-3 py-2.5 hover:bg-gray-700 border-b border-gray-700/60 last:border-0 transition-colors"
+                >
+                  <p className="text-xs font-medium text-gray-200 leading-snug">{s.mainText}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5 truncate">{s.secondaryText}</p>
+                </button>
+              ))}
+              <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-gray-900/60 border-t border-gray-700/60">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-non-white3.png" alt="Powered by Google" className="h-3 opacity-60" />
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Map preview — Google Maps Static API */}
+        {lat != null && lng != null && (
+          <div className="rounded-xl overflow-hidden border border-gray-700 relative" style={{ height: 130 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=320x130&scale=2&markers=color:red%7C${lat},${lng}&style=feature:all|element:labels.text.fill|color:0x9ca3af&style=feature:poi|visibility:simplified&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`}
+              alt="Vista previa del lugar"
+              className="w-full h-full object-cover"
+            />
+            {address && (
+              <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5 bg-gray-950/80 backdrop-blur-sm">
+                <p className="text-[10px] text-gray-300 truncate">{address}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <input
+          type="text"
+          value={distance}
+          onChange={(e) => setDistance(e.target.value)}
+          className="input-dark"
+          placeholder="Distancia — ej. 5 min · 2.3 km (se calcula automáticamente)"
+        />
         <input
           type="text"
           value={description}
@@ -470,8 +591,21 @@ function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: P
                 <span className="text-base leading-none">{cfg.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-200 font-medium truncate">{poi.label}</p>
-                  {poi.distance && <p className="text-[10px] text-gray-500">{poi.distance}</p>}
+                  {(poi.distance || poi.address) && (
+                    <p className="text-[10px] text-gray-500 truncate">{[poi.distance, poi.address].filter(Boolean).join(' · ')}</p>
+                  )}
                 </div>
+                {(poi.lat != null && poi.lng != null) && (
+                  <a
+                    href={`https://www.google.com/maps?q=${poi.lat},${poi.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 rounded text-gray-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Ver en Google Maps"
+                  >
+                    <MapPin className="w-3 h-3" />
+                  </a>
+                )}
                 <button
                   onClick={() => onUpdate(items.filter((p) => p.id !== poi.id))}
                   className="p-1 rounded text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
@@ -489,12 +623,6 @@ function POITab({ items, onUpdate }: { items: PointOfInterest[]; onUpdate: (i: P
 
 // ─── LocationPicker ───────────────────────────────────────────────────────────
 
-interface NominatimResult {
-  lat: string;
-  lon: string;
-  display_name: string;
-}
-
 function LocationPicker({
   lat, lng, onChange,
 }: {
@@ -502,48 +630,56 @@ function LocationPicker({
   lng?: number;
   onChange: (lat: number, lng: number) => void;
 }) {
-  const [query,     setQuery]     = useState('');
-  const [results,   setResults]   = useState<NominatimResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [placeName, setPlaceName] = useState<string | null>(null);
-  const [editing,   setEditing]   = useState(!lat || !lng);
-  const lastCall = useRef(0);
+  const [query,       setQuery]       = useState('');
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [searching,   setSearching]   = useState(false);
+  const [resolving,   setResolving]   = useState(false);
+  const [placeName,   setPlaceName]   = useState<string | null>(null);
+  const [editing,     setEditing]     = useState(!lat || !lng);
+  const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionRef   = useRef(crypto.randomUUID());
 
   const hasPin = lat != null && lng != null;
 
-  const search = useCallback(async () => {
-    const q = query.trim();
-    if (!q) return;
-    const now  = Date.now();
-    const wait = Math.max(0, 1000 - (now - lastCall.current));
-    if (wait) await new Promise((r) => setTimeout(r, wait));
-    lastCall.current = Date.now();
-    setSearching(true);
-    try {
-      const res  = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`,
-        { headers: { 'Accept-Language': 'es' } },
-      );
-      const data: NominatimResult[] = await res.json();
-      setResults(data);
-    } finally {
-      setSearching(false);
-    }
-  }, [query]);
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!value.trim()) { setSuggestions([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(value)}&sessiontoken=${sessionRef.current}`);
+        if (res.ok) setSuggestions(await res.json());
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  }, []);
 
-  const pick = (r: NominatimResult) => {
-    onChange(parseFloat(r.lat), parseFloat(r.lon));
-    setPlaceName(r.display_name.split(',').slice(0, 2).join(', '));
-    setResults([]);
+  const pick = useCallback(async (s: PlaceSuggestion) => {
+    setSuggestions([]);
     setQuery('');
-    setEditing(false);
-  };
+    setResolving(true);
+    try {
+      const res = await fetch(`/api/places/${s.placeId}?sessiontoken=${sessionRef.current}`);
+      sessionRef.current = crypto.randomUUID();
+      if (!res.ok) return;
+      const { lat: pLat, lng: pLng, name, formattedAddress } = await res.json();
+      if (pLat != null && pLng != null) {
+        onChange(pLat, pLng);
+        setPlaceName(name || formattedAddress || s.mainText);
+        setEditing(false);
+      }
+    } finally {
+      setResolving(false);
+    }
+  }, [onChange]);
 
   // ── Confirmed view ──────────────────────────────────────────────────────────
   if (hasPin && !editing) {
+    const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? '';
     return (
       <div className="space-y-2">
-        {/* Confirmed card */}
         <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/40">
           <div className="w-8 h-8 rounded-full bg-emerald-700/25 flex items-center justify-center flex-shrink-0">
             <MapPin className="w-4 h-4 text-emerald-400" />
@@ -553,7 +689,7 @@ function LocationPicker({
               {placeName ?? 'Ubicación guardada'}
             </p>
             <button
-              onClick={() => { setEditing(true); setResults([]); }}
+              onClick={() => { setEditing(true); setSuggestions([]); }}
               className="text-[10px] text-gray-500 hover:text-gray-300 mt-0.5 transition-colors"
             >
               Cambiar ubicación
@@ -569,14 +705,13 @@ function LocationPicker({
           </a>
         </div>
 
-        {/* Map preview */}
+        {/* Google Maps Static preview */}
         <div className="rounded-xl overflow-hidden border border-gray-700/60" style={{ height: 170 }}>
-          <iframe
-            title="Ubicación del desarrollo"
-            width="100%"
-            height="100%"
-            style={{ border: 0 }}
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng! - 0.006},${lat! - 0.004},${lng! + 0.006},${lat! + 0.004}&layer=mapnik&marker=${lat},${lng}`}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=320x170&scale=2&markers=color:red%7C${lat},${lng}&style=feature:poi|visibility:simplified&key=${MAPS_KEY}`}
+            alt="Ubicación del desarrollo"
+            className="w-full h-full object-cover"
           />
         </div>
       </div>
@@ -586,26 +721,45 @@ function LocationPicker({
   // ── Search mode ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-2">
-      <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && search()}
-          placeholder="Ej: Torre Mayor, Playa del Carmen, Col. Polanco…"
-          className="input-dark text-xs flex-1"
-          // eslint-disable-next-line jsx-a11y/no-autofocus
-          autoFocus={editing && hasPin}
-        />
-        <button
-          onClick={search}
-          disabled={searching}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-50 transition-colors"
-        >
-          {searching
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            : <Search  className="w-3.5 h-3.5" />}
-        </button>
+      <div className="relative">
+        <div className="relative flex items-center">
+          <Search className="absolute left-2.5 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => handleQueryChange(e.target.value)}
+            placeholder="Ej: Torre Mayor, Playa del Carmen, Col. Polanco…"
+            className="input-dark text-xs pl-8 pr-8"
+            autoComplete="off"
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus={editing && hasPin}
+          />
+          {(searching || resolving) && (
+            <Loader2 className="absolute right-2.5 w-3.5 h-3.5 text-blue-400 animate-spin" />
+          )}
+        </div>
+        {suggestions.length > 0 && (
+          <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
+            {suggestions.map((s) => (
+              <button
+                key={s.placeId}
+                type="button"
+                onClick={() => pick(s)}
+                className="w-full text-left px-3 py-2.5 hover:bg-gray-700 border-b border-gray-700/60 last:border-0 transition-colors flex items-start gap-2"
+              >
+                <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-200 leading-snug">{s.mainText}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5 truncate">{s.secondaryText}</p>
+                </div>
+              </button>
+            ))}
+            <div className="flex items-center justify-end px-3 py-1.5 bg-gray-900/60 border-t border-gray-700/60">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-non-white3.png" alt="Powered by Google" className="h-3 opacity-60" />
+            </div>
+          </div>
+        )}
       </div>
 
       {hasPin && (
@@ -615,21 +769,6 @@ function LocationPicker({
         >
           ← Cancelar
         </button>
-      )}
-
-      {results.length > 0 && (
-        <div className="rounded-xl border border-gray-700 bg-gray-900/95 divide-y divide-gray-800 overflow-hidden shadow-xl">
-          {results.map((r, i) => (
-            <button
-              key={i}
-              onClick={() => pick(r)}
-              className="w-full text-left px-3 py-2.5 hover:bg-gray-800 transition-colors flex items-start gap-2"
-            >
-              <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <p className="text-[11px] text-gray-200 leading-snug line-clamp-2">{r.display_name}</p>
-            </button>
-          ))}
-        </div>
       )}
     </div>
   );
@@ -645,3 +784,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toFixed(1)} km`;
+}
+
+function formatDriveTime(km: number): string {
+  const min = Math.max(1, Math.round((km / 28) * 60));
+  if (min < 60) return `${min} min en auto`;
+  return `${Math.floor(min / 60)}h ${min % 60}min en auto`;
+}
+
