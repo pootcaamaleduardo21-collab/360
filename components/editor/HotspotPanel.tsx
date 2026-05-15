@@ -620,155 +620,233 @@ interface POIFieldsProps {
 }
 
 function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProps) {
-  const [searchQuery, setSearchQuery]     = useState('');
-  const [suggestions, setSuggestions]     = useState<PlaceSuggestion[]>([]);
-  const [searching,   setSearching]       = useState(false);
-  const [resolving,   setResolving]       = useState(false);
-  const [showResults, setShowResults]     = useState(false);
-  const searchTimeout                     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sessionRef                        = useRef(crypto.randomUUID());
+  const [originQuery, setOriginQuery]           = useState('');
+  const [destinationQuery, setDestinationQuery] = useState('');
+  const [suggestions, setSuggestions]           = useState<PlaceSuggestion[]>([]);
+  const [searching, setSearching]               = useState<'origin' | 'destination' | null>(null);
+  const [resolving, setResolving]               = useState<'origin' | 'destination' | null>(null);
+  const [showResults, setShowResults]           = useState<'origin' | 'destination' | null>(null);
+  const searchTimeout                           = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionRef                              = useRef(crypto.randomUUID());
 
-  const hasOrigin  = propertyLat != null && propertyLng != null;
-  const hasDest    = selected.mapLat != null && selected.mapLng != null;
+  const originLat = selected.mapOriginLat ?? propertyLat;
+  const originLng = selected.mapOriginLng ?? propertyLng;
+  const hasOrigin = originLat != null && originLng != null;
+  const hasDest   = selected.mapLat != null && selected.mapLng != null;
+  const hasRoute  = hasOrigin && hasDest;
+  const mapsKey   = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? '';
+  const travelMode = selected.mapTravelMode ?? 'walking';
 
-  const fallbackDistance = useCallback((lat: number, lng: number) => {
-    const km = haversineKm(propertyLat!, propertyLng!, lat, lng);
+  const fallbackDistance = useCallback((fromLat: number, fromLng: number, toLat: number, toLng: number) => {
+    const km = haversineKm(fromLat, fromLng, toLat, toLng);
     return `${formatWalkTime(km)} · ${formatDistance(km)}`;
-  }, [propertyLat, propertyLng]);
+  }, []);
 
-  const getRouteSummary = useCallback(async (lat: number, lng: number) => {
-    if (!hasOrigin) return null;
+  const getRouteSummary = useCallback(async (fromLat: number, fromLng: number, toLat: number, toLng: number) => {
     try {
-      const origin = `${propertyLat},${propertyLng}`;
-      const destination = `${lat},${lng}`;
-      const res = await fetch(`/api/places/route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&mode=walking`);
+      const origin = `${fromLat},${fromLng}`;
+      const destination = `${toLat},${toLng}`;
+      const res = await fetch(`/api/places/route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&mode=${travelMode}`);
       if (!res.ok) return null;
       const route = await res.json() as RouteSummary;
       return route.summary || null;
     } catch {
       return null;
     }
-  }, [hasOrigin, propertyLat, propertyLng]);
+  }, [travelMode]);
 
-  // Auto-calculate and fill route distance when both points are known
   const autoDistance = useCallback(async () => {
-    if (!hasOrigin || !hasDest) return;
-    const dist = await getRouteSummary(selected.mapLat!, selected.mapLng!)
-      ?? fallbackDistance(selected.mapLat!, selected.mapLng!);
+    if (!hasRoute) return;
+    const dist = await getRouteSummary(originLat!, originLng!, selected.mapLat!, selected.mapLng!)
+      ?? fallbackDistance(originLat!, originLng!, selected.mapLat!, selected.mapLng!);
     update({ mapDistance: dist });
-  }, [fallbackDistance, getRouteSummary, hasOrigin, hasDest, selected.mapLat, selected.mapLng, update]);
+  }, [fallbackDistance, getRouteSummary, hasRoute, originLat, originLng, selected.mapLat, selected.mapLng, update]);
 
-  const handleSearch = () => {
-    const q = searchQuery.trim();
+  const handleSearch = (target: 'origin' | 'destination') => {
+    const q = (target === 'origin' ? originQuery : destinationQuery).trim();
     if (!q) return;
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    setSearching(true);
-    setShowResults(false);
+    setSearching(target);
+    setShowResults(null);
     searchTimeout.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/places?q=${encodeURIComponent(q)}&sessiontoken=${sessionRef.current}`);
         setSuggestions(res.ok ? await res.json() : []);
-        setShowResults(true);
+        setShowResults(target);
       } catch {
         setSuggestions([]);
       } finally {
-        setSearching(false);
+        setSearching(null);
       }
     }, 400);
   };
 
-  const applySuggestion = async (s: PlaceSuggestion) => {
-    setShowResults(false);
-    setSearchQuery('');
-    setResolving(true);
+  const applySuggestion = async (target: 'origin' | 'destination', s: PlaceSuggestion) => {
+    setShowResults(null);
+    if (target === 'origin') setOriginQuery('');
+    else setDestinationQuery('');
+    setResolving(target);
     try {
       const res = await fetch(`/api/places/${s.placeId}?sessiontoken=${sessionRef.current}`);
       sessionRef.current = crypto.randomUUID();
       if (!res.ok) {
-        update({ mapAddress: s.description, mapGooglePlaceId: s.placeId });
+        update(target === 'origin'
+          ? { mapOriginAddress: s.description, mapOriginGooglePlaceId: s.placeId }
+          : { mapAddress: s.description, mapGooglePlaceId: s.placeId });
         return;
       }
+
       const details = await res.json() as PlaceDetails;
-      const patch: Partial<Omit<Hotspot, 'id'>> = {
-        mapAddress: details.formattedAddress || s.description,
-        mapGooglePlaceId: s.placeId,
-      };
+      const address = details.formattedAddress || s.description;
+      const patch: Partial<Omit<Hotspot, 'id'>> = target === 'origin'
+        ? { mapOriginAddress: address, mapOriginGooglePlaceId: s.placeId }
+        : { mapAddress: address, mapGooglePlaceId: s.placeId };
+
       if (details.lat != null && details.lng != null) {
-        patch.mapLat = details.lat;
-        patch.mapLng = details.lng;
-        if (hasOrigin) {
-          patch.mapDistance = await getRouteSummary(details.lat, details.lng)
-            ?? fallbackDistance(details.lat, details.lng);
+        if (target === 'origin') {
+          patch.mapOriginLat = details.lat;
+          patch.mapOriginLng = details.lng;
+          if (hasDest) {
+            patch.mapDistance = await getRouteSummary(details.lat, details.lng, selected.mapLat!, selected.mapLng!)
+              ?? fallbackDistance(details.lat, details.lng, selected.mapLat!, selected.mapLng!);
+          }
+        } else {
+          patch.mapLat = details.lat;
+          patch.mapLng = details.lng;
+          if (hasOrigin) {
+            patch.mapDistance = await getRouteSummary(originLat!, originLng!, details.lat, details.lng)
+              ?? fallbackDistance(originLat!, originLng!, details.lat, details.lng);
+          }
         }
       }
-      if (!selected.label || selected.label === 'Punto de interés') {
+
+      if (target === 'destination' && (!selected.label || selected.label === 'Punto de interés')) {
         patch.label = details.name || s.mainText;
       }
       update(patch);
     } finally {
-      setResolving(false);
+      setResolving(null);
     }
   };
 
-  return (
-    <>
-      {/* Search box */}
-      <Field label="Buscar lugar en el mapa">
-        <div className="relative">
-          <div className="flex gap-1.5">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="input-dark flex-1"
-              placeholder="Playa del Carmen, Hospital, Colegio…"
-            />
+  const routeHref = hasRoute
+    ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${selected.mapLat},${selected.mapLng}&travelmode=${travelMode}`
+    : hasDest
+      ? `https://www.google.com/maps/search/?api=1&query=${selected.mapLat},${selected.mapLng}`
+      : null;
+
+  const mapPreviewSrc = mapsKey
+    ? hasRoute
+      ? `https://www.google.com/maps/embed/v1/directions?key=${mapsKey}&origin=${originLat},${originLng}&destination=${selected.mapLat},${selected.mapLng}&mode=${travelMode}&language=es`
+      : hasDest
+        ? `https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${selected.mapLat},${selected.mapLng}&language=es`
+        : null
+    : null;
+
+  const renderSearch = (
+    target: 'origin' | 'destination',
+    label: string,
+    value: string,
+    onValue: (value: string) => void,
+    placeholder: string,
+  ) => (
+    <Field label={label}>
+      <div className="relative">
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch(target)}
+            className="input-dark flex-1"
+            placeholder={placeholder}
+          />
+          <button
+            type="button"
+            onClick={() => handleSearch(target)}
+            disabled={searching === target || resolving === target}
+            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors disabled:opacity-50 flex-shrink-0"
+          >
+            {searching === target || resolving === target ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+          </button>
+        </div>
+        {showResults === target && suggestions.length > 0 && (
+          <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
+            {suggestions.map((s) => (
+              <button
+                key={s.placeId}
+                type="button"
+                onClick={() => applySuggestion(target, s)}
+                className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 border-b border-gray-700 last:border-0 leading-snug"
+              >
+                <MapPin className="w-3 h-3 inline mr-1 text-blue-400 flex-shrink-0" />
+                <span className="font-medium">{s.mainText}</span>
+                {s.secondaryText && <span className="block text-[10px] text-gray-500 mt-0.5 truncate">{s.secondaryText}</span>}
+              </button>
+            ))}
+            <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-gray-900/60 border-t border-gray-700/60">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-non-white3.png" alt="Powered by Google" className="h-3 opacity-60" />
+            </div>
             <button
               type="button"
-              onClick={handleSearch}
-              disabled={searching || resolving}
-              className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors disabled:opacity-50 flex-shrink-0"
+              onClick={() => setShowResults(null)}
+              className="w-full px-3 py-1.5 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
             >
-              {searching || resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              Cerrar
             </button>
           </div>
-          {showResults && suggestions.length > 0 && (
-            <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
-              {suggestions.map((s) => (
-                <button
-                  key={s.placeId}
-                  type="button"
-                  onClick={() => applySuggestion(s)}
-                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 border-b border-gray-700 last:border-0 leading-snug"
-                >
-                  <MapPin className="w-3 h-3 inline mr-1 text-blue-400 flex-shrink-0" />
-                  <span className="font-medium">{s.mainText}</span>
-                  {s.secondaryText && <span className="block text-[10px] text-gray-500 mt-0.5 truncate">{s.secondaryText}</span>}
-                </button>
-              ))}
-              <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-gray-900/60 border-t border-gray-700/60">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-non-white3.png" alt="Powered by Google" className="h-3 opacity-60" />
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowResults(false)}
-                className="w-full px-3 py-1.5 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
-              >
-                Cerrar
-              </button>
-            </div>
-          )}
-        </div>
-        {!hasOrigin && (
-          <p className="text-[10px] text-amber-500/80 leading-snug mt-1">
-            Configura la ubicación del desarrollo en Marca → Ubicación para calcular distancias automáticamente.
-          </p>
         )}
-      </Field>
+      </div>
+    </Field>
+  );
 
-      {/* Name */}
+  return (
+    <>
+      {renderSearch(
+        'origin',
+        'Punto de partida',
+        originQuery,
+        setOriginQuery,
+        selected.mapOriginAddress ?? (hasOrigin ? 'Usando ubicación del desarrollo' : 'Buscar punto de partida…'),
+      )}
+
+      {!selected.mapOriginAddress && hasOrigin && (
+        <p className="text-[10px] text-gray-500 leading-snug -mt-3">
+          Si no eliges otro punto, la ruta saldrá desde la ubicación guardada en Marca.
+        </p>
+      )}
+
+      {renderSearch(
+        'destination',
+        'Destino',
+        destinationQuery,
+        setDestinationQuery,
+        'Playa del Carmen, Hospital, Colegio…',
+      )}
+
+      {!hasOrigin && (
+        <p className="text-[10px] text-amber-500/80 leading-snug -mt-3">
+          Selecciona un punto de partida aquí o configura la ubicación del desarrollo en Marca.
+        </p>
+      )}
+
+      <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-2.5 space-y-1.5">
+        <div className="flex items-start gap-2">
+          <MapPin className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-gray-300 leading-snug">
+            {selected.mapOriginAddress ?? (hasOrigin ? 'Ubicación del desarrollo' : 'Sin punto de partida')}
+          </p>
+        </div>
+        <div className="ml-1.5 h-4 border-l border-dashed border-gray-700" />
+        <div className="flex items-start gap-2">
+          <MapPin className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-gray-300 leading-snug">
+            {selected.mapAddress ?? 'Sin destino'}
+          </p>
+        </div>
+      </div>
+
       <Field label="Nombre del lugar">
         <input
           type="text"
@@ -779,18 +857,26 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
         />
       </Field>
 
-      {/* Address (read-only after geocode, editable manually) */}
-      <Field label="Dirección">
+      <Field label="Dirección destino">
         <input
           type="text"
           value={selected.mapAddress ?? ''}
           onChange={(e) => update({ mapAddress: e.target.value })}
           className="input-dark"
-          placeholder="Se llena automáticamente al buscar"
+          placeholder="Se llena automáticamente al buscar el destino"
         />
       </Field>
 
-      {/* Distance */}
+      <Field label="Dirección punto de partida">
+        <input
+          type="text"
+          value={selected.mapOriginAddress ?? ''}
+          onChange={(e) => update({ mapOriginAddress: e.target.value || undefined })}
+          className="input-dark"
+          placeholder={hasOrigin ? 'Usando ubicación del desarrollo' : 'Se llena automáticamente al buscar'}
+        />
+      </Field>
+
       <Field label="Distancia / tiempo">
         <div className="flex gap-1.5">
           <input
@@ -800,7 +886,7 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
             className="input-dark flex-1"
             placeholder="5 min caminando · 2.3 km"
           />
-          {hasOrigin && hasDest && (
+          {hasRoute && (
             <button
               type="button"
               onClick={autoDistance}
@@ -813,30 +899,57 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
         </div>
       </Field>
 
-      {/* Map preview — appears once a location is selected */}
+      <Field label="Modo de ruta">
+        <div className="grid grid-cols-2 gap-1.5">
+          {(['walking', 'driving'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => update({ mapTravelMode: mode })}
+              className={cn(
+                'px-2.5 py-2 rounded-lg text-xs font-semibold border transition-colors',
+                travelMode === mode
+                  ? 'bg-blue-600 border-blue-500 text-white'
+                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
+              )}
+            >
+              {mode === 'walking' ? 'Caminando' : 'Auto'}
+            </button>
+          ))}
+        </div>
+      </Field>
+
       {hasDest && (
         <div className="space-y-1.5">
-          <div className="rounded-xl overflow-hidden border border-gray-700" style={{ height: 140 }}>
-            <iframe
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${selected.mapLng! - 0.008},${selected.mapLat! - 0.006},${selected.mapLng! + 0.008},${selected.mapLat! + 0.006}&layer=mapnik&marker=${selected.mapLat},${selected.mapLng}`}
-              className="w-full h-full border-0"
-              title="Vista previa del mapa"
-            />
+          <div className="rounded-xl overflow-hidden border border-gray-700" style={{ height: 160 }}>
+            {mapPreviewSrc ? (
+              <iframe
+                src={mapPreviewSrc}
+                className="w-full h-full border-0"
+                title={hasRoute ? 'Vista previa de la ruta' : 'Vista previa del destino'}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center px-4 text-center bg-gray-900">
+                <p className="text-[11px] text-gray-500">Agrega NEXT_PUBLIC_GOOGLE_MAPS_KEY para ver la ruta embebida.</p>
+              </div>
+            )}
           </div>
-          <a
-            href={hasOrigin
-              ? `https://www.google.com/maps/dir/?api=1&origin=${propertyLat},${propertyLng}&destination=${selected.mapLat},${selected.mapLng}&travelmode=walking`
-              : `https://www.google.com/maps/search/?api=1&query=${selected.mapLat},${selected.mapLng}`}
-            target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
-          >
-            <MapPin className="w-3 h-3" /> {hasOrigin ? 'Ver ruta en Google Maps ↗' : 'Verificar en Google Maps ↗'}
-          </a>
+          {routeHref && (
+            <a
+              href={routeHref}
+              target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
+            >
+              <MapPin className="w-3 h-3" /> {hasRoute ? 'Ver ruta en Google Maps ↗' : 'Verificar destino en Google Maps ↗'}
+            </a>
+          )}
         </div>
       )}
 
       <p className="text-[11px] text-gray-600 leading-snug">
-        Al tocar el hotspot se abrirá Google Maps. Estilo <strong className="text-gray-400">Etiqueta</strong> ideal para vistas aéreas.
+        Al tocar el hotspot se abrirá la ruta en Google Maps. Estilo <strong className="text-gray-400">Etiqueta</strong> ideal para vistas aéreas.
       </p>
     </>
   );

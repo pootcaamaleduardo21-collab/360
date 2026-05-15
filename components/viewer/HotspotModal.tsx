@@ -217,17 +217,18 @@ const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? '';
 
 function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
   const tour = useTourStore((s) => s.tour);
-  const propertyLat = tour?.propertyLat;
-  const propertyLng = tour?.propertyLng;
+  const originLat = hotspot.mapOriginLat ?? tour?.propertyLat;
+  const originLng = hotspot.mapOriginLng ?? tour?.propertyLng;
 
   const hasKey    = !!GMAPS_KEY;
-  const hasOrigin = propertyLat != null && propertyLng != null;
+  const hasOrigin = originLat != null && originLng != null;
   const hasDest   = hotspot.mapLat != null && hotspot.mapLng != null;
+  const travelMode = hotspot.mapTravelMode ?? 'driving';
 
   // Build embed src: directions if we have origin+dest, place otherwise
   const embedSrc = hasKey
     ? hasOrigin && (hasDest || hotspot.mapAddress)
-      ? `https://www.google.com/maps/embed/v1/directions?key=${GMAPS_KEY}&origin=${propertyLat},${propertyLng}&destination=${hasDest ? `${hotspot.mapLat},${hotspot.mapLng}` : encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}&mode=driving&language=es`
+      ? `https://www.google.com/maps/embed/v1/directions?key=${GMAPS_KEY}&origin=${originLat},${originLng}&destination=${hasDest ? `${hotspot.mapLat},${hotspot.mapLng}` : encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}&mode=${travelMode}&language=es`
       : hasDest
         ? `https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&q=${hotspot.mapLat},${hotspot.mapLng}&language=es`
         : `https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&q=${encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}&language=es`
@@ -238,7 +239,7 @@ function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
     : hotspot.mapAddress ?? hotspot.label;
 
   const externalHref = hasOrigin
-    ? `https://www.google.com/maps/dir/?api=1&origin=${propertyLat},${propertyLng}&destination=${encodeURIComponent(destination)}&travelmode=driving`
+    ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${encodeURIComponent(destination)}&travelmode=${travelMode}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
 
   return (
@@ -253,6 +254,9 @@ function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-base leading-tight">{hotspot.label}</h3>
+          {hotspot.mapOriginAddress && (
+            <p className="text-xs text-gray-400 mt-0.5 leading-snug">Desde: {hotspot.mapOriginAddress}</p>
+          )}
           {hotspot.mapAddress && (
             <p className="text-sm text-gray-500 mt-0.5 leading-snug">{hotspot.mapAddress}</p>
           )}

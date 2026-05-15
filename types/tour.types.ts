@@ -65,10 +65,15 @@ export interface Hotspot {
   unitId?: string;         // 'unit' → references PropertyUnit.id
 
   // 'map' type — Point of interest
+  mapOriginAddress?: string; // Route origin address/place name
+  mapOriginLat?: number;     // Route origin latitude
+  mapOriginLng?: number;     // Route origin longitude
+  mapOriginGooglePlaceId?: string;
   mapAddress?: string;     // Address or place name for Google Maps search
   mapLat?: number;         // Precise latitude
   mapLng?: number;         // Precise longitude
   mapGooglePlaceId?: string; // Google Place ID for stable POI routing
+  mapTravelMode?: 'walking' | 'driving';
   mapDistance?: string;    // Human-readable distance, e.g. "5 min · 2.3 km"
 
   // Visual overrides
