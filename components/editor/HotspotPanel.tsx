@@ -45,18 +45,24 @@ function formatWalkTime(km: number): string {
   return `${Math.floor(min / 60)}h ${min % 60}min caminando`;
 }
 
-// ─── Nominatim geocoder ───────────────────────────────────────────────────────
+// ─── Google Places suggestions ────────────────────────────────────────────────
 
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
+interface PlaceSuggestion {
+  placeId:       string;
+  description:   string;
+  mainText:      string;
+  secondaryText: string;
 }
 
-async function geocodeAddress(query: string): Promise<NominatimResult[]> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=0`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
-  return res.json();
+interface PlaceDetails {
+  lat: number | null;
+  lng: number | null;
+  formattedAddress: string;
+  name: string;
+}
+
+interface RouteSummary {
+  summary: string;
 }
 
 const TYPE_OPTIONS: { value: HotspotType; label: string; icon: React.ReactNode }[] = [
@@ -615,21 +621,42 @@ interface POIFieldsProps {
 
 function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProps) {
   const [searchQuery, setSearchQuery]     = useState('');
-  const [results,     setResults]         = useState<NominatimResult[]>([]);
+  const [suggestions, setSuggestions]     = useState<PlaceSuggestion[]>([]);
   const [searching,   setSearching]       = useState(false);
+  const [resolving,   setResolving]       = useState(false);
   const [showResults, setShowResults]     = useState(false);
   const searchTimeout                     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionRef                        = useRef(crypto.randomUUID());
 
   const hasOrigin  = propertyLat != null && propertyLng != null;
   const hasDest    = selected.mapLat != null && selected.mapLng != null;
 
-  // Auto-calculate and fill distance when both points are known
-  const autoDistance = useCallback(() => {
+  const fallbackDistance = useCallback((lat: number, lng: number) => {
+    const km = haversineKm(propertyLat!, propertyLng!, lat, lng);
+    return `${formatWalkTime(km)} · ${formatDistance(km)}`;
+  }, [propertyLat, propertyLng]);
+
+  const getRouteSummary = useCallback(async (lat: number, lng: number) => {
+    if (!hasOrigin) return null;
+    try {
+      const origin = `${propertyLat},${propertyLng}`;
+      const destination = `${lat},${lng}`;
+      const res = await fetch(`/api/places/route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&mode=walking`);
+      if (!res.ok) return null;
+      const route = await res.json() as RouteSummary;
+      return route.summary || null;
+    } catch {
+      return null;
+    }
+  }, [hasOrigin, propertyLat, propertyLng]);
+
+  // Auto-calculate and fill route distance when both points are known
+  const autoDistance = useCallback(async () => {
     if (!hasOrigin || !hasDest) return;
-    const km = haversineKm(propertyLat!, propertyLng!, selected.mapLat!, selected.mapLng!);
-    const dist = `${formatWalkTime(km)} · ${formatDistance(km)}`;
+    const dist = await getRouteSummary(selected.mapLat!, selected.mapLng!)
+      ?? fallbackDistance(selected.mapLat!, selected.mapLng!);
     update({ mapDistance: dist });
-  }, [hasOrigin, hasDest, propertyLat, propertyLng, selected.mapLat, selected.mapLng, update]);
+  }, [fallbackDistance, getRouteSummary, hasOrigin, hasDest, selected.mapLat, selected.mapLng, update]);
 
   const handleSearch = () => {
     const q = searchQuery.trim();
@@ -639,28 +666,47 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
     setShowResults(false);
     searchTimeout.current = setTimeout(async () => {
       try {
-        const res = await geocodeAddress(q);
-        setResults(res);
+        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}&sessiontoken=${sessionRef.current}`);
+        setSuggestions(res.ok ? await res.json() : []);
         setShowResults(true);
       } catch {
-        setResults([]);
+        setSuggestions([]);
       } finally {
         setSearching(false);
       }
     }, 400);
   };
 
-  const applyResult = (r: NominatimResult) => {
-    const lat = parseFloat(r.lat);
-    const lng = parseFloat(r.lon);
-    const shortAddress = r.display_name.split(',').slice(0, 3).join(', ');
-    update({ mapLat: lat, mapLng: lng, mapAddress: shortAddress });
+  const applySuggestion = async (s: PlaceSuggestion) => {
     setShowResults(false);
     setSearchQuery('');
-    // Auto-calculate distance from property origin
-    if (hasOrigin) {
-      const km = haversineKm(propertyLat!, propertyLng!, lat, lng);
-      update({ mapDistance: `${formatWalkTime(km)} · ${formatDistance(km)}` });
+    setResolving(true);
+    try {
+      const res = await fetch(`/api/places/${s.placeId}?sessiontoken=${sessionRef.current}`);
+      sessionRef.current = crypto.randomUUID();
+      if (!res.ok) {
+        update({ mapAddress: s.description, mapGooglePlaceId: s.placeId });
+        return;
+      }
+      const details = await res.json() as PlaceDetails;
+      const patch: Partial<Omit<Hotspot, 'id'>> = {
+        mapAddress: details.formattedAddress || s.description,
+        mapGooglePlaceId: s.placeId,
+      };
+      if (details.lat != null && details.lng != null) {
+        patch.mapLat = details.lat;
+        patch.mapLng = details.lng;
+        if (hasOrigin) {
+          patch.mapDistance = await getRouteSummary(details.lat, details.lng)
+            ?? fallbackDistance(details.lat, details.lng);
+        }
+      }
+      if (!selected.label || selected.label === 'Punto de interés') {
+        patch.label = details.name || s.mainText;
+      }
+      update(patch);
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -681,25 +727,30 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
             <button
               type="button"
               onClick={handleSearch}
-              disabled={searching}
+              disabled={searching || resolving}
               className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors disabled:opacity-50 flex-shrink-0"
             >
-              {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              {searching || resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             </button>
           </div>
-          {showResults && results.length > 0 && (
+          {showResults && suggestions.length > 0 && (
             <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
-              {results.map((r, i) => (
+              {suggestions.map((s) => (
                 <button
-                  key={i}
+                  key={s.placeId}
                   type="button"
-                  onClick={() => applyResult(r)}
+                  onClick={() => applySuggestion(s)}
                   className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 border-b border-gray-700 last:border-0 leading-snug"
                 >
                   <MapPin className="w-3 h-3 inline mr-1 text-blue-400 flex-shrink-0" />
-                  {r.display_name}
+                  <span className="font-medium">{s.mainText}</span>
+                  {s.secondaryText && <span className="block text-[10px] text-gray-500 mt-0.5 truncate">{s.secondaryText}</span>}
                 </button>
               ))}
+              <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-gray-900/60 border-t border-gray-700/60">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-non-white3.png" alt="Powered by Google" className="h-3 opacity-60" />
+              </div>
               <button
                 type="button"
                 onClick={() => setShowResults(false)}
@@ -773,11 +824,13 @@ function POIFields({ selected, update, propertyLat, propertyLng }: POIFieldsProp
             />
           </div>
           <a
-            href={`https://www.google.com/maps?q=${selected.mapLat},${selected.mapLng}`}
+            href={hasOrigin
+              ? `https://www.google.com/maps/dir/?api=1&origin=${propertyLat},${propertyLng}&destination=${selected.mapLat},${selected.mapLng}&travelmode=walking`
+              : `https://www.google.com/maps/search/?api=1&query=${selected.mapLat},${selected.mapLng}`}
             target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
           >
-            <MapPin className="w-3 h-3" /> Verificar en Google Maps ↗
+            <MapPin className="w-3 h-3" /> {hasOrigin ? 'Ver ruta en Google Maps ↗' : 'Verificar en Google Maps ↗'}
           </a>
         </div>
       )}

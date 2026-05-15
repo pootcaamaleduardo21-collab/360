@@ -68,6 +68,7 @@ export interface Hotspot {
   mapAddress?: string;     // Address or place name for Google Maps search
   mapLat?: number;         // Precise latitude
   mapLng?: number;         // Precise longitude
+  mapGooglePlaceId?: string; // Google Place ID for stable POI routing
   mapDistance?: string;    // Human-readable distance, e.g. "5 min · 2.3 km"
 
   // Visual overrides

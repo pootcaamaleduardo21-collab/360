@@ -233,9 +233,13 @@ function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
         : `https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&q=${encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}&language=es`
     : null;
 
-  const externalHref = hasDest
-    ? `https://www.google.com/maps/search/?api=1&query=${hotspot.mapLat},${hotspot.mapLng}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hotspot.mapAddress ?? hotspot.label)}`;
+  const destination = hasDest
+    ? `${hotspot.mapLat},${hotspot.mapLng}`
+    : hotspot.mapAddress ?? hotspot.label;
+
+  const externalHref = hasOrigin
+    ? `https://www.google.com/maps/dir/?api=1&origin=${propertyLat},${propertyLng}&destination=${encodeURIComponent(destination)}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
 
   return (
     <div>
@@ -294,7 +298,7 @@ function MapHotspotContent({ hotspot }: { hotspot: Hotspot }) {
           className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm"
         >
           <MapPin className="w-4 h-4" />
-          Ver en Google Maps
+          {hasOrigin ? 'Abrir ruta en Google Maps' : 'Ver en Google Maps'}
           <ExternalLink className="w-3.5 h-3.5 opacity-70" />
         </a>
       </div>
