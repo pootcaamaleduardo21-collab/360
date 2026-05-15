@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { Hotspot, Tour } from '@/types/tour.types';
-import { X, Navigation, MapPin, ExternalLink } from 'lucide-react';
+import { X, Navigation, MapPin, ExternalLink, Minimize2, Maximize2 } from 'lucide-react';
 
 interface MapHotspotRouteCardProps {
   hotspot: Hotspot;
@@ -12,6 +13,7 @@ interface MapHotspotRouteCardProps {
 const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? '';
 
 export function MapHotspotRouteCard({ hotspot, tour, onClose }: MapHotspotRouteCardProps) {
+  const [minimized, setMinimized] = useState(false);
   const originLat = hotspot.mapOriginLat ?? tour.propertyLat;
   const originLng = hotspot.mapOriginLng ?? tour.propertyLng;
   const hasOrigin = originLat != null && originLng != null;
@@ -31,8 +33,29 @@ export function MapHotspotRouteCard({ hotspot, tour, onClose }: MapHotspotRouteC
     ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${encodeURIComponent(destination)}&travelmode=${travelMode}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
 
+  if (minimized) {
+    return (
+      <div className="absolute left-4 right-4 bottom-[88px] z-40 md:left-[304px] md:right-auto md:bottom-6">
+        <button
+          onClick={() => setMinimized(false)}
+          className="flex max-w-full items-center gap-2 rounded-2xl border border-gray-700 bg-gray-950/95 px-3 py-2 text-left shadow-2xl backdrop-blur-md transition-colors hover:bg-gray-900 md:w-[360px]"
+          title="Mostrar ruta"
+        >
+          <div className="w-8 h-8 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
+            <MapPin className="w-4 h-4 text-red-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-white">{hotspot.label}</p>
+            <p className="truncate text-[10px] text-amber-300">{hotspot.mapDistance ?? 'Ruta activa'}</p>
+          </div>
+          <Maximize2 className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="absolute bottom-[72px] left-4 z-40 w-[min(420px,calc(100vw-2rem))] rounded-2xl overflow-hidden shadow-2xl border border-gray-700 bg-gray-950 animate-slide-up">
+    <div className="absolute left-4 right-4 bottom-[88px] z-40 overflow-hidden rounded-2xl border border-gray-700 bg-gray-950 shadow-2xl animate-slide-up md:left-[304px] md:right-auto md:bottom-6 md:w-[420px]">
       <div className="flex items-start gap-2.5 px-3 py-2.5 border-b border-gray-800">
         <div className="w-8 h-8 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
           <MapPin className="w-4 h-4 text-red-300" />
@@ -45,14 +68,21 @@ export function MapHotspotRouteCard({ hotspot, tour, onClose }: MapHotspotRouteC
           <p className="text-[10px] text-gray-400 truncate">{hotspot.mapAddress ?? 'Destino seleccionado'}</p>
         </div>
         {hotspot.mapDistance && (
-          <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full">
+          <span className="hidden sm:flex flex-shrink-0 items-center gap-0.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full">
             <Navigation className="w-2.5 h-2.5" />
             {hotspot.mapDistance}
           </span>
         )}
         <button
-          onClick={onClose}
+          onClick={() => setMinimized(true)}
           className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors ml-1"
+          aria-label="Minimizar ruta"
+        >
+          <Minimize2 className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors"
           aria-label="Cerrar ruta"
         >
           <X className="w-3.5 h-3.5" />
@@ -60,7 +90,7 @@ export function MapHotspotRouteCard({ hotspot, tour, onClose }: MapHotspotRouteC
       </div>
 
       {mapSrc ? (
-        <div className="relative w-full" style={{ height: 260 }}>
+        <div className="relative w-full h-[260px] md:h-[300px]">
           <iframe
             key={`${hotspot.id}-${originLat}-${originLng}-${destination}-${travelMode}`}
             src={mapSrc}
