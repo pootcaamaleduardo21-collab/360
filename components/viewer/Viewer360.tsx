@@ -6,6 +6,7 @@ import { useViewer360 } from '@/hooks/useViewer360';
 import { useColorFilter } from '@/hooks/useColorFilter';
 import { HotspotMarker } from './HotspotMarker';
 import { HotspotModal } from './HotspotModal';
+import { MapHotspotRouteCard } from './MapHotspotRouteCard';
 import { MinimapWidget } from './MinimapWidget';
 import { FloorPlanWidget } from './FloorPlanWidget';
 import { TutorialOverlay } from './TutorialOverlay';
@@ -343,8 +344,16 @@ export function Viewer360({
         );
       })}
 
-      {/* Active hotspot modal */}
-      {activeHotspot && (
+      {/* Active hotspot modal / route card */}
+      {activeHotspot?.type === 'map' && (
+        <MapHotspotRouteCard
+          hotspot={activeHotspot}
+          tour={tour}
+          onClose={() => setActiveHotspot(null)}
+        />
+      )}
+
+      {activeHotspot && activeHotspot.type !== 'map' && (
         <HotspotModal
           hotspot={activeHotspot}
           currentSceneId={currentScene.id}
