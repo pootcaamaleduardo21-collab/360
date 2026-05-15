@@ -5,6 +5,7 @@ import { getTeamInvites, inviteAdvisor, removeInvite, TeamInvite } from '@/lib/t
 import {
   Users, Mail, Send, Trash2, Clock, CheckCircle,
   Loader2, AlertCircle, Info, ClipboardList,
+  Copy, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +48,8 @@ export function TeamPanel() {
   const [loading,  setLoading]  = useState(true);
   const [sending,  setSending]  = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     setInvites(await getTeamInvites());
@@ -61,8 +64,11 @@ export function TeamPanel() {
     if (!trimmed) return;
     setSending(true);
     setFeedback(null);
+    setInviteUrl(null);
+    setCopied(false);
 
     const result = await inviteAdvisor(trimmed, role);
+    if (result.inviteUrl) setInviteUrl(result.inviteUrl);
 
     if (result.error) {
       setFeedback({ type: 'error', msg: result.error });
@@ -76,6 +82,13 @@ export function TeamPanel() {
       await load();
     }
     setSending(false);
+  };
+
+  const copyInviteUrl = async () => {
+    if (!inviteUrl) return;
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   };
 
   const handleRemove = async (invite: TeamInvite) => {
@@ -156,14 +169,29 @@ export function TeamPanel() {
         {/* Feedback */}
         {feedback && (
           <div className={cn(
-            'flex items-start gap-2 p-3 rounded-xl text-sm',
+            'space-y-2 p-3 rounded-xl text-sm',
             feedback.type === 'success' && 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300',
             feedback.type === 'warning' && 'bg-amber-500/10 border border-amber-500/20 text-amber-300',
             feedback.type === 'error'   && 'bg-red-500/10 border border-red-500/20 text-red-400',
           )}>
-            {feedback.type === 'success' && <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
-            {feedback.type !== 'success' && <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
-            {feedback.msg}
+            <div className="flex items-start gap-2">
+              {feedback.type === 'success' && <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+              {feedback.type !== 'success' && <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+              <span>{feedback.msg}</span>
+            </div>
+            {inviteUrl && (
+              <div className="flex items-center gap-2 rounded-lg bg-black/20 border border-white/10 p-2">
+                <span className="flex-1 truncate text-[11px] text-gray-300">{inviteUrl}</span>
+                <button
+                  type="button"
+                  onClick={copyInviteUrl}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-800 hover:bg-gray-700 text-[11px] text-gray-200 transition-colors"
+                >
+                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {copied ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </form>

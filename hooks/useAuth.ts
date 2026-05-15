@@ -59,11 +59,14 @@ export function useAuth(): AuthState & AuthActions {
     try {
       const sb = getSupabase();
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (!error) return { error: null };
+      if (!error) {
+        await fetch('/api/auth/accept-invite', { method: 'POST' }).catch(() => null);
+        return { error: null };
+      }
       // Map Supabase English errors → Spanish user-friendly messages
       const msg = error.message.toLowerCase();
       if (msg.includes('invalid login') || msg.includes('invalid credentials'))
-        return { error: 'Correo o contraseña incorrectos.' };
+        return { error: 'Correo o contraseña incorrectos. Si acabas de registrarte, verifica que la cuenta sí se haya creado y que el correo esté confirmado.' };
       if (msg.includes('email not confirmed'))
         return { error: 'Confirma tu correo antes de iniciar sesión.' };
       if (msg.includes('too many requests'))
@@ -91,7 +94,14 @@ export function useAuth(): AuthState & AuthActions {
           return { error: 'Ya existe una cuenta con ese correo. Intenta iniciar sesión.', needsConfirmation: false };
         if (msg.includes('password'))
           return { error: 'La contraseña debe tener al menos 8 caracteres.', needsConfirmation: false };
+        if (msg.includes('rate limit') || msg.includes('too many'))
+          return { error: 'Se alcanzó el límite temporal de correos de autenticación. Espera unos minutos e intenta de nuevo.', needsConfirmation: false };
+        if (msg.includes('signup') && msg.includes('disabled'))
+          return { error: 'El registro está deshabilitado en este momento.', needsConfirmation: false };
         return { error: error.message, needsConfirmation: false };
+      }
+      if (data.session) {
+        await fetch('/api/auth/accept-invite', { method: 'POST' }).catch(() => null);
       }
       // When email confirmation is disabled, Supabase returns a session immediately.
       // When confirmation is required, session is null and the user gets an email.

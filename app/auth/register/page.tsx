@@ -1,10 +1,14 @@
 'use client';
 
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AuthForm } from '@/components/auth/AuthForm';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const { signUp } = useAuth();
+  const params = useSearchParams();
+  const initialEmail = params.get('email') ?? '';
 
   const handleSubmit = async ({
     email,
@@ -34,9 +38,17 @@ export default function RegisterPage() {
           <p className="mt-1 text-sm text-gray-500">Comienza a crear tours virtuales hoy</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-xl">
-          <AuthForm mode="register" onSubmit={handleSubmit} />
+          <AuthForm mode="register" onSubmit={handleSubmit} initialEmail={initialEmail} />
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }

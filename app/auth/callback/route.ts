@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { acceptPendingInviteForUser } from '@/lib/teamInviteServer';
 
 /**
  * Supabase Auth callback — handles:
@@ -10,15 +10,6 @@ import { cookies } from 'next/headers';
  * - Advisor invite acceptances (sets role + updates team_invites status)
  * - OAuth redirects (if added later)
  */
-
-function getServiceRoleClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
@@ -44,19 +35,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
-      // ── Handle advisor invite acceptance ───────────────────────────────
-      // If the user was invited (has invited_by metadata), mark the invite as accepted
-      const invitedBy = data.user.user_metadata?.invited_by as string | undefined;
-      if (invitedBy) {
-        const adminClient = getServiceRoleClient();
-        if (adminClient && data.user.email) {
-          await adminClient
-            .from('team_invites')
-            .update({ status: 'accepted' })
-            .eq('admin_id', invitedBy)
-            .eq('email', data.user.email.toLowerCase());
-        }
-      }
+      await acceptPendingInviteForUser(data.user);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

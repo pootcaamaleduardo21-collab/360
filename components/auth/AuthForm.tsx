@@ -12,10 +12,11 @@ interface AuthFormProps {
   onSubmit: (data: { email: string; password?: string; fullName?: string }) => Promise<{ error: string | null }>;
   isLoading?: boolean;
   initialError?: string | null;
+  initialEmail?: string;
 }
 
-export function AuthForm({ mode, onSubmit, isLoading = false, initialError = null }: AuthFormProps) {
-  const [email,    setEmail]    = useState('');
+export function AuthForm({ mode, onSubmit, isLoading = false, initialError = null, initialEmail = '' }: AuthFormProps) {
+  const [email,    setEmail]    = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [showPw,   setShowPw]   = useState(false);

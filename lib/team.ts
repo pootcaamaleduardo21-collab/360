@@ -27,7 +27,7 @@ export async function getTeamInvites(): Promise<TeamInvite[]> {
 export async function inviteAdvisor(
   email: string,
   role: 'admin' | 'advisor' = 'advisor'
-): Promise<{ ok?: boolean; error?: string; warning?: string }> {
+): Promise<{ ok?: boolean; error?: string; warning?: string; inviteUrl?: string }> {
   try {
     const res = await fetch('/api/team/invite', {
       method:  'POST',

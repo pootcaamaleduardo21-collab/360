@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { buildInviteUrl, getServiceRoleClient } from '@/lib/teamInviteServer';
 
 /**
  * POST /api/team/invite
@@ -15,15 +15,6 @@ import { createSupabaseServerClient } from '@/lib/supabase';
  *   2. Use service-role client to call auth.admin.inviteUserByEmail
  *   3. Record the invitation in the team_invites table
  */
-
-function getServiceRoleClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured.');
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,15 +56,23 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Record the invitation first (so it's visible even if email fails)
-    await adminClient.from('team_invites').insert({
+    const { error: insertError } = await adminClient.from('team_invites').insert({
       admin_id: user.id,
       email:    email.toLowerCase(),
       role,
       status:   'pending',
     });
+    if (insertError) {
+      const msg = insertError.message.toLowerCase();
+      if (msg.includes('duplicate') || msg.includes('unique')) {
+        return NextResponse.json({ error: 'Este correo ya está ligado a otra invitación.' }, { status: 409 });
+      }
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
 
     // 5. Send Supabase invite email
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin).replace(/\/$/, '');
+    const inviteUrl = buildInviteUrl(appUrl, email);
     const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${appUrl}/auth/callback?next=/dashboard`,
       data: {
@@ -86,14 +85,24 @@ export async function POST(request: NextRequest) {
       // If the user already exists in Auth, the invite email fails — that's OK,
       // the invite record is still created and we return a soft warning.
       if (inviteError.message.includes('already registered')) {
-        return NextResponse.json({ warning: 'El usuario ya tiene cuenta. Se registró la invitación.' });
+        return NextResponse.json({
+          warning: 'El usuario ya tiene cuenta. Se registró la invitación; pídele iniciar sesión para activar el acceso.',
+          inviteUrl,
+        });
+      }
+      const msg = inviteError.message.toLowerCase();
+      if (msg.includes('rate limit') || msg.includes('too many')) {
+        return NextResponse.json({
+          warning: 'La invitación quedó guardada, pero Supabase alcanzó el límite temporal de correos. Comparte el enlace manual o intenta reenviar más tarde.',
+          inviteUrl,
+        });
       }
       // Roll back invite record on other errors
       await adminClient.from('team_invites').delete().eq('admin_id', user.id).eq('email', email.toLowerCase());
       return NextResponse.json({ error: inviteError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, inviteUrl });
   } catch (err) {
     console.error('[POST /api/team/invite]', err);
     return NextResponse.json({ error: 'Error interno del servidor.' }, { status: 500 });
