@@ -65,7 +65,7 @@ function AuthLayout({
         {/* Logo */}
         <div className="text-center mb-8">
           <span className="text-2xl font-bold">
-            Tour <span className="text-blue-400">360°</span>
+            Eleva<span className="text-blue-400">360</span>
           </span>
           <h1 className="mt-3 text-xl font-semibold text-gray-100">{title}</h1>
           <p className="mt-1 text-sm text-gray-500">{subtitle}</p>

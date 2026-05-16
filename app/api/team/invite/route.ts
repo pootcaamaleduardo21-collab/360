@@ -71,7 +71,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Send Supabase invite email
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin).replace(/\/$/, '');
+    const requestOrigin = request.nextUrl.origin;
+    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+    const appUrl = requestOrigin.includes('vercel.app') && configuredAppUrl
+      ? configuredAppUrl
+      : requestOrigin.replace(/\/$/, '');
     const inviteUrl = buildInviteUrl(appUrl, email);
     const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${appUrl}/auth/callback?next=/dashboard`,

@@ -32,7 +32,7 @@ function RegisterForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <span className="text-2xl font-bold">
-            Tour <span className="text-blue-400">360°</span>
+            Eleva<span className="text-blue-400">360</span>
           </span>
           <h1 className="mt-3 text-xl font-semibold text-gray-100">Crear cuenta gratis</h1>
           <p className="mt-1 text-sm text-gray-500">Comienza a crear tours virtuales hoy</p>

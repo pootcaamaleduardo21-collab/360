@@ -15,6 +15,25 @@ export function buildInviteUrl(appUrl: string, email: string) {
   return url.toString();
 }
 
+export async function findAuthUserByEmail(email: string) {
+  const adminClient = getServiceRoleClient();
+  const targetEmail = email.toLowerCase();
+
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    });
+    if (error) throw error;
+
+    const user = data.users.find((item) => item.email?.toLowerCase() === targetEmail);
+    if (user) return user;
+    if (data.users.length < 100) break;
+  }
+
+  return null;
+}
+
 export async function acceptPendingInviteForUser(user: User) {
   const email = user.email?.toLowerCase();
   if (!email) return { accepted: false };

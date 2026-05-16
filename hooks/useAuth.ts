@@ -80,6 +80,35 @@ export function useAuth(): AuthState & AuthActions {
   const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
     try {
       const sb = getSupabase();
+      const inviteRes = await fetch('/api/auth/invite-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName }),
+      }).catch(() => null);
+
+      if (inviteRes && inviteRes.status !== 404) {
+        const payload = await inviteRes.json().catch(() => ({}));
+        if (!inviteRes.ok) {
+          return {
+            error: typeof payload.error === 'string'
+              ? payload.error
+              : 'No se pudo crear la cuenta con la invitación.',
+            needsConfirmation: false,
+          };
+        }
+
+        const { error: signInError } = await sb.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          return {
+            error: 'La cuenta fue creada, pero no se pudo iniciar sesión automáticamente. Intenta iniciar sesión.',
+            needsConfirmation: false,
+          };
+        }
+
+        await fetch('/api/auth/accept-invite', { method: 'POST' }).catch(() => null);
+        return { error: null, needsConfirmation: false };
+      }
+
       const { data, error } = await sb.auth.signUp({
         email,
         password,
