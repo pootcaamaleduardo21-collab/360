@@ -9,14 +9,23 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
     // Determine if user is an advisor and find their admin_id
-    const { data: invite } = await sb
-      .from('team_invites')
-      .select('admin_id')
-      .eq('advisor_user_id', user.id)
-      .eq('status', 'accepted')
+    const { data: membership, error: membershipError } = await sb
+      .from('team_members')
+      .select('owner_user_id')
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
       .maybeSingle();
 
-    const targetAdminId = invite?.admin_id ?? user.id;
+    let targetAdminId = membership?.owner_user_id ?? user.id;
+    if (membershipError) {
+      const { data: invite } = await sb
+        .from('team_invites')
+        .select('admin_id')
+        .eq('advisor_user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      targetAdminId = invite?.admin_id ?? user.id;
+    }
 
     const { data, error } = await sb
       .from('team_announcements')
@@ -39,14 +48,25 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
     // Only admins (non-advisors) can post
-    const { data: invite } = await sb
-      .from('team_invites')
+    const { data: membership, error: membershipError } = await sb
+      .from('team_members')
       .select('id')
-      .eq('advisor_user_id', user.id)
-      .eq('status', 'accepted')
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
       .maybeSingle();
 
-    if (invite) return NextResponse.json({ error: 'Solo administradores pueden publicar novedades.' }, { status: 403 });
+    let isTeamMember = !!membership;
+    if (membershipError) {
+      const { data: invite } = await sb
+        .from('team_invites')
+        .select('id')
+        .eq('advisor_user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      isTeamMember = !!invite;
+    }
+
+    if (isTeamMember) return NextResponse.json({ error: 'Solo administradores pueden publicar novedades.' }, { status: 403 });
 
     const body = await req.json();
     const { title, message, type, pinned } = body;

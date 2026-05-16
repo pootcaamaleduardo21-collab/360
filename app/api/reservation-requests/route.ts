@@ -10,19 +10,29 @@ export async function GET() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const { data: advisorInvite } = await sb
-      .from('team_invites')
-      .select('admin_id')
-      .eq('advisor_user_id', user.id)
-      .eq('status', 'accepted')
+    const { data: membership, error: membershipError } = await sb
+      .from('team_members')
+      .select('owner_user_id')
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
       .maybeSingle();
+    let isTeamMember = !!membership?.owner_user_id;
+    if (membershipError) {
+      const { data: advisorInvite } = await sb
+        .from('team_invites')
+        .select('admin_id')
+        .eq('advisor_user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      isTeamMember = !!advisorInvite?.admin_id;
+    }
 
     const query = sb
       .from('reservation_requests')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (advisorInvite?.admin_id) {
+    if (isTeamMember) {
       query.eq('advisor_user_id', user.id);
     } else {
       query.eq('admin_id', user.id);
@@ -57,15 +67,26 @@ export async function POST(req: NextRequest) {
 
     if (tourError || !tourRow) return NextResponse.json({ error: 'Tour no encontrado.' }, { status: 404 });
 
-    const { data: invite } = await sb
-      .from('team_invites')
-      .select('admin_id')
-      .eq('admin_id', tourRow.user_id)
-      .eq('advisor_user_id', user.id)
-      .eq('status', 'accepted')
+    const { data: membership, error: membershipError } = await sb
+      .from('team_members')
+      .select('owner_user_id')
+      .eq('owner_user_id', tourRow.user_id)
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
       .maybeSingle();
+    let hasTeamAccess = !!membership;
+    if (membershipError) {
+      const { data: invite } = await sb
+        .from('team_invites')
+        .select('admin_id')
+        .eq('admin_id', tourRow.user_id)
+        .eq('advisor_user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      hasTeamAccess = !!invite;
+    }
 
-    if (!invite && tourRow.user_id !== user.id) {
+    if (!hasTeamAccess && tourRow.user_id !== user.id) {
       return NextResponse.json({ error: 'No tienes acceso a este tour.' }, { status: 403 });
     }
 

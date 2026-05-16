@@ -1,5 +1,9 @@
 import { createClient, type User } from '@supabase/supabase-js';
 
+function isMissingTeamMembersTable(error: { code?: string; message?: string } | null) {
+  return error?.code === '42P01' || error?.message?.includes('team_members');
+}
+
 export function getServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,6 +53,21 @@ export async function acceptPendingInviteForUser(user: User) {
 
   const role = invite.role === 'admin' ? 'admin' : 'advisor';
 
+  const { error: memberError } = await adminClient
+    .from('team_members')
+    .upsert({
+      owner_user_id: invite.admin_id,
+      member_user_id: user.id,
+      email,
+      role,
+      status: 'active',
+      revoked_at: null,
+    }, {
+      onConflict: 'owner_user_id,email',
+    });
+
+  if (memberError && !isMissingTeamMembersTable(memberError)) throw memberError;
+
   await adminClient
     .from('team_invites')
     .update({
@@ -66,4 +85,63 @@ export async function acceptPendingInviteForUser(user: User) {
   });
 
   return { accepted: true, role, adminId: invite.admin_id };
+}
+
+export async function revokeTeamAccess(adminId: string, email: string) {
+  const adminClient = getServiceRoleClient();
+  const targetEmail = email.toLowerCase();
+
+  const { data: invite } = await adminClient
+    .from('team_invites')
+    .select('advisor_user_id')
+    .eq('admin_id', adminId)
+    .eq('email', targetEmail)
+    .maybeSingle();
+
+  const { data: member, error: memberLookupError } = await adminClient
+    .from('team_members')
+    .select('member_user_id')
+    .eq('owner_user_id', adminId)
+    .eq('email', targetEmail)
+    .maybeSingle();
+  if (memberLookupError && !isMissingTeamMembersTable(memberLookupError)) throw memberLookupError;
+
+  const memberUserId = member?.member_user_id ?? invite?.advisor_user_id ?? null;
+
+  const { error: revokeError } = await adminClient
+    .from('team_members')
+    .update({ status: 'revoked', revoked_at: new Date().toISOString() })
+    .eq('owner_user_id', adminId)
+    .eq('email', targetEmail);
+  if (revokeError && !isMissingTeamMembersTable(revokeError)) throw revokeError;
+
+  await adminClient
+    .from('team_invites')
+    .delete()
+    .eq('admin_id', adminId)
+    .eq('email', targetEmail);
+
+  if (memberUserId) {
+    const { data: stillActive, error: stillActiveError } = await adminClient
+      .from('team_members')
+      .select('id')
+      .eq('member_user_id', memberUserId)
+      .eq('status', 'active')
+      .limit(1);
+    if (stillActiveError && !isMissingTeamMembersTable(stillActiveError)) throw stillActiveError;
+
+    if (!stillActiveError && !stillActive?.length) {
+      const { data: { user } } = await adminClient.auth.admin.getUserById(memberUserId);
+      if (user) {
+        await adminClient.auth.admin.updateUserById(memberUserId, {
+          user_metadata: {
+            ...(user.user_metadata ?? {}),
+            role: 'advisor',
+            invited_by: null,
+            team_access_revoked: true,
+          },
+        });
+      }
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import { buildInviteUrl, getServiceRoleClient } from '@/lib/teamInviteServer';
+import { buildInviteUrl, getServiceRoleClient, revokeTeamAccess } from '@/lib/teamInviteServer';
 
 /**
  * POST /api/team/invite
@@ -128,10 +128,7 @@ export async function DELETE(request: NextRequest) {
     const { data: { user } } = await anonClient.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const adminClient = getServiceRoleClient();
-    await adminClient.from('team_invites').delete()
-      .eq('admin_id', user.id)
-      .eq('email', email.toLowerCase());
+    await revokeTeamAccess(user.id, email);
 
     return NextResponse.json({ ok: true });
   } catch {

@@ -15,6 +15,15 @@ function slugify(input: string): string {
 }
 
 async function getTargetAdminId(sb: ReturnType<typeof createSupabaseServerClient>, userId: string) {
+  const { data: membership, error: membershipError } = await sb
+    .from('team_members')
+    .select('owner_user_id')
+    .eq('member_user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (!membershipError && membership?.owner_user_id) return membership.owner_user_id;
+
   const { data: invite } = await sb
     .from('team_invites')
     .select('admin_id')
@@ -52,14 +61,25 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const { data: advisorInvite } = await sb
-      .from('team_invites')
+    const { data: membership, error: membershipError } = await sb
+      .from('team_members')
       .select('id')
-      .eq('advisor_user_id', user.id)
-      .eq('status', 'accepted')
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
       .maybeSingle();
 
-    if (advisorInvite) {
+    let isTeamMember = !!membership;
+    if (membershipError) {
+      const { data: advisorInvite } = await sb
+        .from('team_invites')
+        .select('id')
+        .eq('advisor_user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      isTeamMember = !!advisorInvite;
+    }
+
+    if (isTeamMember) {
       return NextResponse.json({ error: 'Solo administradores pueden crear categorías.' }, { status: 403 });
     }
 

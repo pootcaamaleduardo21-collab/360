@@ -313,6 +313,67 @@ CREATE UNIQUE INDEX team_invites_advisor_unique
   ON team_invites(advisor_user_id)
   WHERE advisor_user_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS team_members (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  member_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  email          text NOT NULL,
+  role           text NOT NULL DEFAULT 'advisor'
+                   CHECK (role IN ('admin', 'advisor')),
+  status         text NOT NULL DEFAULT 'active'
+                   CHECK (status IN ('active', 'revoked')),
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  revoked_at     timestamptz,
+  UNIQUE(owner_user_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS team_members_owner_idx
+  ON team_members(owner_user_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS team_members_user_idx
+  ON team_members(member_user_id, status)
+  WHERE member_user_id IS NOT NULL;
+
+DROP INDEX IF EXISTS team_members_active_user_unique;
+CREATE UNIQUE INDEX team_members_active_user_unique
+  ON team_members(member_user_id)
+  WHERE member_user_id IS NOT NULL AND status = 'active';
+
+INSERT INTO team_members (owner_user_id, member_user_id, email, role, status, created_at)
+SELECT admin_id, advisor_user_id, lower(email), role, 'active', created_at
+FROM team_invites
+WHERE status = 'accepted'
+ON CONFLICT (owner_user_id, email) DO UPDATE
+SET
+  member_user_id = EXCLUDED.member_user_id,
+  role = EXCLUDED.role,
+  status = 'active',
+  revoked_at = null;
+
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "team members: owner manages" ON team_members;
+CREATE POLICY "team members: owner manages" ON team_members
+  FOR ALL USING (owner_user_id = auth.uid())
+  WITH CHECK (owner_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "team members: member reads own" ON team_members;
+CREATE POLICY "team members: member reads own" ON team_members
+  FOR SELECT USING (member_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "tours: advisor reads admin tours" ON tours;
+DROP POLICY IF EXISTS "tours: member reads owner tours" ON tours;
+CREATE POLICY "tours: member reads owner tours" ON tours
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = tours.user_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
+    )
+  );
+
 
 -- ─── Migration 8: Internal materials vault (Kit de Ventas) ───────────────────
 
@@ -375,10 +436,10 @@ CREATE POLICY "material categories: team reads" ON team_material_categories
     admin_id IS NULL
     OR admin_id = auth.uid()
     OR EXISTS (
-      SELECT 1 FROM team_invites
-      WHERE team_invites.admin_id        = team_material_categories.admin_id
-        AND team_invites.advisor_user_id = auth.uid()
-        AND team_invites.status          = 'accepted'
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = team_material_categories.admin_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
     )
   );
 
@@ -392,10 +453,10 @@ DROP POLICY IF EXISTS "materials: advisor reads" ON team_materials;
 CREATE POLICY "materials: advisor reads" ON team_materials
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM team_invites
-      WHERE team_invites.admin_id        = team_materials.admin_id
-        AND team_invites.advisor_user_id = auth.uid()
-        AND team_invites.status          = 'accepted'
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = team_materials.admin_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
     )
   );
 
@@ -470,10 +531,10 @@ DROP POLICY IF EXISTS "announcements: advisor reads" ON team_announcements;
 CREATE POLICY "announcements: advisor reads" ON team_announcements
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM team_invites
-      WHERE team_invites.admin_id        = team_announcements.admin_id
-        AND team_invites.advisor_user_id = auth.uid()
-        AND team_invites.status          = 'accepted'
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = team_announcements.admin_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
     )
   );
 
@@ -528,10 +589,10 @@ CREATE POLICY "operation areas: team reads" ON team_operation_areas
     admin_id IS NULL
     OR admin_id = auth.uid()
     OR EXISTS (
-      SELECT 1 FROM team_invites
-      WHERE team_invites.admin_id        = team_operation_areas.admin_id
-        AND team_invites.advisor_user_id = auth.uid()
-        AND team_invites.status          = 'accepted'
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = team_operation_areas.admin_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
     )
   );
 
@@ -606,10 +667,10 @@ CREATE POLICY "reservation requests: advisor creates" ON reservation_requests
   FOR INSERT WITH CHECK (
     advisor_user_id = auth.uid()
     AND EXISTS (
-      SELECT 1 FROM team_invites
-      WHERE team_invites.admin_id        = reservation_requests.admin_id
-        AND team_invites.advisor_user_id = auth.uid()
-        AND team_invites.status          = 'accepted'
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = reservation_requests.admin_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
     )
   );
 
@@ -698,4 +759,4 @@ CREATE POLICY "price logs: admin inserts" ON price_update_logs
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public';
 --
--- Deberías ver: tours, profiles, tour_events, leads, team_invites, team_materials, team_announcements
+-- Deberías ver: tours, profiles, tour_events, leads, team_invites, team_members, team_materials, team_announcements
