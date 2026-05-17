@@ -33,6 +33,7 @@ import {
   MapPin,
   Map,
   Crosshair,
+  Box,
 } from 'lucide-react';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ interface Viewer360Props {
   onOpenBooking?: () => void;
   onOpenLeadCapture?: () => void;
   onOpenPOIPanel?: () => void;
+  onOpenModel3D?: () => void;
   /** When true, hides CTAs that don't belong in split-screen panels */
   isComparisonPanel?: boolean;
   /** Show media gallery button + overlay */
@@ -89,6 +91,7 @@ export function Viewer360({
   onOpenBooking,
   onOpenLeadCapture,
   onOpenPOIPanel,
+  onOpenModel3D,
   isComparisonPanel = false,
   onOpenMediaGallery,
   onSetStartView,
@@ -474,9 +477,19 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Top-left buttons: media gallery + POI — shift right on desktop when nav panel is active */}
-      {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel) && (
+      {/* Top-left buttons: media gallery + POI + 3D model — shift right on desktop when nav panel is active */}
+      {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel || onOpenModel3D) && (
         <div className={cn('absolute top-4 z-20 flex flex-col gap-2', tour.navPanel?.enabled ? 'left-4 md:left-[290px]' : 'left-4')}>
+          {onOpenModel3D && (
+            <button
+              onClick={onOpenModel3D}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white/80 hover:text-white text-xs font-medium border border-white/10 backdrop-blur-sm transition-colors shadow"
+              title="Ver plano 3D"
+            >
+              <Box className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Plano 3D</span>
+            </button>
+          )}
           {onOpenMediaGallery && (
             <MediaGalleryButton
               itemCount={tour.gallery?.length ?? 0}
@@ -515,11 +528,11 @@ export function Viewer360({
         </a>
       )}
 
-      {/* Lead capture button (bottom-left) */}
+      {/* Lead capture button — center on mobile to avoid conflict with nav panel, left on desktop */}
       {!isEditing && !isComparisonPanel && onOpenLeadCapture && (
         <button
           onClick={onOpenLeadCapture}
-          className="absolute bottom-4 left-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 md:left-4 md:translate-x-0 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
           style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
         >
           <Plus className="w-4 h-4" />

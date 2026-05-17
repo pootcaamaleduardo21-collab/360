@@ -13,6 +13,7 @@ import { getSupabase } from './supabase';
 export interface LeadPayload {
   tourId: string;
   sceneId?: string;
+  advisorId?: string;  // advisor who shared the viewer link
   name: string;
   phone?: string;
   email?: string;
@@ -23,6 +24,7 @@ export interface Lead {
   id: string;
   tour_id: string;
   scene_id: string | null;
+  advisor_id: string | null;
   name: string;
   phone: string | null;
   email: string | null;
@@ -34,12 +36,13 @@ export interface Lead {
 export async function submitLead(payload: LeadPayload): Promise<void> {
   try {
     await getSupabase().from('leads').insert({
-      tour_id:  payload.tourId,
-      scene_id: payload.sceneId ?? null,
-      name:     payload.name,
-      phone:    payload.phone  ?? null,
-      email:    payload.email  ?? null,
-      message:  payload.message ?? null,
+      tour_id:    payload.tourId,
+      scene_id:   payload.sceneId   ?? null,
+      advisor_id: payload.advisorId ?? null,
+      name:       payload.name,
+      phone:      payload.phone     ?? null,
+      email:      payload.email     ?? null,
+      message:    payload.message   ?? null,
     });
   } catch {
     // Silently ignore — table may not exist yet

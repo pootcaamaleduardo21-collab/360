@@ -2,17 +2,20 @@
 
 import { useState } from 'react';
 import { BookingConfig } from '@/types/tour.types';
+import { submitLead } from '@/lib/leads';
 import { X, Calendar, Phone, Mail, MessageCircle, User, ExternalLink, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BookingModalProps {
-  tourId?: string;           // needed for email notification
+  tourId?: string;
   tourTitle: string;
   brandColor?: string;
   logoUrl?: string;
   bookingConfig: BookingConfig;
   onClose: () => void;
-  onBooked?: () => void; // fires after successful submission
+  onBooked?: () => void;
+  advisorId?: string;  // advisor who shared the link
+  sceneId?: string;
 }
 
 interface FormData {
@@ -26,7 +29,7 @@ interface FormData {
 const EMPTY: FormData = { name: '', phone: '', email: '', date: '', message: '' };
 
 export function BookingModal({
-  tourId, tourTitle, brandColor, logoUrl, bookingConfig, onClose, onBooked,
+  tourId, tourTitle, brandColor, logoUrl, bookingConfig, onClose, onBooked, advisorId, sceneId,
 }: BookingModalProps) {
   const [form,    setForm]    = useState<FormData>(EMPTY);
   const [sent,    setSent]    = useState(false);
@@ -41,6 +44,24 @@ export function BookingModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const noteWithDate = [
+      form.date    && `Fecha preferida: ${form.date}`,
+      form.message || undefined,
+    ].filter(Boolean).join(' · ') || undefined;
+
+    // Always save to leads DB (fire-and-forget)
+    if (tourId) {
+      submitLead({
+        tourId,
+        sceneId,
+        advisorId,
+        name:    form.name,
+        phone:   form.phone  || undefined,
+        email:   form.email  || undefined,
+        message: noteWithDate,
+      });
+    }
+
     const lines = [
       `📅 *Solicitud de cita — ${tourTitle}*`,
       `👤 Nombre: ${form.name}`,
@@ -54,15 +75,11 @@ export function BookingModal({
       case 'whatsapp': {
         const phone = bookingConfig.phone?.replace(/\D/g, '') ?? '';
         if (phone) {
-          window.open(
-            `https://wa.me/${phone}?text=${encodeURIComponent(lines)}`,
-            '_blank',
-          );
+          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, '_blank');
         }
         break;
       }
       case 'email': {
-        // Send structured email via server route (includes notification to owner)
         if (tourId) {
           fetch('/api/bookings', {
             method: 'POST',
@@ -77,7 +94,6 @@ export function BookingModal({
             }),
           }).catch(() => {/* silent */});
         } else {
-          // Fallback: open mailto if no tourId
           const recipient = bookingConfig.email ?? '';
           const subject   = encodeURIComponent(`Solicitud de cita — ${tourTitle}`);
           const body      = encodeURIComponent(lines.replace(/\*/g, ''));
@@ -239,6 +255,7 @@ export function BookingModal({
           width: 100%;
           padding: 0.5rem 0.75rem;
           font-size: 0.875rem;
+          color: #111827;
           background: #f9fafb;
           border: 1px solid #e5e7eb;
           border-radius: 0.75rem;

@@ -49,6 +49,7 @@ interface UseViewer360Options {
 const SPHERE_RADIUS = 500;
 const DRAG_SENSITIVITY = 0.1;
 const HOTSPOT_POSITION_EPSILON = 0.25;
+const MAX_RENDER_PIXEL_RATIO = 2.5;
 
 // ─── Coordinate conversion helpers ────────────────────────────────────────────
 
@@ -124,7 +125,9 @@ export function useViewer360({
   const [hotspotPositions,       setHotspotPositions]       = useState<HotspotScreenPosition[]>([]);
   const [overlayPositions,       setOverlayPositions]       = useState<Array<{
     id: string;
-    points: Array<{ x: number; y: number; visible: boolean }>;
+    w: number;
+    h: number;
+    points: Array<{ x: number; y: number; visible: boolean; ndcX: number; ndcY: number; ndcZ: number }>;
   }>>([]);
   const overlayPositionsSig = useRef<string>('');
 
@@ -136,7 +139,7 @@ export function useViewer360({
 
     // WebGL Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_RENDER_PIXEL_RATIO));
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
@@ -157,7 +160,7 @@ export function useViewer360({
     cameraRef.current = camera;
 
     // Sphere geometry — scale(-1,1,1) flips normals inward so texture shows inside
-    const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 48, 24);
+    const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 96, 64);
     geometry.scale(-1, 1, 1);
 
     const material = new THREE.MeshBasicMaterial({
@@ -334,9 +337,10 @@ export function useViewer360({
         }
 
         texture.colorSpace  = THREE.SRGBColorSpace;
-        texture.minFilter   = THREE.LinearFilter;
+        texture.minFilter   = THREE.LinearMipmapLinearFilter;
         texture.magFilter   = THREE.LinearFilter;
-        texture.generateMipmaps = false;
+        texture.generateMipmaps = true;
+        texture.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 1;
         texture.wrapS       = THREE.RepeatWrapping; // smooth horizontal seam
         currentTextureRef.current = texture;
 
@@ -446,13 +450,18 @@ export function useViewer360({
     if (overlays.length > 0) {
       const projected = overlays.map((ov) => ({
         id: ov.id,
+        w,
+        h,
         points: ov.points.map(({ yaw, pitch }) => {
           const wp  = sphericalToVector3(yaw, pitch).multiplyScalar(SPHERE_RADIUS);
           const ndc = wp.clone().project(camera);
           return {
-            x: (ndc.x  *  0.5 + 0.5) * w,
-            y: (-ndc.y * 0.5 + 0.5) * h,
+            x:    (ndc.x  *  0.5 + 0.5) * w,
+            y:    (-ndc.y *  0.5 + 0.5) * h,
             visible: ndc.z <= 1,
+            ndcX: ndc.x,
+            ndcY: ndc.y,
+            ndcZ: ndc.z,
           };
         }),
       }));

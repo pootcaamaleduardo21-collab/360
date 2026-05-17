@@ -2,9 +2,16 @@
 
 import { PolylineOverlay } from '@/types/tour.types';
 
+interface ProjectedPoint {
+  x: number; y: number; visible: boolean;
+  ndcX: number; ndcY: number; ndcZ: number;
+}
+
 interface ProjectedOverlay {
   id: string;
-  points: Array<{ x: number; y: number; visible: boolean }>;
+  w: number;
+  h: number;
+  points: ProjectedPoint[];
 }
 
 interface PolylinesOverlayProps {
@@ -16,6 +23,57 @@ interface PolylinesOverlayProps {
   onSelectOverlay?: (id: string) => void;
   /** Editor: show vertex dots for the selected overlay */
   isEditing?: boolean;
+}
+
+// Compute the point where segment (visible → hidden) crosses the NDC horizon (ndcZ=1)
+// and convert back to screen space.
+function clipToHorizon(
+  vis: ProjectedPoint, hid: ProjectedPoint, w: number, h: number,
+): { x: number; y: number } | null {
+  const dz = hid.ndcZ - vis.ndcZ;
+  if (dz === 0) return null;
+  const t = (1 - vis.ndcZ) / dz;
+  if (t < 0 || t > 1) return null;
+  const cx = vis.ndcX + t * (hid.ndcX - vis.ndcX);
+  const cy = vis.ndcY + t * (hid.ndcY - vis.ndcY);
+  return { x: (cx * 0.5 + 0.5) * w, y: (-cy * 0.5 + 0.5) * h };
+}
+
+function buildSegments(pts: ProjectedPoint[], closed: boolean, w: number, h: number): string {
+  const segs: string[] = [];
+
+  const addSeg = (ax: number, ay: number, bx: number, by: number) =>
+    segs.push(`M ${ax.toFixed(1)} ${ay.toFixed(1)} L ${bx.toFixed(1)} ${by.toFixed(1)}`);
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (a.visible && b.visible) {
+      addSeg(a.x, a.y, b.x, b.y);
+    } else if (a.visible && !b.visible) {
+      const c = clipToHorizon(a, b, w, h);
+      if (c) addSeg(a.x, a.y, c.x, c.y);
+    } else if (!a.visible && b.visible) {
+      const c = clipToHorizon(b, a, w, h);
+      if (c) addSeg(c.x, c.y, b.x, b.y);
+    }
+  }
+
+  if (closed && pts.length >= 2) {
+    const first = pts[0];
+    const last  = pts[pts.length - 1];
+    if (last.visible && first.visible) {
+      addSeg(last.x, last.y, first.x, first.y);
+    } else if (last.visible && !first.visible) {
+      const c = clipToHorizon(last, first, w, h);
+      if (c) addSeg(last.x, last.y, c.x, c.y);
+    } else if (!last.visible && first.visible) {
+      const c = clipToHorizon(first, last, w, h);
+      if (c) addSeg(c.x, c.y, first.x, first.y);
+    }
+  }
+
+  return segs.join(' ');
 }
 
 export function PolylinesOverlay({
@@ -37,14 +95,7 @@ export function PolylinesOverlay({
         {overlays
           .filter((o) => o.style.glow > 0)
           .map((o) => (
-            <filter
-              key={o.id}
-              id={`poly-glow-${o.id}`}
-              x="-50%"
-              y="-50%"
-              width="200%"
-              height="200%"
-            >
+            <filter key={o.id} id={`poly-glow-${o.id}`} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation={o.style.glow} result="blur" />
               <feFlood floodColor={o.style.glowColor} result="color" />
               <feComposite in="color" in2="blur" operator="in" result="glow" />
@@ -62,31 +113,15 @@ export function PolylinesOverlay({
         if (!proj || proj.points.length < 2) return null;
 
         const { style } = overlay;
-        const pts = proj.points;
+        const { points: pts, w, h } = proj;
         const isSelected = isEditing && selectedOverlayId === overlay.id;
 
-        // Build visible segments: only draw between consecutive visible vertices
-        const segments: string[] = [];
-        for (let i = 0; i < pts.length - 1; i++) {
-          if (pts[i].visible && pts[i + 1].visible) {
-            segments.push(`M ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)} L ${pts[i + 1].x.toFixed(1)} ${pts[i + 1].y.toFixed(1)}`);
-          }
-        }
-        // Close polygon
-        if (style.closed && pts.length >= 2) {
-          const first = pts[0];
-          const last  = pts[pts.length - 1];
-          if (first.visible && last.visible) {
-            segments.push(`M ${last.x.toFixed(1)} ${last.y.toFixed(1)} L ${first.x.toFixed(1)} ${first.y.toFixed(1)}`);
-          }
-        }
-
-        const d = segments.join(' ');
+        const d = buildSegments(pts, style.closed, w, h);
         if (!d) return null;
 
         return (
           <g key={overlay.id}>
-            {/* Invisible wider hit area for easier clicking */}
+            {/* Invisible wider hit area */}
             {onSelectOverlay && (
               <path
                 d={d}
@@ -111,7 +146,7 @@ export function PolylinesOverlay({
               filter={style.glow > 0 ? `url(#poly-glow-${overlay.id})` : undefined}
             />
 
-            {/* Selected overlay: highlight + vertex dots */}
+            {/* Selected: highlight + vertex dots */}
             {isSelected && (
               <>
                 <path
@@ -125,15 +160,8 @@ export function PolylinesOverlay({
                   fill="none"
                 />
                 {pts.filter((p) => p.visible).map((p, i) => (
-                  <circle
-                    key={i}
-                    cx={p.x}
-                    cy={p.y}
-                    r={5}
-                    fill={style.color}
-                    stroke="white"
-                    strokeWidth={1.5}
-                    opacity={style.opacity}
+                  <circle key={i} cx={p.x} cy={p.y} r={5}
+                    fill={style.color} stroke="white" strokeWidth={1.5} opacity={style.opacity}
                   />
                 ))}
               </>

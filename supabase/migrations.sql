@@ -94,6 +94,9 @@ ALTER TABLE team_invites
   ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'advisor'
     CHECK (role IN ('admin', 'advisor'));
 
+ALTER TABLE team_invites
+  ADD COLUMN IF NOT EXISTS permissions jsonb NOT NULL DEFAULT '[]'::jsonb;
+
 
 -- ─── Migration 5: Lightweight tour list fields ──────────────────────────────
 --
@@ -148,7 +151,13 @@ CREATE INDEX IF NOT EXISTS tours_user_updated_light_idx
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES
   ('tour-scenes', 'tour-scenes', true, 52428800, ARRAY['image/jpeg','image/png','image/webp']),
-  ('tour-assets', 'tour-assets', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','audio/mpeg','audio/mp4','audio/wav','application/pdf']),
+  ('tour-assets', 'tour-assets', true, 104857600, ARRAY[
+    'image/jpeg','image/png','image/webp',
+    'audio/mpeg','audio/mp4','audio/wav',
+    'application/pdf',
+    'model/gltf-binary','model/gltf+json',
+    'application/octet-stream','text/plain'
+  ]),
   ('tour-thumbs', 'tour-thumbs', true, 5242880,  ARRAY['image/jpeg','image/png','image/webp'])
 ON CONFLICT (id) DO UPDATE
 SET
@@ -320,6 +329,7 @@ CREATE TABLE IF NOT EXISTS team_members (
   email          text NOT NULL,
   role           text NOT NULL DEFAULT 'advisor'
                    CHECK (role IN ('admin', 'advisor')),
+  permissions    jsonb NOT NULL DEFAULT '[]'::jsonb,
   status         text NOT NULL DEFAULT 'active'
                    CHECK (status IN ('active', 'revoked')),
   created_at     timestamptz NOT NULL DEFAULT now(),
@@ -349,6 +359,15 @@ SET
   role = EXCLUDED.role,
   status = 'active',
   revoked_at = null;
+
+ALTER TABLE team_members
+  ADD COLUMN IF NOT EXISTS permissions jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+UPDATE team_members
+SET permissions = COALESCE(team_invites.permissions, '[]'::jsonb)
+FROM team_invites
+WHERE team_members.owner_user_id = team_invites.admin_id
+  AND team_members.email = lower(team_invites.email);
 
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 
@@ -751,6 +770,16 @@ CREATE POLICY "price logs: admin reads" ON price_update_logs
 DROP POLICY IF EXISTS "price logs: admin inserts" ON price_update_logs;
 CREATE POLICY "price logs: admin inserts" ON price_update_logs
   FOR INSERT WITH CHECK (admin_id = auth.uid());
+
+
+-- ─── Migration: leads.advisor_id — track which advisor shared the link ───────
+
+ALTER TABLE leads
+  ADD COLUMN IF NOT EXISTS advisor_id text;
+
+CREATE INDEX IF NOT EXISTS leads_advisor_idx
+  ON leads(advisor_id)
+  WHERE advisor_id IS NOT NULL;
 
 
 -- ─── Verification ─────────────────────────────────────────────────────────────

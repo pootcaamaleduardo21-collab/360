@@ -26,6 +26,7 @@ const AIAssistant       = dynamic(() => import('@/components/viewer/AIAssistant'
 const LangSwitcher      = dynamic(() => import('@/components/viewer/LangSwitcher').then(m => m.LangSwitcher),          { ssr: false });
 const POIPanel          = dynamic(() => import('@/components/viewer/POIPanel').then(m => m.POIPanel),                  { ssr: false });
 const POIRouteCard      = dynamic(() => import('@/components/viewer/POIRouteCard').then(m => m.POIRouteCard),          { ssr: false });
+const Model3DViewer     = dynamic(() => import('@/components/viewer/Model3DViewer').then(m => m.Model3DViewer),        { ssr: false });
 
 const Viewer360 = dynamic(
   () => import('@/components/viewer/Viewer360').then((m) => m.Viewer360),
@@ -84,6 +85,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
   const [leadCaptureOpen,  setLeadCaptureOpen]  = useState(false);
   const [comparisonMode,   setComparisonMode]   = useState(false);
   const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
+  const [model3dOpen,      setModel3dOpen]      = useState(false);
   const [poiPanelOpen,     setPoiPanelOpen]     = useState(false);
   const [selectedPOI,      setSelectedPOI]      = useState<PointOfInterest | null>(null);
   const [shareOpen,        setShareOpen]        = useState(false);
@@ -229,7 +231,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
         </button>
       )}
 
-      <LangSwitcher lang={lang} onChangeLang={setLang} className="bottom-20 left-4" />
+      <LangSwitcher lang={lang} onChangeLang={setLang} className="bottom-20 left-1/2 -translate-x-1/2 md:left-4 md:translate-x-0" />
 
       <ErrorBoundary label="el visor 360°">
         {comparisonMode ? (
@@ -252,6 +254,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
             onOpenLeadCapture={tour.leadCaptureEnabled ? () => { setLeadCaptureOpen(true); trackEvent({ tourId: tour.id, event: 'cta_click', sceneId: currentSceneId ?? undefined }); } : undefined}
             onOpenMediaGallery={(tour.gallery?.length || tour.brochureUrl) ? () => setMediaGalleryOpen(true) : undefined}
             onOpenPOIPanel={(tour.pointsOfInterest?.length ?? 0) > 0 ? () => setPoiPanelOpen(true) : undefined}
+            onOpenModel3D={tour.model3d ? () => { setModel3dOpen(true); trackEvent({ tourId: tour.id, event: 'cta_click', sceneId: currentSceneId ?? undefined, metadata: { target: 'model3d' } }); } : undefined}
           />
         )}
       </ErrorBoundary>
@@ -301,6 +304,8 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
           bookingConfig={tour.bookingConfig}
           onClose={() => setBookingOpen(false)}
           onBooked={() => trackEvent({ tourId: tour.id, event: 'booking_request' })}
+          advisorId={advisorParam ?? undefined}
+          sceneId={currentSceneId ?? undefined}
         />
       )}
 
@@ -341,6 +346,14 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
           brochureFilename={tour.brochureFilename}
           brandColor={tour.brandColor}
           onClose={() => setMediaGalleryOpen(false)}
+        />
+      )}
+
+      {model3dOpen && tour.model3d && (
+        <Model3DViewer
+          model={tour.model3d}
+          brandColor={tour.brandColor}
+          onClose={() => setModel3dOpen(false)}
         />
       )}
 
