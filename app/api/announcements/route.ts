@@ -52,7 +52,9 @@ export async function GET() {
 
     targetAdminId = targetAdminId ?? user.id;
 
-    const { data, error } = await sb
+    // Use service role to bypass RLS — admin_id is already validated above
+    const svc = getServiceRoleClient();
+    const { data, error } = await svc
       .from('team_announcements')
       .select('*')
       .eq('admin_id', targetAdminId)
