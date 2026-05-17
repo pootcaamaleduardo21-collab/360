@@ -51,6 +51,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
   const waPhone      = searchParams.get('wa');
   const advisorParam = searchParams.get('advisor');
   const advisorTitle = searchParams.get('title');
+  const advisorUid   = searchParams.get('aid'); // user_id for lead attribution
 
   // If initialTour was provided by the server component, load it synchronously
   // before the first render so there's no loading flash.
@@ -304,7 +305,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
           bookingConfig={tour.bookingConfig}
           onClose={() => setBookingOpen(false)}
           onBooked={() => trackEvent({ tourId: tour.id, event: 'booking_request' })}
-          advisorId={advisorParam ?? undefined}
+          advisorId={advisorUid ?? undefined}
           sceneId={currentSceneId ?? undefined}
         />
       )}
@@ -313,6 +314,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
         <LeadCaptureModal
           tourId={tour.id}
           sceneId={currentSceneId ?? undefined}
+          advisorId={advisorUid ?? undefined}
           brandColor={tour.brandColor}
           logoUrl={tour.logoUrl}
           tourTitle={tour.title}

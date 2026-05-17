@@ -22,9 +22,10 @@ function getServiceClient() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tourId, sceneId, name, phone, email, message } = body as {
+    const { tourId, sceneId, advisorId, name, phone, email, message } = body as {
       tourId: string;
       sceneId?: string;
+      advisorId?: string;
       name: string;
       phone?: string;
       email?: string;
@@ -39,12 +40,13 @@ export async function POST(request: NextRequest) {
 
     // ── 1. Insert lead ──────────────────────────────────────────────────────
     await sb.from('leads').insert({
-      tour_id:  tourId,
-      scene_id: sceneId ?? null,
-      name:     name.trim(),
-      phone:    phone?.trim()   ?? null,
-      email:    email?.trim()   ?? null,
-      message:  message?.trim() ?? null,
+      tour_id:   tourId,
+      scene_id:  sceneId   ?? null,
+      advisor_id: advisorId ?? null,
+      name:      name.trim(),
+      phone:     phone?.trim()   ?? null,
+      email:     email?.trim()   ?? null,
+      message:   message?.trim() ?? null,
     });
 
     // ── 2. Fetch tour data + owner user_id ──────────────────────────────────
@@ -80,8 +82,14 @@ export async function POST(request: NextRequest) {
     const recipients = new Set<string>();
     if (ownerEmail) recipients.add(ownerEmail);
 
-    // Also notify the tour's sales advisor if they have an email
+    // Notify the tour's default sales advisor if configured
     if (tour.salesAdvisor?.email) recipients.add(tour.salesAdvisor.email);
+
+    // Notify the specific advisor whose personalized link generated this lead
+    if (advisorId) {
+      const { data: { user: advisorUser } } = await sb.auth.admin.getUserById(advisorId);
+      if (advisorUser?.email) recipients.add(advisorUser.email);
+    }
 
     await Promise.all(
       [...recipients].map((r) => sendLeadNotification(leadData, r))

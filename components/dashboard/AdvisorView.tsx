@@ -1,17 +1,22 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { TourSummary } from '@/lib/db';
 import {
   Globe, Lock, Eye, Layers, ExternalLink,
   MessageCircle, BarChart2, CheckCircle,
-  Clock, XCircle, AlertCircle,
+  Clock, XCircle, AlertCircle, Copy, Check,
+  Pencil, Phone, Briefcase, User, Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AdvisorViewProps {
-  tours:   TourSummary[];
+  tours:    TourSummary[];
   userName?: string;
+  userPhone?: string;
+  userTitle?: string;
+  userId?: string;
 }
 
 const UNIT_STATUS_STYLE = {
@@ -20,28 +25,93 @@ const UNIT_STATUS_STYLE = {
   sold:       { label: 'Vendido',      icon: <XCircle     className="w-3.5 h-3.5" />, color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/30'       },
   'in-process': { label: 'En proceso', icon: <AlertCircle className="w-3.5 h-3.5" />, color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/30'     },
 };
+void UNIT_STATUS_STYLE;
 
-export function AdvisorView({ tours, userName }: AdvisorViewProps) {
+export function AdvisorView({ tours, userName, userPhone, userTitle, userId }: AdvisorViewProps) {
   const published = tours.filter((t) => t.is_published);
   const drafts    = tours.filter((t) => !t.is_published);
 
+  const [name,        setName]        = useState(userName ?? '');
+  const [phone,       setPhone]       = useState(userPhone ?? '');
+  const [title,       setTitle]       = useState(userTitle ?? 'Asesor inmobiliario');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
+
+  useEffect(() => {
+    setName(userName ?? '');
+    setPhone(userPhone ?? '');
+    setTitle(userTitle ?? 'Asesor inmobiliario');
+  }, [userName, userPhone, userTitle]);
+
+  const saveProfile = useCallback(async () => {
+    setSaving(true);
+    try {
+      await fetch('/api/advisor/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: name, phone, title }),
+      });
+      setSaved(true);
+      setEditingProfile(false);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }, [name, phone, title]);
+
   return (
     <div className="space-y-8">
-      {/* Greeting */}
-      <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-600/15 to-blue-600/10 border border-emerald-500/20">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center text-xl font-black text-white">
-            {userName?.[0]?.toUpperCase() ?? 'A'}
+      {/* Greeting + Profile */}
+      <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-600/15 to-blue-600/10 border border-emerald-500/20 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center text-xl font-black text-white flex-shrink-0">
+            {name?.[0]?.toUpperCase() ?? 'A'}
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h2 className="text-lg font-black text-white">
-              Hola{userName ? `, ${userName.split(' ')[0]}` : ''}
+              Hola{name ? `, ${name.split(' ')[0]}` : ''}
             </h2>
             <p className="text-sm text-gray-400">
               Tienes <strong className="text-emerald-400">{published.length}</strong> tour{published.length !== 1 ? 's' : ''} activo{published.length !== 1 ? 's' : ''} para compartir con clientes.
             </p>
           </div>
+          <button
+            onClick={() => setEditingProfile((v) => !v)}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-700 transition-colors"
+          >
+            <Pencil className="w-3 h-3" />
+            Mi perfil
+          </button>
         </div>
+
+        {editingProfile && (
+          <div className="space-y-3 pt-2 border-t border-white/10">
+            <p className="text-xs text-gray-400">
+              Estos datos aparecerán en el tour cuando compartas tu link personalizado.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ProfileField icon={<User className="w-3.5 h-3.5" />} label="Nombre" value={name} onChange={setName} placeholder="Tu nombre completo" />
+              <ProfileField icon={<Phone className="w-3.5 h-3.5" />} label="WhatsApp" value={phone} onChange={setPhone} placeholder="+52 55 0000 0000" type="tel" />
+              <ProfileField icon={<Briefcase className="w-3.5 h-3.5" />} label="Título / Cargo" value={title} onChange={setTitle} placeholder="Asesor inmobiliario" />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveProfile}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
+              >
+                {saved ? <><Check className="w-3.5 h-3.5" /> Guardado</> : saving ? 'Guardando…' : 'Guardar perfil'}
+              </button>
+              <button
+                onClick={() => setEditingProfile(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-gray-500 hover:text-white transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick-share list */}
@@ -51,7 +121,7 @@ export function AdvisorView({ tours, userName }: AdvisorViewProps) {
             Tours listos para compartir
           </h3>
           {published.map((tour) => (
-            <AdvisorTourRow key={tour.id} tour={tour} />
+            <AdvisorTourRow key={tour.id} tour={tour} advisorName={name} advisorPhone={phone} advisorTitle={title} advisorUserId={userId} />
           ))}
         </div>
       )}
@@ -63,7 +133,7 @@ export function AdvisorView({ tours, userName }: AdvisorViewProps) {
             Borradores
           </h3>
           {drafts.map((tour) => (
-            <AdvisorTourRow key={tour.id} tour={tour} />
+            <AdvisorTourRow key={tour.id} tour={tour} advisorName={name} advisorPhone={phone} advisorTitle={title} advisorUserId={userId} />
           ))}
         </div>
       )}
@@ -81,7 +151,7 @@ export function AdvisorView({ tours, userName }: AdvisorViewProps) {
         <h3 className="text-sm font-bold text-gray-300">Consejos para asesores</h3>
         <ul className="space-y-2">
           {[
-            'Comparte el link del tour antes de la visita para generar expectativa.',
+            'Tu link personalizado incluye tu nombre y WhatsApp para que los clientes puedan contactarte directo.',
             'Usa el botón "Enviar info" en cada unidad para mandar specs por WhatsApp.',
             'El link ?unit=ID abre directamente la ficha de una unidad específica.',
             'El QR del tour es ideal para imprimir en material de venta físico.',
@@ -97,65 +167,122 @@ export function AdvisorView({ tours, userName }: AdvisorViewProps) {
   );
 }
 
+// ─── Profile field ────────────────────────────────────────────────────────────
+
+function ProfileField({ icon, label, value, onChange, placeholder, type = 'text' }: {
+  icon: React.ReactNode; label: string; value: string;
+  onChange: (v: string) => void; placeholder: string; type?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+        {icon}{label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 text-sm rounded-xl bg-gray-800/80 border border-gray-700 text-gray-200 placeholder-gray-600 outline-none focus:border-emerald-500 transition-colors"
+      />
+    </div>
+  );
+}
+
 // ─── Tour row for advisors ────────────────────────────────────────────────────
 
-function AdvisorTourRow({ tour }: { tour: TourSummary }) {
-  const baseUrl  = typeof window !== 'undefined' ? window.location.origin : '';
-  const viewerUrl = `${baseUrl}/viewer/${tour.share_slug ?? tour.id}`;
+function AdvisorTourRow({
+  tour, advisorName, advisorPhone, advisorTitle, advisorUserId,
+}: {
+  tour: TourSummary;
+  advisorName: string;
+  advisorPhone: string;
+  advisorTitle: string;
+  advisorUserId?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const baseUrl   = typeof window !== 'undefined' ? window.location.origin : '';
+  const tourSlug  = tour.share_slug ?? tour.id;
+
+  // Build personalized URL with advisor params
+  const params = new URLSearchParams();
+  if (advisorName.trim())    params.set('advisor', advisorName.trim());
+  if (advisorPhone.trim())   params.set('wa', advisorPhone.trim());
+  if (advisorTitle.trim())   params.set('title', advisorTitle.trim());
+  if (advisorUserId?.trim()) params.set('aid', advisorUserId.trim());
+  const queryString  = params.toString();
+  const personalizedUrl = `${baseUrl}/viewer/${tourSlug}${queryString ? `?${queryString}` : ''}`;
 
   const handleWhatsApp = () => {
-    const text = encodeURIComponent(`🏠 *${tour.title}*\nTour virtual 360° completo:\n${viewerUrl}`);
+    const text = encodeURIComponent(
+      `🏠 *${tour.title}*\nTe comparto el tour virtual 360°:\n${personalizedUrl}`
+    );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(viewerUrl);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(personalizedUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-gray-900 border border-gray-800 flex items-center gap-4">
-      {/* Thumbnail */}
-      <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
-        {tour.thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={tour.thumbnail} alt={tour.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Layers className="w-5 h-5 text-gray-600" />
+    <div className="rounded-2xl bg-gray-900 border border-gray-800 overflow-hidden">
+      <div className="p-4 flex items-center gap-4">
+        {/* Thumbnail */}
+        <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
+          {tour.thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={tour.thumbnail} alt={tour.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Layers className="w-5 h-5 text-gray-600" />
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-200 truncate">{tour.title}</p>
+            <span className={cn(
+              'flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
+              tour.is_published ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-gray-700 border-gray-600 text-gray-500'
+            )}>
+              {tour.is_published ? <><Globe className="w-2.5 h-2.5" /> Activo</> : <><Lock className="w-2.5 h-2.5" /> Borrador</>}
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-gray-200 truncate">{tour.title}</p>
-          <span className={cn(
-            'flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-            tour.is_published ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-gray-700 border-gray-600 text-gray-500'
-          )}>
-            {tour.is_published ? <><Globe className="w-2.5 h-2.5" /> Activo</> : <><Lock className="w-2.5 h-2.5" /> Borrador</>}
-          </span>
+          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+            <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count > 0 ? `${tour.scene_count} escenas` : 'Tour 360'}</span>
+            {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
+          </div>
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-          <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count > 0 ? `${tour.scene_count} escenas` : 'Tour 360'}</span>
-          {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
-        </div>
-      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Actions */}
         {tour.is_published && (
-          <>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={handleWhatsApp}
-              title="Compartir por WhatsApp"
+              title="Compartir por WhatsApp con mi link personalizado"
               className="w-8 h-8 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-colors border border-[#25D366]/20"
             >
               <MessageCircle className="w-4 h-4" />
             </button>
+            <button
+              onClick={handleCopy}
+              title="Copiar mi link personalizado"
+              className={cn(
+                'w-8 h-8 rounded-xl flex items-center justify-center transition-colors border',
+                copied
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                  : 'bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border-gray-700'
+              )}
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </button>
             <a
-              href={viewerUrl}
+              href={personalizedUrl}
               target="_blank"
               rel="noopener noreferrer"
               title="Ver tour"
@@ -165,14 +292,31 @@ function AdvisorTourRow({ tour }: { tour: TourSummary }) {
             </a>
             <Link
               href={`/dashboard/analytics/${tour.id}`}
-              title="Analytics"
+              title="Ver analytics de este tour"
               className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-colors border border-gray-700"
             >
               <BarChart2 className="w-4 h-4" />
             </Link>
-          </>
+          </div>
         )}
       </div>
+
+      {/* Personalized link preview */}
+      {tour.is_published && (
+        <div
+          className="px-4 pb-3 flex items-center gap-2 cursor-pointer group"
+          onClick={handleCopy}
+          title="Copiar link"
+        >
+          <Link2 className="w-3 h-3 text-gray-600 flex-shrink-0" />
+          <p className="text-[10px] text-gray-600 group-hover:text-gray-400 truncate transition-colors font-mono">
+            {personalizedUrl}
+          </p>
+          {copied
+            ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+            : <Copy className="w-3 h-3 text-gray-700 group-hover:text-gray-400 flex-shrink-0 transition-colors" />}
+        </div>
+      )}
     </div>
   );
 }

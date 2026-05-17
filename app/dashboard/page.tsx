@@ -157,6 +157,8 @@ export default function DashboardPage() {
   }
 
   const userName  = user?.user_metadata?.full_name ?? user?.email ?? '';
+  const userPhone = user?.user_metadata?.advisor_phone ?? '';
+  const userTitle = user?.user_metadata?.advisor_title ?? '';
   const initials  = userName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
 
   // Stats for admin header
@@ -361,7 +363,7 @@ export default function DashboardPage() {
           <>
             {/* Advisor view */}
             {role === 'advisor' ? (
-              <AdvisorView tours={tours} userName={userName} />
+              <AdvisorView tours={tours} userName={userName} userPhone={userPhone} userTitle={userTitle} userId={user?.id} />
             ) : (
               <>
                 {/* Admin / Super admin tours view */}

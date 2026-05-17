@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 interface LeadCaptureModalProps {
   tourId: string;
   sceneId?: string;
+  advisorId?: string;
   brandColor?: string;
   logoUrl?: string;
   tourTitle?: string;
@@ -18,6 +19,7 @@ interface LeadCaptureModalProps {
 export function LeadCaptureModal({
   tourId,
   sceneId,
+  advisorId,
   brandColor,
   logoUrl,
   tourTitle,
@@ -48,6 +50,7 @@ export function LeadCaptureModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tourId, sceneId,
+          advisorId: advisorId || undefined,
           name:    name.trim(),
           phone:   phone.trim()   || undefined,
           email:   email.trim()   || undefined,

@@ -11,6 +11,7 @@ import {
 import { getTourById } from '@/lib/db';
 import type { Tour } from '@/types/tour.types';
 import { useAuth } from '@/hooks/useAuth';
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
   ArrowLeft, Eye, MousePointerClick,
   Calendar, FileDown, Share2, Loader2, BarChart2,
@@ -40,11 +41,25 @@ export default function AnalyticsPage({ params }: PageProps) {
     if (!user) { router.push('/auth/login'); return; }
 
     const load = async () => {
-      // ── SECURITY: verify tour belongs to current user before loading analytics
+      // ── SECURITY: allow owner OR active team member to view analytics
       const tourRow = await getTourById(tourId).catch(() => null);
-      if (!tourRow || tourRow.user_id !== user.id) {
-        router.push('/dashboard');
-        return;
+      if (!tourRow) { router.push('/dashboard'); return; }
+
+      const isOwner = tourRow.user_id === user.id;
+      if (!isOwner) {
+        // Check if this user is an active member of the tour owner's team
+        let isMember = false;
+        if (isSupabaseConfigured()) {
+          const { data } = await getSupabase()
+            .from('team_members')
+            .select('id')
+            .eq('owner_user_id', tourRow.user_id)
+            .eq('member_user_id', user.id)
+            .eq('status', 'active')
+            .maybeSingle();
+          isMember = !!data;
+        }
+        if (!isMember) { router.push('/dashboard'); return; }
       }
 
       const [stats, hotspotStats, unitData, funnelData] = await Promise.all([
