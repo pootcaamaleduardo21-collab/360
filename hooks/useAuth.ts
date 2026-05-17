@@ -143,6 +143,9 @@ export function useAuth(): AuthState & AuthActions {
 
   const signOut = useCallback(async () => {
     const sb = getSupabase();
+    setSession(null);
+    setUser(null);
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     await sb.auth.signOut();
     // ── SECURITY: clear user-specific persisted state on logout ────────────
     // Prevents cart/items from a previous session leaking to the next user

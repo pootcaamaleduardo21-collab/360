@@ -144,7 +144,8 @@ export default function DashboardPage() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/');
+    router.replace('/auth/login');
+    router.refresh();
   };
 
   if (authLoading) {

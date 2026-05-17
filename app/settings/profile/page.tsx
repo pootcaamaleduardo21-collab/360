@@ -543,7 +543,7 @@ export default function ProfilePage() {
                 <p className="text-xs text-gray-500 mt-0.5">Cierra sesión en este dispositivo.</p>
               </div>
               <button
-                onClick={async () => { await signOut(); router.push('/'); }}
+                onClick={async () => { await signOut(); router.replace('/auth/login'); router.refresh(); }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-sm text-gray-300 transition-colors flex-shrink-0"
               >
                 <LogOut className="w-3.5 h-3.5" /> Cerrar sesión
