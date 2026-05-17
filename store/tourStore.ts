@@ -11,6 +11,8 @@ import {
   ViewerConfig,
   DEFAULT_VIEWER_CONFIG,
   FloorPlanMarker,
+  SceneOverlay,
+  PolylineStyle,
 } from '@/types/tour.types';
 
 // ─── Editor slice ─────────────────────────────────────────────────────────────
@@ -41,6 +43,13 @@ interface EditorState {
   addFloorPlanMarker: (marker: FloorPlanMarker) => void;
   updateFloorPlanMarker: (sceneId: string, patch: Partial<Omit<FloorPlanMarker, 'sceneId'>>) => void;
   removeFloorPlanMarker: (sceneId: string) => void;
+
+  addOverlay: (sceneId: string, overlay: SceneOverlay) => void;
+  updateOverlayStyle: (sceneId: string, overlayId: string, patch: Partial<PolylineStyle>) => void;
+  updateOverlayLabel: (sceneId: string, overlayId: string, label: string) => void;
+  removeOverlay: (sceneId: string, overlayId: string) => void;
+  addOverlayPoint: (sceneId: string, overlayId: string, point: { yaw: number; pitch: number }) => void;
+  removeOverlayPoint: (sceneId: string, overlayId: string, index: number) => void;
 }
 
 // ─── Viewer slice ─────────────────────────────────────────────────────────────
@@ -271,6 +280,124 @@ export const useTourStore = create<TourStore>()(
               ? {
                   ...s.tour,
                   floorPlanMarkers: (s.tour.floorPlanMarkers ?? []).filter((m) => m.sceneId !== sceneId),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        // ── Scene overlays ─────────────────────────────────────────────────
+
+        addOverlay: (sceneId, overlay) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? { ...sc, overlays: [...(sc.overlays ?? []), overlay] }
+                      : sc
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        updateOverlayStyle: (sceneId, overlayId, patch) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? {
+                          ...sc,
+                          overlays: (sc.overlays ?? []).map((ov) =>
+                            ov.id === overlayId
+                              ? { ...ov, style: { ...ov.style, ...patch } }
+                              : ov
+                          ),
+                        }
+                      : sc
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        updateOverlayLabel: (sceneId, overlayId, label) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? {
+                          ...sc,
+                          overlays: (sc.overlays ?? []).map((ov) =>
+                            ov.id === overlayId ? { ...ov, label } : ov
+                          ),
+                        }
+                      : sc
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        removeOverlay: (sceneId, overlayId) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? { ...sc, overlays: (sc.overlays ?? []).filter((ov) => ov.id !== overlayId) }
+                      : sc
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        addOverlayPoint: (sceneId, overlayId, point) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? {
+                          ...sc,
+                          overlays: (sc.overlays ?? []).map((ov) =>
+                            ov.id === overlayId
+                              ? { ...ov, points: [...ov.points, point] }
+                              : ov
+                          ),
+                        }
+                      : sc
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        removeOverlayPoint: (sceneId, overlayId, index) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? {
+                          ...sc,
+                          overlays: (sc.overlays ?? []).map((ov) =>
+                            ov.id === overlayId
+                              ? { ...ov, points: ov.points.filter((_, i) => i !== index) }
+                              : ov
+                          ),
+                        }
+                      : sc
+                  ),
                   updatedAt: new Date().toISOString(),
                 }
               : null,

@@ -122,6 +122,11 @@ export function useViewer360({
   const [isLoading,              setIsLoading]              = useState(false);
   const [error,                  setError]                  = useState<string | null>(null);
   const [hotspotPositions,       setHotspotPositions]       = useState<HotspotScreenPosition[]>([]);
+  const [overlayPositions,       setOverlayPositions]       = useState<Array<{
+    id: string;
+    points: Array<{ x: number; y: number; visible: boolean }>;
+  }>>([]);
+  const overlayPositionsSig = useRef<string>('');
 
   // ── Renderer bootstrap (runs once) ──────────────────────────────────────────
 
@@ -435,6 +440,32 @@ export function useViewer360({
 
     hotspotPositionsRef.current = positions;
     setHotspotPositions(positions);
+
+    // Project overlay vertices (polylines) — only recompute when overlays exist
+    const overlays = scene.overlays ?? [];
+    if (overlays.length > 0) {
+      const projected = overlays.map((ov) => ({
+        id: ov.id,
+        points: ov.points.map(({ yaw, pitch }) => {
+          const wp  = sphericalToVector3(yaw, pitch).multiplyScalar(SPHERE_RADIUS);
+          const ndc = wp.clone().project(camera);
+          return {
+            x: (ndc.x  *  0.5 + 0.5) * w,
+            y: (-ndc.y * 0.5 + 0.5) * h,
+            visible: ndc.z <= 1,
+          };
+        }),
+      }));
+      // Lightweight change detection: compare a rounded signature string
+      const sig = projected.map((o) => o.points.map((p) => `${p.visible?1:0},${Math.round(p.x)},${Math.round(p.y)}`).join('|')).join(';');
+      if (sig !== overlayPositionsSig.current) {
+        overlayPositionsSig.current = sig;
+        setOverlayPositions(projected);
+      }
+    } else if (overlayPositionsSig.current !== '') {
+      overlayPositionsSig.current = '';
+      setOverlayPositions([]);
+    }
   }, [scene, containerRef]);
 
   // Always point the ref at the latest version so the animate loop stays fresh
@@ -520,6 +551,7 @@ export function useViewer360({
     isLoading,
     error,
     hotspotPositions,
+    overlayPositions,
     lookAt,
     getAngles,
     screenToSpherical,
