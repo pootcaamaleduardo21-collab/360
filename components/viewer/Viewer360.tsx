@@ -14,6 +14,8 @@ import { AudioGuide } from './AudioGuide';
 import { MeasurementsOverlay } from './MeasurementsOverlay';
 import { MediaGallery, MediaGalleryButton } from './MediaGallery';
 import { NavigationPanel } from './NavigationPanel';
+import { IntroSphere } from './IntroSphere';
+import { PolylinesOverlay } from './PolylinesOverlay';
 import { useTourStore } from '@/store/tourStore';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -61,6 +63,14 @@ interface Viewer360Props {
   onSetStartView?: (yaw: number, pitch: number) => void;
   /** Preload all other scene panoramas after mount. Disable in editor to avoid loading dozens of full 360s at once. */
   preloadAdjacentScenes?: boolean;
+  /** Editor: ID of the overlay currently being edited (shows vertex dots + selection highlight) */
+  selectedOverlayId?: string | null;
+  /** Editor: called when user clicks on a polyline in the viewer */
+  onSelectOverlay?: (id: string) => void;
+  /** Editor: when set, clicks place a new vertex on this overlay instead of adding a hotspot */
+  addingVertexToOverlayId?: string | null;
+  /** Editor: called when a vertex is placed in addingVertexToOverlayId mode */
+  onVertexAdded?: (sceneId: string, overlayId: string, yaw: number, pitch: number) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -83,6 +93,10 @@ export function Viewer360({
   onOpenMediaGallery,
   onSetStartView,
   preloadAdjacentScenes = true,
+  selectedOverlayId,
+  onSelectOverlay,
+  addingVertexToOverlayId,
+  onVertexAdded,
 }: Viewer360Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeHotspot,      setActiveHotspot]      = useState<Hotspot | null>(null);
@@ -90,6 +104,8 @@ export function Viewer360({
   const [isFullscreen,       setIsFullscreen]       = useState(false);
   const [draggingHotspotId,  setDraggingHotspotId]  = useState<string | null>(null);
   const [sceneTransition,    setSceneTransition]    = useState(false);
+  const [showIntro,          setShowIntro]          = useState(!isEditing && !isComparisonPanel);
+  const [dissolveIntro,      setDissolveIntro]      = useState(false);
   const prevSceneIdRef       = useRef(currentScene.id);
   const sceneTransitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tutorialDismissed    = useTourStore((s) => s.tutorialDismissed);
@@ -185,12 +201,20 @@ export function Viewer360({
   // Apply CSS color filters to the Three.js canvas
   useColorFilter(containerRef, currentScene.colorAdjustments);
 
-  const { isLoading, error, hotspotPositions, lookAt, getAngles, screenToSpherical } = useViewer360({
+  const handleFirstLoad = useCallback(() => setDissolveIntro(true), []);
+
+  const {
+    isLoading, error, hotspotPositions, overlayPositions,
+    lookAt, getAngles, screenToSpherical,
+  } = useViewer360({
     containerRef,
     scene: currentScene,
     config,
-    isEditing: isEditing && !!addHotspotType,
-    onAddHotspot: handleAddHotspot,
+    isEditing: isEditing && (!!addHotspotType || !!addingVertexToOverlayId),
+    onAddHotspot: addingVertexToOverlayId
+      ? (yaw, pitch) => onVertexAdded?.(currentScene.id, addingVertexToOverlayId, yaw, pitch)
+      : handleAddHotspot,
+    onFirstLoad: showIntro ? handleFirstLoad : undefined,
   });
 
   // ── Zoom helpers ─────────────────────────────────────────────────────────
@@ -247,7 +271,7 @@ export function Viewer360({
       className={cn(
         'relative w-full h-full bg-gray-950 overflow-hidden select-none',
         draggingHotspotId ? 'cursor-grabbing' :
-        isEditing && addHotspotType ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
+        (isEditing && (addHotspotType || addingVertexToOverlayId)) ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
       )}
       onPointerMove={handleWrapperPointerMove}
       onPointerUp={handleWrapperPointerUp}
@@ -268,8 +292,28 @@ export function Viewer360({
         )}
       />
 
+      {/* Intro sphere — shown on first load, dissolves when panorama is ready */}
+      {showIntro && (
+        <IntroSphere
+          tour={tour}
+          dissolve={dissolveIntro}
+          onDone={() => setShowIntro(false)}
+        />
+      )}
+
       {/* Three.js canvas mount point — touch-none prevents browser gesture interception */}
       <div ref={containerRef} className="absolute inset-0 touch-none" />
+
+      {/* Polyline / boundary-line overlays */}
+      {(currentScene.overlays?.length ?? 0) > 0 && (
+        <PolylinesOverlay
+          overlays={(currentScene.overlays ?? []).filter((o) => o.type === 'polyline') as import('@/types/tour.types').PolylineOverlay[]}
+          projectedOverlays={overlayPositions}
+          selectedOverlayId={selectedOverlayId}
+          onSelectOverlay={isEditing ? onSelectOverlay : undefined}
+          isEditing={isEditing}
+        />
+      )}
 
       {/* Side navigation panel — visible in both viewer and editor for live preview */}
       <NavigationPanel
@@ -430,9 +474,9 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Top-left buttons: media gallery + POI */}
+      {/* Top-left buttons: media gallery + POI — shift right on desktop when nav panel is active */}
       {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel) && (
-        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+        <div className={cn('absolute top-4 z-20 flex flex-col gap-2', tour.navPanel?.enabled ? 'left-4 md:left-[290px]' : 'left-4')}>
           {onOpenMediaGallery && (
             <MediaGalleryButton
               itemCount={tour.gallery?.length ?? 0}

@@ -9,7 +9,7 @@ import { getUserRole } from '@/lib/roles';
 import { getTourById, saveTour, createTour } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import { externalizeEmbeddedTourImages, tourHasEmbeddedImages } from '@/lib/tourAssetRepair';
-import { HotspotType } from '@/types/tour.types';
+import { HotspotType, PolylineOverlay } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
 import { ImageUploader }    from '@/components/editor/ImageUploader';
 import { HotspotPanel }     from '@/components/editor/HotspotPanel';
@@ -23,12 +23,13 @@ import { MeasurementsPanel }  from '@/components/editor/MeasurementsPanel';
 import { MediaPanel }         from '@/components/editor/MediaPanel';
 import { NavPanelEditor }     from '@/components/editor/NavPanelEditor';
 import { InventoryPanel }    from '@/components/editor/InventoryPanel';
+import { OverlayPanel }      from '@/components/editor/OverlayPanel';
 import Link from 'next/link';
 import {
   ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
   Layers, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
   Loader2, Map, Building2, Palette, Cloud, CloudOff, Check, Lock,
-  Ruler, Film, Sparkles,
+  Ruler, Film, Sparkles, PenLine,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +51,7 @@ const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode;
 
 // ─── Left sidebar tabs ────────────────────────────────────────────────────────
 
-type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'inventory' | 'branding' | 'navpanel' | 'security' | 'publish';
+type LeftTab  = 'scenes' | 'upload' | 'floorplan' | 'medidas' | 'media' | 'inventory' | 'overlays' | 'branding' | 'navpanel' | 'security' | 'publish';
 type RightTab = 'hotspot' | 'retouch';
 
 // Grouped tabs: content group + config group
@@ -67,6 +68,7 @@ const TAB_GROUPS: {
       { id: 'medidas',   label: 'Medidas',   icon: <Ruler     className="w-4 h-4" />, minRole: 'admin' },
       { id: 'media',     label: 'Galería',   icon: <Film      className="w-4 h-4" />, minRole: 'admin' },
       { id: 'inventory', label: 'Inventario', icon: <Building2 className="w-4 h-4" />, minRole: 'admin' },
+      { id: 'overlays',  label: 'Líneas',    icon: <PenLine   className="w-4 h-4" />, minRole: 'admin' },
     ],
   },
   {
@@ -125,7 +127,11 @@ function EditorInner() {
   const navigateTo   = useTourStore((s) => s.navigateTo);
   const selectHotspot = useTourStore((s) => s.selectHotspot);
 
-  const [addingType,   setAddingType]   = useState<HotspotType | null>(null);
+  const addOverlayPoint = useTourStore((s) => s.addOverlayPoint);
+
+  const [addingType,             setAddingType]             = useState<HotspotType | null>(null);
+  const [selectedOverlayId,      setSelectedOverlayId]      = useState<string | null>(null);
+  const [addingVertexToOverlayId, setAddingVertexToOverlayId] = useState<string | null>(null);
   const [leftOpen,     setLeftOpen]     = useState(true);
   const [rightOpen,    setRightOpen]    = useState(true);
   const [leftTab,      setLeftTab]      = useState<LeftTab>('scenes');
@@ -199,10 +205,13 @@ function EditorInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourId]);
 
-  // ── Escape to cancel hotspot placement ───────────────────────────────────
+  // ── Escape to cancel hotspot / vertex placement ──────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setAddingType(null);
+      if (e.key === 'Escape') {
+        setAddingType(null);
+        setAddingVertexToOverlayId(null);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -475,6 +484,16 @@ function EditorInner() {
             {leftTab === 'inventory' && tour && (
               <InventoryPanel tour={tour} />
             )}
+            {leftTab === 'overlays' && currentScene && (
+              <OverlayPanel
+                sceneId={currentScene.id}
+                overlays={(currentScene.overlays ?? []).filter((o) => o.type === 'polyline') as PolylineOverlay[]}
+                selectedOverlayId={selectedOverlayId}
+                onSelectOverlay={setSelectedOverlayId}
+                addingVertexToOverlayId={addingVertexToOverlayId}
+                onSetAddingVertex={setAddingVertexToOverlayId}
+              />
+            )}
             {leftTab === 'branding' && tour && (
               <BrandingPanel tour={tour} />
             )}
@@ -559,6 +578,12 @@ function EditorInner() {
                 onHotspotAdded={handleHotspotAdded}
                 onHotspotSelected={selectHotspot}
                 preloadAdjacentScenes={false}
+                selectedOverlayId={selectedOverlayId}
+                onSelectOverlay={setSelectedOverlayId}
+                addingVertexToOverlayId={addingVertexToOverlayId}
+                onVertexAdded={(sceneId, overlayId, yaw, pitch) => {
+                  addOverlayPoint(sceneId, overlayId, { yaw, pitch });
+                }}
                 onSetStartView={(yaw, pitch) => {
                   if (currentSceneId) updateScene(currentSceneId, { initialYaw: yaw, initialPitch: pitch });
                 }}

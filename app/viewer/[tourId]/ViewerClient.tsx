@@ -218,7 +218,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
       {tour.scenes.length >= 2 && (
         <button
           onClick={handleToggleComparison}
-          className={`hidden md:flex absolute top-4 left-4 z-30 items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold shadow-lg transition-colors ${
+          className={`hidden md:flex absolute top-4 left-1/2 -translate-x-1/2 z-30 items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold shadow-lg transition-colors ${
             comparisonMode
               ? 'bg-blue-600 text-white'
               : 'bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70'

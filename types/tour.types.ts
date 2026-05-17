@@ -86,6 +86,38 @@ export interface Hotspot {
   noIcon?: boolean;               // Hide icon entirely (floor style shows only the ring)
 }
 
+// ─── Scene overlays ───────────────────────────────────────────────────────────
+
+export interface PolylineStyle {
+  color: string;       // hex stroke color
+  width: number;       // stroke width in px (1–20)
+  opacity: number;     // 0–1
+  glow: number;        // 0 = none, 1–20 = blur radius for luminous glow
+  glowColor: string;   // hex glow color (usually same as color)
+  closed: boolean;     // polygon mode: connect last vertex back to first
+  dash: string;        // SVG stroke-dasharray: '' solid | '8,4' dashed | '4,4' dotted
+}
+
+export const DEFAULT_POLYLINE_STYLE: PolylineStyle = {
+  color: '#00ff88',
+  width: 3,
+  opacity: 0.9,
+  glow: 8,
+  glowColor: '#00ff88',
+  closed: true,
+  dash: '',
+};
+
+export interface PolylineOverlay {
+  id: string;
+  type: 'polyline';
+  label?: string;
+  points: Array<{ yaw: number; pitch: number }>;
+  style: PolylineStyle;
+}
+
+export type SceneOverlay = PolylineOverlay;
+
 // ─── Scene ────────────────────────────────────────────────────────────────────
 
 export interface ColorAdjustments {
@@ -125,6 +157,7 @@ export interface Scene {
   audioGuideUrl?: string;                   // Auto-play narration when entering this scene
   audioGuideUrls?: Record<string, string>;  // Multi-language: { es: '...', en: '...' }
   measurements?: SceneMeasurements;         // Room/space dimensions shown in viewer
+  overlays?: SceneOverlay[];               // Visual overlays (polylines, future: labels, images)
 }
 
 // ─── Floor plan / Minimap ─────────────────────────────────────────────────────
