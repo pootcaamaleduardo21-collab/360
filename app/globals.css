@@ -18,6 +18,20 @@
   }
 }
 
+/* ── Intro sphere animation ─────────────────────────────────────── */
+@keyframes intro-orbit-a {
+  from { transform: rotateX(72deg) rotateZ(0deg); }
+  to   { transform: rotateX(72deg) rotateZ(360deg); }
+}
+@keyframes intro-orbit-b {
+  from { transform: rotateX(55deg) rotateZ(0deg); }
+  to   { transform: rotateX(55deg) rotateZ(360deg); }
+}
+@keyframes intro-sphere-pulse {
+  0%, 100% { opacity: 0.82; }
+  50%       { opacity: 1; }
+}
+
 @layer components {
   /* Reusable dark input style used in editor panels */
   .input-dark {

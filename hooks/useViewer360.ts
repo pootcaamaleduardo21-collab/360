@@ -40,6 +40,8 @@ interface UseViewer360Options {
   isEditing?: boolean;
   onAddHotspot?: (yaw: number, pitch: number) => void;
   onHotspotClick?: (hotspot: Hotspot) => void;
+  /** Called once when the very first panorama texture finishes loading (triggers intro dissolve). */
+  onFirstLoad?: () => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -82,12 +84,21 @@ export function useViewer360({
   isEditing = false,
   onAddHotspot,
   onHotspotClick,
+  onFirstLoad,
 }: UseViewer360Options) {
   // Refs to avoid stale closures — assigned synchronously every render
   const isEditingRef     = useRef(isEditing);
   const onAddHotspotRef  = useRef(onAddHotspot);
   isEditingRef.current    = isEditing;
   onAddHotspotRef.current = onAddHotspot;
+
+  // Intro animation refs
+  const onFirstLoadRef  = useRef(onFirstLoad);
+  onFirstLoadRef.current = onFirstLoad;
+  const isFirstLoadRef  = useRef(true);
+  const configRef       = useRef(config);
+  configRef.current      = config;
+  const settleRafRef    = useRef<number>(0);
 
   // Ref to always call the latest handleClick from the first useEffect
   const handleClickRef = useRef<(e: PointerEvent) => void>(() => {});
@@ -333,6 +344,37 @@ export function useViewer360({
         if (scene.initialYaw   !== undefined) cameraAngles.current.lon = scene.initialYaw;
         if (scene.initialPitch !== undefined) cameraAngles.current.lat = scene.initialPitch;
 
+        // Intro animation — runs once on very first texture load
+        if (isFirstLoadRef.current) {
+          isFirstLoadRef.current = false;
+
+          const targetLat = cameraAngles.current.lat;
+          const startLat  = targetLat + 18;
+          cameraAngles.current.lat = startLat;
+
+          const cam       = cameraRef.current;
+          const targetFov = configRef.current.fov;
+          const startFov  = 95;
+          if (cam) { cam.fov = startFov; cam.updateProjectionMatrix(); }
+
+          // Signal intro overlay to dissolve
+          onFirstLoadRef.current?.();
+
+          const startTime    = performance.now();
+          const DURATION     = 1400;
+          const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+          const animateSettle = () => {
+            const t = Math.min((performance.now() - startTime) / DURATION, 1);
+            const e = easeOutCubic(t);
+            cameraAngles.current.lat = startLat + (targetLat - startLat) * e;
+            const c = cameraRef.current;
+            if (c) { c.fov = startFov + (targetFov - startFov) * e; c.updateProjectionMatrix(); }
+            if (t < 1) settleRafRef.current = requestAnimationFrame(animateSettle);
+          };
+          settleRafRef.current = requestAnimationFrame(animateSettle);
+        }
+
         setIsLoading(false);
       },
       undefined,
@@ -341,6 +383,8 @@ export function useViewer360({
         setIsLoading(false);
       }
     );
+
+    return () => { cancelAnimationFrame(settleRafRef.current); };
   }, [scene?.imageUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync FOV when config changes ───────────────────────────────────────────

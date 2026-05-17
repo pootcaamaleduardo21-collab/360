@@ -14,6 +14,7 @@ import { AudioGuide } from './AudioGuide';
 import { MeasurementsOverlay } from './MeasurementsOverlay';
 import { MediaGallery, MediaGalleryButton } from './MediaGallery';
 import { NavigationPanel } from './NavigationPanel';
+import { IntroSphere } from './IntroSphere';
 import { useTourStore } from '@/store/tourStore';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -90,6 +91,8 @@ export function Viewer360({
   const [isFullscreen,       setIsFullscreen]       = useState(false);
   const [draggingHotspotId,  setDraggingHotspotId]  = useState<string | null>(null);
   const [sceneTransition,    setSceneTransition]    = useState(false);
+  const [showIntro,          setShowIntro]          = useState(!isEditing && !isComparisonPanel);
+  const [dissolveIntro,      setDissolveIntro]      = useState(false);
   const prevSceneIdRef       = useRef(currentScene.id);
   const sceneTransitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tutorialDismissed    = useTourStore((s) => s.tutorialDismissed);
@@ -185,12 +188,15 @@ export function Viewer360({
   // Apply CSS color filters to the Three.js canvas
   useColorFilter(containerRef, currentScene.colorAdjustments);
 
+  const handleFirstLoad = useCallback(() => setDissolveIntro(true), []);
+
   const { isLoading, error, hotspotPositions, lookAt, getAngles, screenToSpherical } = useViewer360({
     containerRef,
     scene: currentScene,
     config,
     isEditing: isEditing && !!addHotspotType,
     onAddHotspot: handleAddHotspot,
+    onFirstLoad: showIntro ? handleFirstLoad : undefined,
   });
 
   // ── Zoom helpers ─────────────────────────────────────────────────────────
@@ -267,6 +273,15 @@ export function Viewer360({
           sceneTransition ? 'opacity-100' : 'opacity-0 transition-opacity duration-500'
         )}
       />
+
+      {/* Intro sphere — shown on first load, dissolves when panorama is ready */}
+      {showIntro && (
+        <IntroSphere
+          tour={tour}
+          dissolve={dissolveIntro}
+          onDone={() => setShowIntro(false)}
+        />
+      )}
 
       {/* Three.js canvas mount point — touch-none prevents browser gesture interception */}
       <div ref={containerRef} className="absolute inset-0 touch-none" />
