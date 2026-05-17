@@ -1,16 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import QRCode from 'qrcode';
 import { TourSummary } from '@/lib/db';
 import {
-  Globe, Lock, Eye, Layers, ExternalLink,
+  Globe, Lock, Eye, Layers,
   MessageCircle, BarChart2, CheckCircle,
   Clock, XCircle, AlertCircle, Copy, Check,
   Pencil, Phone, Briefcase, User, Link2,
-  ClipboardList, Loader2, Home, QrCode,
-  Download, X, Send,
+  ClipboardList, Loader2, Home, LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,12 +25,6 @@ interface ReservationRequest {
   missing_documents: string[] | null;
   created_at:        string;
   metadata:          Record<string, string> | null;
-}
-
-interface TourUnit {
-  id:          string;
-  label:       string;
-  prototypeId?: string;
 }
 
 const RESERVATION_STATUS: Record<string, { label: string; color: string }> = {
@@ -214,32 +206,29 @@ function ProfileField({ icon, label, value, onChange, placeholder, type = 'text'
   );
 }
 
-// ─── Tour card with QR + reservation button ───────────────────────────────────
+// ─── Tour card ────────────────────────────────────────────────────────────────
 
 function AdvisorTourCard({
   tour, advisorName, advisorPhone, advisorTitle, advisorUserId,
 }: {
-  tour:          TourSummary;
-  advisorName:   string;
-  advisorPhone:  string;
-  advisorTitle:  string;
+  tour:           TourSummary;
+  advisorName:    string;
+  advisorPhone:   string;
+  advisorTitle:   string;
   advisorUserId?: string;
 }) {
-  const [copied,       setCopied]       = useState(false);
-  const [showQr,       setShowQr]       = useState(false);
-  const [qrDataUrl,    setQrDataUrl]    = useState('');
-  const [showReserve,  setShowReserve]  = useState(false);
-  const qrCanvasRef = useRef<HTMLImageElement>(null);
+  const [copied, setCopied] = useState(false);
 
-  const baseUrl        = typeof window !== 'undefined' ? window.location.origin : '';
-  const tourSlug       = (tour as TourSummary & { share_slug?: string }).share_slug ?? tour.id;
-  const params         = new URLSearchParams();
+  const baseUrl         = typeof window !== 'undefined' ? window.location.origin : '';
+  const tourSlug        = (tour as TourSummary & { share_slug?: string }).share_slug ?? tour.id;
+  const params          = new URLSearchParams();
   if (advisorName.trim())    params.set('advisor', advisorName.trim());
   if (advisorPhone.trim())   params.set('wa',      advisorPhone.trim());
   if (advisorTitle.trim())   params.set('title',   advisorTitle.trim());
   if (advisorUserId?.trim()) params.set('aid',     advisorUserId.trim());
-  const qs             = params.toString();
+  const qs              = params.toString();
   const personalizedUrl = `${baseUrl}/viewer/${tourSlug}${qs ? `?${qs}` : ''}`;
+  const advisorPanelUrl = `/advisor/${tour.id}`;
 
   const handleWhatsApp = () => {
     const text = encodeURIComponent(`🏠 *${tour.title}*\nTe comparto el tour virtual 360°:\n${personalizedUrl}`);
@@ -252,327 +241,95 @@ function AdvisorTourCard({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleShowQr = async () => {
-    if (!qrDataUrl) {
-      const url = await QRCode.toDataURL(personalizedUrl, { width: 400, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
-      setQrDataUrl(url);
-    }
-    setShowQr(true);
-  };
-
-  const handleDownloadQr = () => {
-    const a = document.createElement('a');
-    a.href = qrDataUrl;
-    a.download = `QR-${tour.title.replace(/\s+/g, '-')}.png`;
-    a.click();
-  };
-
   return (
-    <>
-      <div className="rounded-2xl bg-gray-900 border border-gray-800 overflow-hidden">
-        {/* Main row */}
-        <div className="p-4 flex items-center gap-4">
-          {/* Thumbnail */}
-          <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
-            {tour.thumbnail ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={tour.thumbnail} alt={tour.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Layers className="w-5 h-5 text-gray-600" />
-              </div>
-            )}
-          </div>
-
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold text-gray-200 truncate">{tour.title}</p>
-              <span className={cn(
-                'flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-                tour.is_published
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : 'bg-gray-700 border-gray-600 text-gray-500'
-              )}>
-                {tour.is_published
-                  ? <><Globe className="w-2.5 h-2.5" /> Activo</>
-                  : <><Lock  className="w-2.5 h-2.5" /> Borrador</>}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-              <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count > 0 ? `${tour.scene_count} escenas` : 'Tour 360'}</span>
-              {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
-            </div>
-          </div>
-
-          {/* Actions */}
-          {tour.is_published && (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <button onClick={handleWhatsApp} title="Compartir por WhatsApp"
-                className="w-8 h-8 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-colors border border-[#25D366]/20">
-                <MessageCircle className="w-4 h-4" />
-              </button>
-              <button onClick={handleCopy} title="Copiar link personalizado"
-                className={cn('w-8 h-8 rounded-xl flex items-center justify-center transition-colors border',
-                  copied ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border-gray-700')}>
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </button>
-              <button onClick={handleShowQr} title="Ver código QR"
-                className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-colors border border-gray-700">
-                <QrCode className="w-4 h-4" />
-              </button>
-              <a href={personalizedUrl} target="_blank" rel="noopener noreferrer" title="Abrir tour"
-                className="w-8 h-8 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 flex items-center justify-center transition-colors border border-blue-500/20">
-                <ExternalLink className="w-4 h-4" />
-              </a>
-              <Link href={`/dashboard/analytics/${tour.id}`} title="Ver analytics"
-                className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-colors border border-gray-700">
-                <BarChart2 className="w-4 h-4" />
-              </Link>
+    <div className="rounded-2xl bg-gray-900 border border-gray-800 overflow-hidden">
+      {/* Main row */}
+      <div className="p-4 flex items-center gap-4">
+        {/* Thumbnail */}
+        <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
+          {tour.thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={tour.thumbnail} alt={tour.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Layers className="w-5 h-5 text-gray-600" />
             </div>
           )}
         </div>
 
-        {/* Link preview + reserve button */}
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-gray-200 truncate">{tour.title}</p>
+            <span className={cn(
+              'flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
+              tour.is_published
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-gray-700 border-gray-600 text-gray-500'
+            )}>
+              {tour.is_published
+                ? <><Globe className="w-2.5 h-2.5" /> Activo</>
+                : <><Lock  className="w-2.5 h-2.5" /> Borrador</>}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+            <span><Layers className="w-3 h-3 inline mr-0.5" />{tour.scene_count > 0 ? `${tour.scene_count} escenas` : 'Tour 360'}</span>
+            {tour.is_published && <span><Eye className="w-3 h-3 inline mr-0.5" />{tour.view_count} vistas</span>}
+          </div>
+        </div>
+
+        {/* Secondary actions */}
         {tour.is_published && (
-          <div className="px-4 pb-4 flex items-center gap-3">
-            <div
-              className="flex-1 min-w-0 flex items-center gap-2 cursor-pointer group"
-              onClick={handleCopy}
-              title="Copiar link"
-            >
-              <Link2 className="w-3 h-3 text-gray-600 flex-shrink-0" />
-              <p className="text-[10px] text-gray-600 group-hover:text-gray-400 truncate transition-colors font-mono">
-                {personalizedUrl}
-              </p>
-              {copied
-                ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                : <Copy  className="w-3 h-3 text-gray-700 group-hover:text-gray-400 flex-shrink-0 transition-colors" />}
-            </div>
-            <button
-              onClick={() => setShowReserve(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-            >
-              <ClipboardList className="w-3.5 h-3.5" />
-              Solicitar reserva
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button onClick={handleWhatsApp} title="Compartir por WhatsApp"
+              className="w-8 h-8 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-colors border border-[#25D366]/20">
+              <MessageCircle className="w-4 h-4" />
             </button>
+            <button onClick={handleCopy} title="Copiar link personalizado"
+              className={cn('w-8 h-8 rounded-xl flex items-center justify-center transition-colors border',
+                copied ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border-gray-700')}>
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </button>
+            <Link href={`/dashboard/analytics/${tour.id}`} title="Ver analytics"
+              className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-colors border border-gray-700">
+              <BarChart2 className="w-4 h-4" />
+            </Link>
           </div>
         )}
       </div>
 
-      {/* QR Modal */}
-      {showQr && qrDataUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowQr(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-6 space-y-4 max-w-xs w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-white">Código QR</h3>
-                <p className="text-xs text-gray-500 truncate max-w-[200px]">{tour.title}</p>
-              </div>
-              <button onClick={() => setShowQr(false)} className="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="rounded-2xl overflow-hidden bg-white p-3">
-              <img src={qrDataUrl} alt="QR" className="w-full" ref={qrCanvasRef} />
-            </div>
-            <p className="text-[10px] text-gray-500 text-center">
-              Escanea para abrir el tour con tu información de contacto
+      {/* Link preview + primary CTA */}
+      {tour.is_published && (
+        <div className="px-4 pb-4 space-y-2">
+          {/* Personalized link */}
+          <div
+            className="flex items-center gap-2 cursor-pointer group"
+            onClick={handleCopy}
+            title="Copiar link"
+          >
+            <Link2 className="w-3 h-3 text-gray-600 flex-shrink-0" />
+            <p className="flex-1 text-[10px] text-gray-600 group-hover:text-gray-400 truncate transition-colors font-mono">
+              {personalizedUrl}
             </p>
-            <button
-              onClick={handleDownloadQr}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Descargar QR
-            </button>
+            {copied
+              ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+              : <Copy  className="w-3 h-3 text-gray-700 group-hover:text-gray-400 flex-shrink-0 transition-colors" />}
           </div>
+
+          {/* Primary CTA: open advisor panel */}
+          <Link
+            href={advisorPanelUrl}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            Abrir panel de asesor — QR · Inventario · Reservas · Kit de ventas
+          </Link>
         </div>
       )}
-
-      {/* Reservation Modal */}
-      {showReserve && (
-        <ReservationRequestModal
-          tourId={tour.id}
-          tourTitle={tour.title}
-          advisorUserId={advisorUserId}
-          onClose={() => setShowReserve(false)}
-        />
-      )}
-    </>
-  );
-}
-
-// ─── Reservation request modal ────────────────────────────────────────────────
-
-function ReservationRequestModal({
-  tourId, tourTitle, advisorUserId, onClose,
-}: {
-  tourId:        string;
-  tourTitle:     string;
-  advisorUserId?: string;
-  onClose:       () => void;
-}) {
-  const [units,       setUnits]       = useState<TourUnit[]>([]);
-  const [loadingUnits,setLoadingUnits]= useState(true);
-  const [unitId,      setUnitId]      = useState('');
-  const [clientName,  setClientName]  = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [clientEmail, setClientEmail] = useState('');
-  const [notes,       setNotes]       = useState('');
-  const [submitting,  setSubmitting]  = useState(false);
-  const [submitted,   setSubmitted]   = useState(false);
-  const [error,       setError]       = useState('');
-
-  useEffect(() => {
-    fetch(`/api/advisor/tour-units?tourId=${tourId}`)
-      .then((r) => r.ok ? r.json() : { units: [] })
-      .then((d) => { setUnits(d.units ?? []); if (d.units?.[0]) setUnitId(d.units[0].id); })
-      .catch(() => setUnits([]))
-      .finally(() => setLoadingUnits(false));
-  }, [tourId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unitId || !clientName.trim()) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      const res = await fetch('/api/reservation-requests', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ tourId, unitId, clientName, clientPhone, clientEmail, notes }),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        setError(d.error ?? 'Error al enviar.');
-      } else {
-        setSubmitted(true);
-        setTimeout(onClose, 2500);
-      }
-    } catch {
-      setError('Error de conexión.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  void advisorUserId;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full sm:max-w-md bg-gray-900 border border-gray-700 rounded-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-gray-800">
-          <div>
-            <h3 className="text-sm font-bold text-white">Solicitar reserva de unidad</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{tourTitle}</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {submitted ? (
-          <div className="px-5 py-10 flex flex-col items-center gap-3 text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <Check className="w-7 h-7 text-emerald-400" />
-            </div>
-            <p className="font-semibold text-white">¡Solicitud enviada!</p>
-            <p className="text-sm text-gray-400">El administrador recibirá la notificación y revisará tu solicitud.</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
-            {/* Unit selector */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                <Home className="w-3 h-3" /> Unidad a reservar
-              </label>
-              {loadingUnits ? (
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando unidades…
-                </div>
-              ) : units.length === 0 ? (
-                <p className="text-xs text-gray-500">No hay unidades configuradas en este tour.</p>
-              ) : (
-                <select
-                  value={unitId}
-                  onChange={(e) => setUnitId(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
-                >
-                  {units.map((u) => (
-                    <option key={u.id} value={u.id}>{u.label}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Client info */}
-            <div className="space-y-3">
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Datos del cliente</p>
-              <ModalField label="Nombre completo *" icon={<User className="w-3 h-3" />}>
-                <input required type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Nombre del interesado" className="modal-input" />
-              </ModalField>
-              <ModalField label="Teléfono / WhatsApp" icon={<Phone className="w-3 h-3" />}>
-                <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="+52 55 0000 0000" className="modal-input" />
-              </ModalField>
-              <ModalField label="Correo electrónico" icon={<MessageCircle className="w-3 h-3" />}>
-                <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="correo@ejemplo.com" className="modal-input" />
-              </ModalField>
-              <ModalField label="Notas adicionales" icon={<ClipboardList className="w-3 h-3" />}>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-                  placeholder="Situación del cliente, condiciones especiales…" className="modal-input resize-none" />
-              </ModalField>
-            </div>
-
-            {error && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={submitting || loadingUnits || !unitId || !clientName.trim()}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
-            >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {submitting ? 'Enviando…' : 'Enviar solicitud al admin'}
-            </button>
-
-            <style jsx>{`
-              :global(.modal-input) {
-                width: 100%;
-                padding: 0.5rem 0.75rem;
-                font-size: 0.8125rem;
-                color: #e5e7eb;
-                background: #1f2937;
-                border: 1px solid #374151;
-                border-radius: 0.75rem;
-                outline: none;
-                transition: border-color 0.15s;
-              }
-              :global(.modal-input:focus) {
-                border-color: #3b82f6;
-              }
-            `}</style>
-          </form>
-        )}
-      </div>
     </div>
   );
 }
 
-function ModalField({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <label className="flex items-center gap-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
-        {icon}{label}
-      </label>
-      {children}
-    </div>
-  );
-}
 
 // ─── Advisor reservations panel ───────────────────────────────────────────────
 
@@ -670,5 +427,4 @@ function ReservationCard({ req, muted = false }: { req: ReservationRequest; mute
   );
 }
 
-// Suppress unused warnings
-void [CheckCircle, Clock, XCircle, AlertCircle];
+void [CheckCircle, Clock, XCircle, AlertCircle, User, Phone, Briefcase, Home, ClipboardList];
