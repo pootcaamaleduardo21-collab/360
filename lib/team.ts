@@ -43,6 +43,23 @@ export async function inviteAdvisor(
   }
 }
 
+/** Update permissions for an invited/accepted admin. */
+export async function updateAdminPermissions(
+  email: string,
+  permissions: AdminPermission[]
+): Promise<{ ok?: boolean; error?: string }> {
+  try {
+    const res = await fetch('/api/team/invite', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, permissions }),
+    });
+    return await res.json();
+  } catch {
+    return { error: 'Error de conexión. Intenta de nuevo.' };
+  }
+}
+
 /** Remove an invitation. */
 export async function removeInvite(email: string): Promise<void> {
   try {

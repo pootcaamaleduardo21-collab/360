@@ -116,6 +116,7 @@ export function Viewer360({
   const cartItemCount        = useTourStore((s) => s.items.reduce((a, i) => a + i.quantity, 0));
   const toggleCart           = useTourStore((s) => s.toggleCart);
   const updateHotspot        = useTourStore((s) => s.updateHotspot);
+  const hasBottomMinimap     = config.showMinimap && !isEditing && tour.scenes.length > 1;
 
   // Track time spent per scene
   const sceneEnteredAt = useRef<number>(Date.now());
@@ -511,13 +512,16 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Property location button — bottom-left */}
+      {/* Property location button — bottom-left, raised when the minimap is visible */}
       {!isEditing && !isComparisonPanel && tour.propertyLat != null && tour.propertyLng != null && (
         <a
           href={`https://www.google.com/maps?q=${tour.propertyLat},${tour.propertyLng}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute bottom-4 left-4 z-20 flex items-center gap-2 px-3.5 py-2 text-white font-medium rounded-xl shadow-lg transition-opacity hover:opacity-90 backdrop-blur-sm border border-white/15"
+          className={cn(
+            'absolute left-4 z-20 flex items-center gap-2 px-3.5 py-2 text-white font-medium rounded-xl shadow-lg transition-opacity hover:opacity-90 backdrop-blur-sm border border-white/15',
+            hasBottomMinimap ? 'bottom-[300px] sm:bottom-[190px]' : 'bottom-4'
+          )}
           style={{ background: 'rgba(0,0,0,0.62)' }}
         >
           <MapPin className="w-4 h-4 text-blue-300" />
@@ -525,62 +529,55 @@ export function Viewer360({
         </a>
       )}
 
-      {/* Lead capture button — right side, stacked above booking/sales panel */}
-      {!isEditing && !isComparisonPanel && onOpenLeadCapture && (
-        <button
-          onClick={onOpenLeadCapture}
-          className={cn(
-            'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90',
-            onOpenBooking && onOpenSalesPanel ? 'bottom-[96px]' :
-            onOpenBooking || onOpenSalesPanel ? 'bottom-[56px]' :
-                                               'bottom-4',
+      {/* Bottom-right actions — real stack so labels and mobile wrapping never overlap */}
+      {!isEditing && !isComparisonPanel && (cartItemCount > 0 || onOpenLeadCapture || onOpenBooking || onOpenSalesPanel) && (
+        <div className={cn(
+          'absolute right-4 z-20 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2 sm:max-w-sm',
+          hasBottomMinimap ? 'bottom-[150px] sm:bottom-4' : 'bottom-4'
+        )}>
+          {cartItemCount > 0 && (
+            <button
+              onClick={toggleCart}
+              className="flex max-w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-white font-medium shadow-lg transition-colors hover:bg-rose-500"
+            >
+              <ShoppingCart className="h-4 w-4 flex-shrink-0" />
+              <span className="text-sm">{cartItemCount}</span>
+            </button>
           )}
-          style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
-        >
-          <Plus className="w-4 h-4" />
-          <span className="text-sm">{tour.leadCaptureLabel ?? 'Solicitar información'}</span>
-        </button>
-      )}
 
-      {/* Booking button — right side, above sales panel */}
-      {!isEditing && !isComparisonPanel && onOpenBooking && (
-        <button
-          onClick={onOpenBooking}
-          className={cn(
-            'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90',
-            onOpenSalesPanel ? 'bottom-[56px]' : 'bottom-4'
+          {onOpenLeadCapture && (
+            <button
+              onClick={onOpenLeadCapture}
+              className="flex max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90"
+              style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
+            >
+              <Plus className="h-4 w-4 flex-shrink-0" />
+              <span className="text-sm">{tour.leadCaptureLabel ?? 'Solicitar información'}</span>
+            </button>
           )}
-          style={{ background: tour.brandColor ? `${tour.brandColor}dd` : '#059669' }}
-        >
-          <Calendar className="w-4 h-4" />
-          <span className="text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar'}</span>
-        </button>
-      )}
 
-      {/* Sales panel toggle (bottom-right, only in viewer mode) */}
-      {!isEditing && !isComparisonPanel && onOpenSalesPanel && (
-        <button
-          onClick={onOpenSalesPanel}
-          className="absolute bottom-4 right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
-          style={{ background: tour.brandColor ?? '#1e40af' }}
-        >
-          <LayoutList className="w-4 h-4" />
-          <span className="text-sm">{tour.brandName ?? 'Explorar'}</span>
-        </button>
-      )}
-
-      {/* Cart button (bottom-right, shift up when sales button present) */}
-      {!isEditing && !isComparisonPanel && cartItemCount > 0 && (
-        <button
-          onClick={toggleCart}
-          className={cn(
-            'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded-xl shadow-lg transition-colors',
-            onOpenSalesPanel ? 'bottom-16' : 'bottom-4'
+          {onOpenBooking && (
+            <button
+              onClick={onOpenBooking}
+              className="flex max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90"
+              style={{ background: tour.brandColor ? `${tour.brandColor}dd` : '#059669' }}
+            >
+              <Calendar className="h-4 w-4 flex-shrink-0" />
+              <span className="text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar'}</span>
+            </button>
           )}
-        >
-          <ShoppingCart className="w-4 h-4" />
-          <span className="text-sm">{cartItemCount}</span>
-        </button>
+
+          {onOpenSalesPanel && (
+            <button
+              onClick={onOpenSalesPanel}
+              className="flex max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90"
+              style={{ background: tour.brandColor ?? '#1e40af' }}
+            >
+              <LayoutList className="h-4 w-4 flex-shrink-0" />
+              <span className="text-sm">{tour.brandName ?? 'Explorar'}</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* Edit mode indicator */}

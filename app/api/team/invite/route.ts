@@ -162,3 +162,84 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Error interno del servidor.' }, { status: 500 });
   }
 }
+
+/**
+ * PATCH /api/team/invite
+ *
+ * Updates permissions for an admin invited by the subscription owner.
+ * Body: { email: string, permissions: string[] }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { email } = body as { email?: string; permissions?: unknown };
+    if (!email || typeof email !== 'string') {
+      return NextResponse.json({ error: 'Email requerido.' }, { status: 400 });
+    }
+
+    const cookieStore = cookies();
+    const anonClient  = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await anonClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
+
+    const callerRole = user.user_metadata?.role as string | undefined;
+    const callerIsOwner = callerRole === 'super_admin' || isSubscriptionOwner(user);
+    if (!callerIsOwner) {
+      return NextResponse.json({ error: 'Solo el admin principal puede modificar permisos de administradores.' }, { status: 403 });
+    }
+    if (!hasAdminPermission(user, 'manage_team')) {
+      return NextResponse.json({ error: 'No tienes permiso para gestionar el equipo.' }, { status: 403 });
+    }
+
+    const adminClient = getServiceRoleClient();
+    const targetEmail = email.toLowerCase();
+    const nextPermissions = normalizeAdminPermissions(body.permissions);
+
+    const { data: invite, error: inviteError } = await adminClient
+      .from('team_invites')
+      .select('id, role, advisor_user_id')
+      .eq('admin_id', user.id)
+      .eq('email', targetEmail)
+      .maybeSingle();
+
+    if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 });
+    if (!invite) return NextResponse.json({ error: 'No se encontró esa invitación.' }, { status: 404 });
+    if (invite.role !== 'admin') {
+      return NextResponse.json({ error: 'Los permisos solo aplican a administradores.' }, { status: 400 });
+    }
+
+    const { error: inviteUpdateError } = await adminClient
+      .from('team_invites')
+      .update({ permissions: nextPermissions })
+      .eq('id', invite.id);
+    if (inviteUpdateError) return NextResponse.json({ error: inviteUpdateError.message }, { status: 500 });
+
+    const { error: memberUpdateError } = await adminClient
+      .from('team_members')
+      .update({ permissions: nextPermissions })
+      .eq('owner_user_id', user.id)
+      .eq('email', targetEmail);
+    if (memberUpdateError && memberUpdateError.code !== '42P01') {
+      return NextResponse.json({ error: memberUpdateError.message }, { status: 500 });
+    }
+
+    if (invite.advisor_user_id) {
+      const { data: target } = await adminClient.auth.admin.getUserById(invite.advisor_user_id);
+      if (target.user) {
+        await adminClient.auth.admin.updateUserById(invite.advisor_user_id, {
+          user_metadata: {
+            ...(target.user.user_metadata ?? {}),
+            role: 'admin',
+            invited_by: user.id,
+            team_permissions: nextPermissions,
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({ ok: true, permissions: nextPermissions });
+  } catch (err) {
+    console.error('[PATCH /api/team/invite]', err);
+    return NextResponse.json({ error: 'Error interno del servidor.' }, { status: 500 });
+  }
+}

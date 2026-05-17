@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { getTeamInvites, inviteAdvisor, removeInvite, TeamInvite } from '@/lib/team';
+import { getTeamInvites, inviteAdvisor, removeInvite, updateAdminPermissions, TeamInvite } from '@/lib/team';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ADMIN_PERMISSIONS,
@@ -14,7 +14,7 @@ import {
 import {
   Users, Mail, Send, Trash2, Clock, CheckCircle,
   Loader2, AlertCircle, Info, ClipboardList,
-  Copy, Check, ShieldCheck,
+  Copy, Check, ShieldCheck, Save,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -61,11 +61,17 @@ export function TeamPanel() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [permissionDrafts, setPermissionDrafts] = useState<Record<string, AdminPermission[]>>({});
+  const [savingPermissionsFor, setSavingPermissionsFor] = useState<string | null>(null);
   const canInviteAdmins = isSubscriptionOwner(user) || user?.user_metadata?.role === 'super_admin';
   const canInviteTeam = hasAdminPermission(user, 'manage_team');
 
   const load = useCallback(async () => {
-    setInvites(await getTeamInvites());
+    const data = await getTeamInvites();
+    setInvites(data);
+    setPermissionDrafts(Object.fromEntries(
+      data.map((invite) => [invite.email, invite.permissions ?? []])
+    ));
     setLoading(false);
   }, []);
 
@@ -110,6 +116,11 @@ export function TeamPanel() {
   const handleRemove = async (invite: TeamInvite) => {
     await removeInvite(invite.email);
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+    setPermissionDrafts((prev) => {
+      const next = { ...prev };
+      delete next[invite.email];
+      return next;
+    });
   };
 
   const togglePermission = (permission: AdminPermission) => {
@@ -118,6 +129,34 @@ export function TeamPanel() {
         ? prev.filter((item) => item !== permission)
         : [...prev, permission]
     );
+  };
+
+  const toggleInvitePermission = (invite: TeamInvite, permission: AdminPermission) => {
+    setPermissionDrafts((prev) => {
+      const current = prev[invite.email] ?? invite.permissions ?? [];
+      return {
+        ...prev,
+        [invite.email]: current.includes(permission)
+          ? current.filter((item) => item !== permission)
+          : [...current, permission],
+      };
+    });
+  };
+
+  const saveInvitePermissions = async (invite: TeamInvite) => {
+    const nextPermissions = permissionDrafts[invite.email] ?? [];
+    setSavingPermissionsFor(invite.email);
+    setFeedback(null);
+    const result = await updateAdminPermissions(invite.email, nextPermissions);
+    if (result.error) {
+      setFeedback({ type: 'error', msg: result.error });
+    } else {
+      setInvites((prev) => prev.map((item) =>
+        item.id === invite.id ? { ...item, permissions: nextPermissions } : item
+      ));
+      setFeedback({ type: 'success', msg: `Permisos actualizados para ${invite.email}.` });
+    }
+    setSavingPermissionsFor(null);
   };
 
   const fmt = (iso: string) =>
@@ -289,7 +328,7 @@ export function TeamPanel() {
 
         {invites.map((invite) => (
           <div key={invite.id}
-            className="flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors"
+            className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors"
           >
             {/* Avatar */}
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/30 to-indigo-600/30 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -309,7 +348,7 @@ export function TeamPanel() {
                   {ROLE_CONFIG[invite.role ?? 'advisor'].label}
                 </span>
               </div>
-              {(invite.role ?? 'advisor') === 'admin' && (invite.permissions?.length ?? 0) > 0 && (
+              {(invite.role ?? 'advisor') === 'admin' && !canInviteAdmins && (invite.permissions?.length ?? 0) > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {invite.permissions.map((permission) => (
                     <span
@@ -343,6 +382,53 @@ export function TeamPanel() {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+
+            {(invite.role ?? 'advisor') === 'admin' && canInviteAdmins && (
+              <div className="basis-full rounded-xl border border-gray-800 bg-gray-950/45 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-gray-300">Permisos de este administrador</p>
+                  <button
+                    type="button"
+                    onClick={() => saveInvitePermissions(invite)}
+                    disabled={savingPermissionsFor === invite.email}
+                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+                  >
+                    {savingPermissionsFor === invite.email
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Save className="h-3.5 w-3.5" />}
+                    Guardar
+                  </button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {ADMIN_PERMISSIONS.map((permission) => {
+                    const item = ADMIN_PERMISSION_LABELS[permission];
+                    const checked = (permissionDrafts[invite.email] ?? []).includes(permission);
+                    return (
+                      <label
+                        key={permission}
+                        className={cn(
+                          'flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors',
+                          checked
+                            ? 'border-blue-500/40 bg-blue-500/10'
+                            : 'border-gray-800 bg-gray-900/60 hover:border-gray-700'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleInvitePermission(invite, permission)}
+                          className="mt-0.5 h-3.5 w-3.5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                        />
+                        <span>
+                          <span className="block text-[11px] font-semibold text-gray-200">{item.label}</span>
+                          <span className="mt-0.5 block text-[10px] leading-snug text-gray-500">{item.desc}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
