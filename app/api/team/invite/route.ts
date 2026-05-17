@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import { buildInviteUrl, getServiceRoleClient, revokeTeamAccess } from '@/lib/teamInviteServer';
+import { acceptPendingInviteForUser, buildInviteUrl, findAuthUserByEmail, getServiceRoleClient, revokeTeamAccess } from '@/lib/teamInviteServer';
 import {
   DEFAULT_ADMIN_PERMISSIONS,
   normalizeAdminPermissions,
@@ -113,11 +113,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (inviteError) {
-      // If the user already exists in Auth, the invite email fails — that's OK,
-      // the invite record is still created and we return a soft warning.
+      // If the user already exists in Auth, the invite email fails but the invite
+      // record is already created. Auto-accept it immediately so the team_members
+      // row is written and RLS grants them tour access without any extra step.
       if (inviteError.message.includes('already registered')) {
+        const existingUser = await findAuthUserByEmail(email);
+        if (existingUser) {
+          await acceptPendingInviteForUser(existingUser);
+        }
         return NextResponse.json({
-          warning: 'El usuario ya tiene cuenta. Se registró la invitación; pídele iniciar sesión para activar el acceso.',
+          warning: 'El usuario ya tiene cuenta. El acceso fue activado automáticamente.',
           inviteUrl,
         });
       }
