@@ -203,11 +203,6 @@ export default function DashboardPage() {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Demo link */}
-          <Link href="/demo"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-500/10 transition-colors">
-            <Play className="w-3 h-3 fill-current" /> Demo
-          </Link>
 
           {/* Dev role tester — super admin only */}
           <DevRolePanel tourId={tours[0]?.id} />

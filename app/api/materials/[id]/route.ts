@@ -25,19 +25,45 @@ export async function GET(
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    // Fetch via anon client — RLS enforces access (owner + advisor policies)
-    const { data: material, error } = await sb
+    const adminClient = getServiceRoleClient();
+
+    // Resolve which admin this user belongs to (same fallback chain as GET /api/materials)
+    const { data: membership } = await sb
+      .from('team_members')
+      .select('owner_user_id')
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    let resolvedAdminId = membership?.owner_user_id ?? user.id;
+
+    if (!membership?.owner_user_id) {
+      const { data: invite } = await sb
+        .from('team_invites').select('admin_id')
+        .eq('advisor_user_id', user.id).eq('status', 'accepted').maybeSingle();
+      if (invite?.admin_id) {
+        resolvedAdminId = invite.admin_id;
+      } else if (user.email) {
+        const { data: pending } = await adminClient
+          .from('team_invites').select('admin_id')
+          .eq('email', user.email.toLowerCase()).maybeSingle();
+        if (pending?.admin_id) resolvedAdminId = pending.admin_id;
+      }
+    }
+
+    // Use service role to fetch file_path — access verified by admin_id check below
+    const { data: material, error } = await adminClient
       .from('team_materials')
-      .select('file_path, file_name')
+      .select('file_path, file_name, admin_id')
       .eq('id', params.id)
       .single();
 
     if (error || !material) {
-      return NextResponse.json({ error: 'Material no encontrado o sin acceso.' }, { status: 404 });
+      return NextResponse.json({ error: 'Material no encontrado.' }, { status: 404 });
     }
-
-    // Generate a 1-hour signed URL using the service role (bypasses storage RLS)
-    const adminClient = getServiceRoleClient();
+    if (material.admin_id !== resolvedAdminId) {
+      return NextResponse.json({ error: 'Sin acceso a este material.' }, { status: 403 });
+    }
     const { data: signed, error: signError } = await adminClient.storage
       .from(BUCKET)
       .createSignedUrl(material.file_path, 3600, {

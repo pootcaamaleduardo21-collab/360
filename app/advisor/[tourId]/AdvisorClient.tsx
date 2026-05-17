@@ -10,14 +10,12 @@ import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { getSupabase } from '@/lib/supabase';
-import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
-import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import {
   Link2, Copy, CheckCheck, Download, Upload, Play, ExternalLink, QrCode,
   Calendar, MessageCircle, Mail, Phone, LayoutDashboard,
   Building2, CheckCircle, Clock, XCircle, AlertCircle,
   FileText, Image as ImageIcon, Video, ChevronRight, Loader2,
-  Share2, BedDouble, Bath, Car, Ruler, FolderOpen, Megaphone,
+  Share2, BedDouble, Bath, Car, Ruler,
   UserCog, Save, PanelRightClose, PanelRightOpen, Filter, X,
 } from 'lucide-react';
 
@@ -34,7 +32,7 @@ interface Props {
   shareSlug: string | null;
 }
 
-type Tab = 'link' | 'profile' | 'material' | 'booking' | 'units' | 'kit' | 'novedades';
+type Tab = 'link' | 'profile' | 'material' | 'booking' | 'units';
 type InventoryStatusFilter = 'all' | PropertyUnit['status'];
 
 const STATUS_CONF = {
@@ -241,8 +239,6 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
     ...(hasMaterial ? [{ id: 'material' as Tab, label: 'Material',  icon: <Download   className="w-4 h-4" /> }] : []),
     ...(hasBooking  ? [{ id: 'booking'  as Tab, label: 'Agendar',   icon: <Calendar   className="w-4 h-4" /> }] : []),
     ...(hasUnits    ? [{ id: 'units'    as Tab, label: 'Inventario',icon: <Building2  className="w-4 h-4" /> }] : []),
-    { id: 'kit',      label: 'Kit Ventas', icon: <FolderOpen  className="w-4 h-4" /> },
-    { id: 'novedades',label: 'Novedades',  icon: <Megaphone   className="w-4 h-4" /> },
   ];
 
   return (
@@ -577,19 +573,6 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
             </div>
           )}
 
-          {/* ── Kit de Ventas ─────────────────────────────────────────────── */}
-          {tab === 'kit' && (
-            <div className="p-4">
-              <MaterialsPanel isAdmin={false} />
-            </div>
-          )}
-
-          {/* ── Novedades ─────────────────────────────────────────────────── */}
-          {tab === 'novedades' && (
-            <div className="p-4">
-              <AnnouncementsSection isAdmin={false} />
-            </div>
-          )}
 
         </div>
         </div>
