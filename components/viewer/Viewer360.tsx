@@ -531,10 +531,9 @@ export function Viewer360({
           onClick={onOpenLeadCapture}
           className={cn(
             'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90',
-            onOpenBooking && onOpenSalesPanel ? 'bottom-[152px]' :
-            onOpenBooking                     ? 'bottom-[108px]' :
-            onOpenSalesPanel                  ? 'bottom-[56px]'  :
-                                                'bottom-4',
+            onOpenBooking && onOpenSalesPanel ? 'bottom-[96px]' :
+            onOpenBooking || onOpenSalesPanel ? 'bottom-[56px]' :
+                                               'bottom-4',
           )}
           style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
         >

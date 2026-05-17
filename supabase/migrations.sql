@@ -782,6 +782,18 @@ CREATE INDEX IF NOT EXISTS leads_advisor_idx
   WHERE advisor_id IS NOT NULL;
 
 
+-- ─── Migration: team_invites.permissions — role-based permissions for admins ──
+-- IMPORTANT: Run this in Supabase SQL Editor if you get
+--   "Could not find the 'permissions' column of 'team_invites' in the schema cache"
+
+ALTER TABLE team_invites
+  ADD COLUMN IF NOT EXISTS permissions jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE team_invites
+  ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'advisor'
+    CHECK (role IN ('admin', 'advisor'));
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --

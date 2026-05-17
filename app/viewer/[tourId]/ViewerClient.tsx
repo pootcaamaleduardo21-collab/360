@@ -231,7 +231,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
         </button>
       )}
 
-      <LangSwitcher lang={lang} onChangeLang={setLang} className="bottom-20 left-1/2 -translate-x-1/2 md:left-4 md:translate-x-0" />
+      <LangSwitcher lang={lang} onChangeLang={setLang} className="top-[56px] right-4 z-30" />
 
       <ErrorBoundary label="el visor 360°">
         {comparisonMode ? (
