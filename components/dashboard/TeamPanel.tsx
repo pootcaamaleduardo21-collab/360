@@ -37,8 +37,12 @@ interface ReservationRequest {
   status: 'pending' | 'documents_needed' | 'in_review' | 'approved' | 'rejected' | 'cancelled';
   client_name: string | null;
   client_phone: string | null;
+  client_email: string | null;
   notes: string | null;
+  internal_notes: string | null;
+  missing_documents: string[] | null;
   created_at: string;
+  metadata: { advisor_name?: string; tour_title?: string; [key: string]: unknown } | null;
 }
 
 const RESERVATION_STATUS: Record<ReservationRequest['status'], { label: string; color: string }> = {
@@ -439,15 +443,23 @@ export function TeamPanel() {
 }
 
 function ReservationRequestsPanel() {
-  const [requests, setRequests] = useState<ReservationRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [requests,   setRequests]   = useState<ReservationRequest[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [drafts,     setDrafts]     = useState<Record<string, { notes: string; docs: string }>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/reservation-requests');
-      setRequests(res.ok ? await res.json() : []);
+      const data: ReservationRequest[] = res.ok ? await res.json() : [];
+      setRequests(data);
+      setDrafts(Object.fromEntries(
+        data.map((r) => [r.id, {
+          notes: r.internal_notes ?? '',
+          docs:  (r.missing_documents ?? []).join(', '),
+        }])
+      ));
     } catch {
       setRequests([]);
     } finally {
@@ -457,21 +469,39 @@ function ReservationRequestsPanel() {
 
   useEffect(() => { load(); }, [load]);
 
-  const updateStatus = async (id: string, status: ReservationRequest['status']) => {
+  const patch = async (id: string, payload: Record<string, unknown>) => {
     setUpdatingId(id);
     try {
       const res = await fetch('/api/reservation-requests', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify({ id, ...payload }),
       });
       if (res.ok) {
-        const updated = await res.json();
+        const updated: ReservationRequest = await res.json();
         setRequests((prev) => prev.map((item) => item.id === id ? updated : item));
+        setDrafts((prev) => ({
+          ...prev,
+          [id]: {
+            notes: updated.internal_notes ?? '',
+            docs:  (updated.missing_documents ?? []).join(', '),
+          },
+        }));
       }
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const saveNotes = (request: ReservationRequest) => {
+    const draft = drafts[request.id];
+    if (!draft) return;
+    const docs = draft.docs.split(',').map((s) => s.trim()).filter(Boolean);
+    patch(request.id, {
+      status:            request.status,
+      internalNotes:     draft.notes || undefined,
+      missingDocuments:  docs.length ? docs : undefined,
+    });
   };
 
   return (
@@ -480,7 +510,7 @@ function ReservationRequestsPanel() {
         <ClipboardList className="w-5 h-5 text-emerald-400" />
         <div>
           <h2 className="text-base font-bold text-white">Solicitudes de reserva</h2>
-          <p className="text-xs text-gray-500">Aquí llegarán las solicitudes enviadas por asesores desde el panel móvil.</p>
+          <p className="text-xs text-gray-500">Solicitudes enviadas por asesores. Actualiza el estado y agrega notas internas.</p>
         </div>
       </div>
 
@@ -493,34 +523,95 @@ function ReservationRequestsPanel() {
           Aún no hay solicitudes de reserva.
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {requests.map((request) => {
-            const cfg = RESERVATION_STATUS[request.status];
+            const cfg   = RESERVATION_STATUS[request.status];
+            const draft = drafts[request.id] ?? { notes: '', docs: '' };
+            const advisorName = request.metadata?.advisor_name;
+            const date  = new Date(request.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
             return (
-              <div key={request.id} className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
+              <div key={request.id} className="rounded-2xl border border-gray-800 bg-gray-900 p-4 space-y-3">
+                {/* Header row */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-white">{request.unit_label ?? 'Unidad'}</p>
+                      <p className="text-sm font-bold text-white">{request.unit_label ?? 'Unidad'}</p>
                       <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold', cfg.color)}>
                         {cfg.label}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {request.client_name ?? 'Cliente'} {request.client_phone ? `· ${request.client_phone}` : ''}
-                    </p>
-                    {request.notes && <p className="mt-2 text-xs text-gray-400">{request.notes}</p>}
+                    <p className="mt-0.5 text-[11px] text-gray-500">{date}</p>
                   </div>
                   <select
                     value={request.status}
                     disabled={updatingId === request.id}
-                    onChange={(e) => updateStatus(request.id, e.target.value as ReservationRequest['status'])}
-                    className="rounded-xl border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-200"
+                    onChange={(e) => patch(request.id, { status: e.target.value })}
+                    className="flex-shrink-0 rounded-xl border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-200 cursor-pointer"
                   >
-                    {Object.entries(RESERVATION_STATUS).map(([status, statusCfg]) => (
-                      <option key={status} value={status}>{statusCfg.label}</option>
+                    {Object.entries(RESERVATION_STATUS).map(([s, scfg]) => (
+                      <option key={s} value={s}>{scfg.label}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Client + Advisor */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-gray-800/60 px-3 py-2">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Cliente</p>
+                    <p className="text-xs text-gray-200 font-medium">{request.client_name ?? '—'}</p>
+                    {request.client_phone && <p className="text-[11px] text-gray-400">{request.client_phone}</p>}
+                    {request.client_email && <p className="text-[11px] text-gray-400 truncate">{request.client_email}</p>}
+                  </div>
+                  <div className="rounded-xl bg-gray-800/60 px-3 py-2">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Asesor</p>
+                    <p className="text-xs text-gray-200 font-medium">{advisorName ?? '—'}</p>
+                  </div>
+                </div>
+
+                {/* Advisor notes (from advisor) */}
+                {request.notes && (
+                  <div className="rounded-xl bg-gray-800/40 px-3 py-2">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Nota del asesor</p>
+                    <p className="text-xs text-gray-300">{request.notes}</p>
+                  </div>
+                )}
+
+                {/* Internal notes + missing docs (admin editable) */}
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Notas internas
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={draft.notes}
+                      onChange={(e) => setDrafts((prev) => ({ ...prev, [request.id]: { ...draft, notes: e.target.value } }))}
+                      placeholder="Notas visibles solo para el equipo interno..."
+                      className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-xs text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Documentos faltantes <span className="text-gray-600 normal-case">(separados por coma)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={draft.docs}
+                      onChange={(e) => setDrafts((prev) => ({ ...prev, [request.id]: { ...draft, docs: e.target.value } }))}
+                      placeholder="Ej: INE, Comprobante de domicilio, RFC"
+                      className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <button
+                    disabled={updatingId === request.id}
+                    onClick={() => saveNotes(request)}
+                    className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                  >
+                    {updatingId === request.id
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <Save className="w-3 h-3" />}
+                    Guardar notas
+                  </button>
                 </div>
               </div>
             );

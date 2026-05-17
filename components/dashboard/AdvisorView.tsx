@@ -8,8 +8,31 @@ import {
   MessageCircle, BarChart2, CheckCircle,
   Clock, XCircle, AlertCircle, Copy, Check,
   Pencil, Phone, Briefcase, User, Link2,
+  ClipboardList, Loader2, Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+interface ReservationRequest {
+  id:              string;
+  unit_label:      string | null;
+  client_name:     string | null;
+  client_phone:    string | null;
+  status:          string;
+  notes:           string | null;
+  internal_notes:  string | null;
+  missing_documents: string[] | null;
+  created_at:      string;
+  metadata:        Record<string, string> | null;
+}
+
+const RESERVATION_STATUS: Record<string, { label: string; color: string }> = {
+  pending:          { label: 'Pendiente',             color: 'bg-amber-500/10 border-amber-500/30 text-amber-400'   },
+  documents_needed: { label: 'Documentos requeridos', color: 'bg-orange-500/10 border-orange-500/30 text-orange-400' },
+  in_review:        { label: 'En revisión',           color: 'bg-blue-500/10 border-blue-500/30 text-blue-400'      },
+  approved:         { label: 'Aprobado ✓',            color: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
+  rejected:         { label: 'Rechazado',             color: 'bg-red-500/10 border-red-500/30 text-red-400'         },
+  cancelled:        { label: 'Cancelado',             color: 'bg-gray-700 border-gray-600 text-gray-500'            },
+};
 
 interface AdvisorViewProps {
   tours:    TourSummary[];
@@ -145,6 +168,9 @@ export function AdvisorView({ tours, userName, userPhone, userTitle, userId }: A
           <p className="text-xs mt-1">Contacta a tu administrador para que publique un tour.</p>
         </div>
       )}
+
+      {/* Mis reservas */}
+      <AdvisorReservationsPanel />
 
       {/* Tips */}
       <div className="p-5 rounded-2xl bg-gray-900 border border-gray-800 space-y-3">
@@ -315,6 +341,107 @@ function AdvisorTourRow({
           {copied
             ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
             : <Copy className="w-3 h-3 text-gray-700 group-hover:text-gray-400 flex-shrink-0 transition-colors" />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Advisor reservations panel ───────────────────────────────────────────────
+
+function AdvisorReservationsPanel() {
+  const [requests, setRequests] = useState<ReservationRequest[]>([]);
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(() => {
+    fetch('/api/reservation-requests')
+      .then((r) => r.ok ? r.json() : [])
+      .then(setRequests)
+      .catch(() => setRequests([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const pending  = requests.filter((r) => r.status === 'pending' || r.status === 'documents_needed' || r.status === 'in_review');
+  const resolved = requests.filter((r) => r.status === 'approved' || r.status === 'rejected' || r.status === 'cancelled');
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+      </div>
+    );
+  }
+
+  if (requests.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <ClipboardList className="w-4 h-4 text-blue-400" />
+        <h3 className="text-sm font-bold text-gray-300">Mis solicitudes de reserva</h3>
+        {pending.length > 0 && (
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+            {pending.length}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {pending.map((req) => <ReservationCard key={req.id} req={req} />)}
+        {resolved.map((req) => <ReservationCard key={req.id} req={req} muted />)}
+      </div>
+    </div>
+  );
+}
+
+function ReservationCard({ req, muted = false }: { req: ReservationRequest; muted?: boolean }) {
+  const cfg  = RESERVATION_STATUS[req.status] ?? { label: req.status, color: 'bg-gray-700 border-gray-600 text-gray-500' };
+  const date = new Date(req.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+
+  return (
+    <div className={cn('rounded-2xl border p-4 space-y-2', muted ? 'border-gray-800 bg-gray-900/50' : 'border-gray-700 bg-gray-900')}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Home className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-gray-200 truncate">{req.unit_label ?? 'Unidad'}</p>
+            <span className={cn('flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', cfg.color)}>
+              {cfg.label}
+            </span>
+          </div>
+          {req.client_name && (
+            <p className="mt-1 text-xs text-gray-500">
+              Cliente: {req.client_name}{req.client_phone ? ` · ${req.client_phone}` : ''}
+            </p>
+          )}
+        </div>
+        <span className="flex-shrink-0 text-[10px] text-gray-600">{date}</span>
+      </div>
+
+      {req.notes && (
+        <p className="text-xs text-gray-500 border-t border-gray-800 pt-2">
+          {req.notes}
+        </p>
+      )}
+
+      {req.internal_notes && (
+        <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+          <p className="text-xs font-semibold text-blue-400 mb-0.5">Nota del admin:</p>
+          <p className="text-xs text-blue-300">{req.internal_notes}</p>
+        </div>
+      )}
+
+      {req.missing_documents && req.missing_documents.length > 0 && (
+        <div className="rounded-xl bg-orange-500/10 border border-orange-500/20 px-3 py-2">
+          <p className="text-xs font-semibold text-orange-400 mb-1">Documentos requeridos:</p>
+          <ul className="space-y-0.5">
+            {req.missing_documents.map((doc) => (
+              <li key={doc} className="text-xs text-orange-300 flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-orange-400 flex-shrink-0" />
+                {doc}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

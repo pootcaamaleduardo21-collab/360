@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendBookingNotification } from '@/lib/email';
 import type { Tour } from '@/types/tour.types';
+// advisorId is the advisor's Supabase user_id (passed via ?aid= URL param)
 
 /**
  * POST /api/bookings
@@ -25,10 +26,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      tourId, visitorName, visitorPhone, visitorEmail,
+      tourId, advisorId, visitorName, visitorPhone, visitorEmail,
       preferredDate, preferredTime, notes,
     } = body as {
       tourId: string;
+      advisorId?: string;
       visitorName: string;
       visitorPhone?: string;
       visitorEmail?: string;
@@ -82,13 +84,20 @@ export async function POST(request: NextRequest) {
       recipientEmail
     );
 
+    const bookingData = { tourTitle: tour.title, brandColor: tour.brandColor, visitorName: visitorName.trim(), visitorPhone, visitorEmail, preferredDate, preferredTime, notes, viewerUrl };
+
     // Also notify the tour owner if different from bookingConfig.email
     const { data: { user: owner } } = await sb.auth.admin.getUserById(tourRow.user_id);
     if (owner?.email && owner.email !== recipientEmail) {
-      await sendBookingNotification(
-        { tourTitle: tour.title, brandColor: tour.brandColor, visitorName: visitorName.trim(), visitorPhone, visitorEmail, preferredDate, preferredTime, notes, viewerUrl },
-        owner.email
-      );
+      await sendBookingNotification(bookingData, owner.email);
+    }
+
+    // Notify the advisor whose link brought the visitor (fire-and-forget)
+    if (advisorId) {
+      const { data: { user: advisor } } = await sb.auth.admin.getUserById(advisorId);
+      if (advisor?.email && advisor.email !== recipientEmail && advisor.email !== owner?.email) {
+        sendBookingNotification(bookingData, advisor.email).catch(() => {});
+      }
     }
 
     return NextResponse.json({ ok: true });

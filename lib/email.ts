@@ -97,6 +97,17 @@ function row(label: string, value: string): string {
   </tr>`;
 }
 
+// ─── Reservation status labels ───────────────────────────────────────────────
+
+const RESERVATION_STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  pending:           { label: 'Pendiente',           color: '#f59e0b', bg: '#451a03' },
+  documents_needed:  { label: 'Documentos requeridos', color: '#fb923c', bg: '#431407' },
+  in_review:         { label: 'En revisión',          color: '#60a5fa', bg: '#1e3a5f' },
+  approved:          { label: 'Aprobado',             color: '#34d399', bg: '#064e3b' },
+  rejected:          { label: 'Rechazado',            color: '#f87171', bg: '#450a0a' },
+  cancelled:         { label: 'Cancelado',            color: '#9ca3af', bg: '#1f2937' },
+};
+
 // ─── 1. Lead notification ─────────────────────────────────────────────────────
 
 export interface LeadEmailData extends LeadPayload {
@@ -212,6 +223,138 @@ export interface BookingEmailData {
   notes?: string;
   viewerUrl?: string;
 }
+
+// ─── 3. Reservation request → admin ──────────────────────────────────────────
+
+export interface ReservationRequestEmailData {
+  tourTitle:    string;
+  unitLabel:    string;
+  advisorName:  string;
+  clientName:   string;
+  clientPhone?: string;
+  clientEmail?: string;
+  notes?:       string;
+  dashboardUrl?: string;
+}
+
+export async function sendReservationRequestToAdmin(
+  data: ReservationRequestEmailData,
+  recipientEmail: string
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
+
+  const subject = `🏠 Solicitud de reserva — ${data.unitLabel} · ${data.tourTitle}`;
+
+  const waLink = data.clientPhone
+    ? `https://wa.me/${data.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${data.clientName}, recibimos tu solicitud de reserva para ${data.unitLabel}.`)}`
+    : null;
+
+  const body = `
+    <div style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);padding:28px 32px;">
+      <p style="margin:0 0 6px;font-size:12px;color:rgba(255,255,255,0.75);font-weight:600;letter-spacing:1px;text-transform:uppercase;">Nueva solicitud de reserva</p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;">${data.unitLabel}</h1>
+      <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.8);">Tour: <strong>${data.tourTitle}</strong></p>
+    </div>
+
+    <div style="padding:28px 32px;">
+      <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:1px solid #334155;border-radius:10px;overflow:hidden;margin-bottom:24px;">
+        <tr style="background:#0f172a;">
+          <td colspan="2" style="padding:10px 16px;font-size:11px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;">Detalles del cliente</td>
+        </tr>
+        <tr style="background:#1e293b;">${row('Asesor', data.advisorName)}</tr>
+        <tr style="background:#1e293b;">${row('Cliente', data.clientName)}</tr>
+        ${data.clientPhone ? `<tr style="background:#1e293b;">${row('Teléfono', data.clientPhone)}</tr>` : ''}
+        ${data.clientEmail ? `<tr style="background:#1e293b;">${row('Email', data.clientEmail)}</tr>` : ''}
+        ${data.notes ? `<tr style="background:#1e293b;">${row('Notas', `<em style="color:#cbd5e1;">"${data.notes}"</em>`)}</tr>` : ''}
+      </table>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        ${waLink ? `<a href="${waLink}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#16a34a;color:#fff;font-size:13px;font-weight:700;text-decoration:none;">📱 Contactar cliente</a>` : ''}
+        ${data.dashboardUrl ? `<a href="${data.dashboardUrl}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#334155;color:#e2e8f0;font-size:13px;font-weight:700;text-decoration:none;">📋 Ver en dashboard</a>` : ''}
+      </div>
+    </div>
+
+    <div style="padding:16px 32px;background:#0f172a;border-top:1px solid #1e293b;">
+      <p style="margin:0;font-size:11px;color:#475569;">
+        Solicitud enviada el ${new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' })}.
+      </p>
+    </div>
+  `;
+
+  try {
+    await resend.emails.send({ from: fromAddress(), to: recipientEmail, subject, html: layout(body, subject) });
+  } catch (err) {
+    console.error('[sendReservationRequestToAdmin]', err);
+  }
+}
+
+// ─── 4. Reservation status update → advisor ───────────────────────────────────
+
+export interface ReservationStatusEmailData {
+  tourTitle:      string;
+  unitLabel:      string;
+  status:         string;
+  clientName:     string;
+  internalNotes?: string;
+  missingDocuments?: string[];
+  dashboardUrl?:  string;
+}
+
+export async function sendReservationStatusToAdvisor(
+  data: ReservationStatusEmailData,
+  recipientEmail: string
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
+
+  const statusCfg = RESERVATION_STATUS_LABELS[data.status] ?? { label: data.status, color: '#9ca3af', bg: '#1f2937' };
+  const subject = `${statusCfg.label} — Reserva ${data.unitLabel} · ${data.tourTitle}`;
+
+  const body = `
+    <div style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:28px 32px;border-bottom:3px solid ${statusCfg.color};">
+      <p style="margin:0 0 8px;">${pill(statusCfg.label, statusCfg.bg, statusCfg.color)}</p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;">Actualización de reserva</h1>
+      <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.7);">${data.unitLabel} · ${data.tourTitle}</p>
+    </div>
+
+    <div style="padding:28px 32px;">
+      <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:1px solid #334155;border-radius:10px;overflow:hidden;margin-bottom:24px;">
+        <tr style="background:#0f172a;">
+          <td colspan="2" style="padding:10px 16px;font-size:11px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;">Detalle</td>
+        </tr>
+        <tr style="background:#1e293b;">${row('Cliente', data.clientName)}</tr>
+        <tr style="background:#1e293b;">${row('Unidad', data.unitLabel)}</tr>
+        <tr style="background:#1e293b;">${row('Nuevo estado', `<span style="color:${statusCfg.color};font-weight:700;">${statusCfg.label}</span>`)}</tr>
+        ${data.internalNotes ? `<tr style="background:#1e293b;">${row('Notas del admin', `<em style="color:#cbd5e1;">"${data.internalNotes}"</em>`)}</tr>` : ''}
+      </table>
+
+      ${data.missingDocuments?.length ? `
+      <div style="padding:16px;background:#451a03;border:1px solid #92400e;border-radius:10px;margin-bottom:20px;">
+        <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#fb923c;">📄 Documentos requeridos:</p>
+        <ul style="margin:0;padding-left:18px;color:#fcd34d;font-size:13px;">
+          ${data.missingDocuments.map((d) => `<li style="margin-bottom:4px;">${d}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      ${data.dashboardUrl ? `<a href="${data.dashboardUrl}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1d4ed8;color:#fff;font-size:13px;font-weight:700;text-decoration:none;">📋 Ver mis reservas</a>` : ''}
+    </div>
+
+    <div style="padding:16px 32px;background:#0f172a;border-top:1px solid #1e293b;">
+      <p style="margin:0;font-size:11px;color:#475569;">
+        Actualización registrada el ${new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' })}.
+      </p>
+    </div>
+  `;
+
+  try {
+    await resend.emails.send({ from: fromAddress(), to: recipientEmail, subject, html: layout(body, subject) });
+  } catch (err) {
+    console.error('[sendReservationStatusToAdvisor]', err);
+  }
+}
+
+// ─── 5. Booking notification ──────────────────────────────────────────────────
 
 export async function sendBookingNotification(
   booking: BookingEmailData,

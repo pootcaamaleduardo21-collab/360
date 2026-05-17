@@ -86,10 +86,11 @@ export function BookingModal({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               tourId,
+              advisorId:     advisorId    || undefined,
               visitorName:   form.name,
-              visitorPhone:  form.phone  || undefined,
-              visitorEmail:  form.email  || undefined,
-              preferredDate: form.date   || undefined,
+              visitorPhone:  form.phone   || undefined,
+              visitorEmail:  form.email   || undefined,
+              preferredDate: form.date    || undefined,
               notes:         form.message || undefined,
             }),
           }).catch(() => {/* silent */});
