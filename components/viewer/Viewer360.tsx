@@ -445,9 +445,9 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Top-left buttons: media gallery + POI */}
+      {/* Top-left buttons: media gallery + POI — shift right on desktop when nav panel is active */}
       {!isEditing && !isComparisonPanel && (onOpenMediaGallery || onOpenPOIPanel) && (
-        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+        <div className={cn('absolute top-4 z-20 flex flex-col gap-2', tour.navPanel?.enabled ? 'left-4 md:left-[290px]' : 'left-4')}>
           {onOpenMediaGallery && (
             <MediaGalleryButton
               itemCount={tour.gallery?.length ?? 0}

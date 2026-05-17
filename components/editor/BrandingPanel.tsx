@@ -128,14 +128,8 @@ function BrandTab({ tour, updateTour }: { tour: Tour; updateTour: (p: Partial<Om
         />
       </Field>
 
-      <Field label="URL del logo">
-        <input
-          type="url"
-          value={tour.logoUrl ?? ''}
-          onChange={(e) => updateTour({ logoUrl: e.target.value })}
-          className="input-dark"
-          placeholder="https://…"
-        />
+      <Field label="Logo de la empresa">
+        <LogoUpload tour={tour} updateTour={updateTour} />
       </Field>
 
       <Field label="Color de marca">
@@ -219,6 +213,102 @@ function BrandTab({ tour, updateTour }: { tour: Tour; updateTour: (p: Partial<Om
           onChange={(lat, lng) => updateTour({ propertyLat: lat, propertyLng: lng })}
         />
       </div>
+    </div>
+  );
+}
+
+// ─── Logo upload ─────────────────────────────────────────────────────────────
+
+function LogoUpload({
+  tour,
+  updateTour,
+}: {
+  tour: Tour;
+  updateTour: (p: Partial<Omit<Tour, 'id' | 'scenes'>>) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Sólo se permiten imágenes (PNG, JPG, SVG, WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('El archivo no puede superar 5 MB.');
+      return;
+    }
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const result = await uploadAsset(tour.id, file);
+      updateTour({ logoUrl: result.url });
+    } catch {
+      setUploadError('Error al subir el logo. Inténtalo de nuevo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        {/* Preview / placeholder */}
+        {tour.logoUrl ? (
+          <div className="relative group flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={tour.logoUrl}
+              alt="Logo"
+              className="w-16 h-16 rounded-xl object-contain bg-white/5 border border-gray-700 p-1.5"
+            />
+            <button
+              onClick={() => updateTour({ logoUrl: '' })}
+              title="Quitar logo"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-800 border border-gray-600 rounded-full flex items-center justify-center text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center text-gray-600 flex-shrink-0">
+            <Upload className="w-5 h-5" />
+          </div>
+        )}
+
+        {/* Upload button */}
+        <div className="flex-1 space-y-1.5">
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-medium text-gray-300 transition-colors disabled:opacity-50"
+          >
+            {uploading ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Subiendo…</>
+            ) : (
+              <><Upload className="w-3.5 h-3.5" /> {tour.logoUrl ? 'Cambiar logo' : 'Subir logo'}</>
+            )}
+          </button>
+          <p className="text-[10px] text-gray-600 text-center">PNG, JPG, SVG, WebP · máx. 5 MB</p>
+        </div>
+      </div>
+
+      {uploadError && (
+        <p className="text-[11px] text-red-400">{uploadError}</p>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }
