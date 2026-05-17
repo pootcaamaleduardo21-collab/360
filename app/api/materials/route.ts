@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { acceptPendingInviteForUser } from '@/lib/teamInviteServer';
 
 const BUCKET = 'team-materials';
 
@@ -27,6 +28,8 @@ export async function GET() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
+    const admin = getServiceRoleClient();
+
     // Resolve the admin_id whose materials to return
     const { data: membership } = await sb
       .from('team_members')
@@ -38,20 +41,36 @@ export async function GET() {
     let adminId = membership?.owner_user_id ?? null;
 
     if (!adminId) {
-      // Fallback: check team_invites (covers advisors with accepted invites but
-      // no team_members row yet)
+      // Fallback 2: team_invites by advisor_user_id (accepted)
       const { data: invite } = await sb
         .from('team_invites')
         .select('admin_id')
         .eq('advisor_user_id', user.id)
         .eq('status', 'accepted')
         .maybeSingle();
-      adminId = invite?.admin_id ?? user.id;
+      adminId = invite?.admin_id ?? null;
     }
+
+    if (!adminId && user.email) {
+      // Fallback 3: team_invites by email — covers advisors invited before the
+      // auto-accept fix whose invite is still 'pending' with no advisor_user_id.
+      // Also auto-repairs the broken state for next time.
+      const { data: pendingInvite } = await admin
+        .from('team_invites')
+        .select('admin_id')
+        .eq('email', user.email.toLowerCase())
+        .maybeSingle();
+
+      if (pendingInvite?.admin_id) {
+        adminId = pendingInvite.admin_id;
+        acceptPendingInviteForUser(user).catch(() => {});
+      }
+    }
+
+    adminId = adminId ?? user.id;
 
     // Use service-role client so the query is not blocked by RLS when the
     // advisor's team_members row is missing
-    const admin = getServiceRoleClient();
     const { data, error } = await admin
       .from('team_materials')
       .select('id, name, description, category, file_name, file_size, file_type, created_at, admin_id')

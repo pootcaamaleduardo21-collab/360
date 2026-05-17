@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { acceptPendingInviteForUser, getServiceRoleClient } from '@/lib/teamInviteServer';
 
 export async function GET() {
   try {
@@ -21,14 +22,35 @@ export async function GET() {
     let targetAdminId = membership?.owner_user_id ?? null;
 
     if (!targetAdminId) {
+      // Fallback 2: team_invites by advisor_user_id (accepted)
       const { data: invite } = await sb
         .from('team_invites')
         .select('admin_id')
         .eq('advisor_user_id', user.id)
         .eq('status', 'accepted')
         .maybeSingle();
-      targetAdminId = invite?.admin_id ?? user.id;
+      targetAdminId = invite?.admin_id ?? null;
     }
+
+    if (!targetAdminId && user.email) {
+      // Fallback 3: team_invites by email — covers advisors invited before the
+      // auto-accept fix whose invite is still 'pending' with no advisor_user_id.
+      // Use service role to bypass RLS. Also auto-repairs the broken state.
+      const admin = getServiceRoleClient();
+      const { data: pendingInvite } = await admin
+        .from('team_invites')
+        .select('admin_id')
+        .eq('email', user.email.toLowerCase())
+        .maybeSingle();
+
+      if (pendingInvite?.admin_id) {
+        targetAdminId = pendingInvite.admin_id;
+        // Auto-repair: create team_members row and mark invite accepted
+        acceptPendingInviteForUser(user).catch(() => {});
+      }
+    }
+
+    targetAdminId = targetAdminId ?? user.id;
 
     const { data, error } = await sb
       .from('team_announcements')
