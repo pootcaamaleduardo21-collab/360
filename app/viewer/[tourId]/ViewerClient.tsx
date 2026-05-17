@@ -280,6 +280,10 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
           onClose={() => setActiveUnit(null)}
           onNavigate={(sceneId) => { navigateTo(sceneId); setActiveUnit(null); }}
           onOpenBooking={tour.bookingEnabled && tour.bookingConfig ? () => { setActiveUnit(null); setBookingOpen(true); } : undefined}
+          advisorPhone={waPhone  ?? undefined}
+          advisorName={advisorParam ?? undefined}
+          advisorTitle={advisorTitle ?? undefined}
+          advisorId={advisorUid ?? undefined}
         />
       )}
 

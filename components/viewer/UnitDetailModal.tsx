@@ -4,21 +4,27 @@ import { useState, useCallback } from 'react';
 import { PropertyStatus, Tour, PropertyUnit } from '@/types/tour.types';
 import { getNiche } from '@/lib/niches';
 import { formatCurrency } from '@/lib/utils';
+import { submitLead } from '@/lib/leads';
 import {
-  X, Share2, Phone, MessageCircle, ChevronRight,
+  X, Phone, MessageCircle, ChevronRight,
   Maximize2, BedDouble, Bath, Car, Ruler, Building2,
-  CheckCircle, XCircle, Clock, AlertCircle, Check, Calendar,
+  CheckCircle, XCircle, Clock, AlertCircle, Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface UnitDetailModalProps {
-  unit: PropertyUnit;
-  tour: Tour;
-  onClose: () => void;
-  onNavigate?: (sceneId: string) => void;
+  unit:           PropertyUnit;
+  tour:           Tour;
+  onClose:        () => void;
+  onNavigate?:    (sceneId: string) => void;
   onOpenBooking?: () => void;
+  /** Advisor who shared the link — overrides tour.salesAdvisor for contact */
+  advisorPhone?:  string;
+  advisorName?:   string;
+  advisorTitle?:  string;
+  advisorId?:     string;
 }
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -34,14 +40,21 @@ const STATUS_STYLE: Record<PropertyStatus, {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function UnitDetailModal({ unit, tour, onClose, onNavigate, onOpenBooking }: UnitDetailModalProps) {
+export function UnitDetailModal({
+  unit, tour, onClose, onNavigate, onOpenBooking,
+  advisorPhone, advisorName, advisorTitle, advisorId,
+}: UnitDetailModalProps) {
   const [showFloorPlan, setShowFloorPlan] = useState(false);
-  const [copied,        setCopied]        = useState(false);
 
   // Resolve effective values — unit fields override prototype
-  const niche   = getNiche(tour);
-  const proto   = tour.unitPrototypes?.find((p) => p.id === unit.prototypeId);
-  const advisor = tour.salesAdvisor;
+  const niche = getNiche(tour);
+  const proto = tour.unitPrototypes?.find((p) => p.id === unit.prototypeId);
+
+  // Effective advisor: URL params (sharing advisor) take priority over tour.salesAdvisor
+  const effectivePhone = advisorPhone || tour.salesAdvisor?.phone;
+  const effectiveName  = advisorName  || tour.salesAdvisor?.name  || 'Asesor';
+  const effectiveTitle = advisorTitle || tour.salesAdvisor?.title  || tour.salesAdvisor?.company || 'Asesor inmobiliario';
+  const effectivePhoto = (!advisorName && !advisorPhone) ? tour.salesAdvisor?.photoUrl : undefined;
 
   const ef = {
     bedrooms:     unit.bedrooms    ?? proto?.bedrooms,
@@ -63,7 +76,7 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate, onOpenBooking
 
   // ── Message builders ───────────────────────────────────────────────────────
 
-  const buildShareMsg = useCallback(() => {
+  const buildInfoMsg = useCallback(() => {
     const lines: string[] = [
       `🏠 *${unit.label}* — ${tour.title}`,
       `📋 Estado: ${niche.statusLabels[unit.status]}`,
@@ -80,33 +93,34 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate, onOpenBooking
     if (ef.description) lines.push('', ef.description);
     lines.push('', '📱 Tour 360° completo:', tourUrl);
     return lines.join('\n');
-  }, [unit, tour, st, ef, tourUrl]);
+  }, [unit, tour, ef, tourUrl, niche]);
 
   const buildInterestMsg = useCallback(() =>
-    `Hola ${advisor?.name ?? niche.ctaAdvisorLabel}! Vi el tour 360° de *${tour.title}* y me interesa ${niche.unitLabel.toLowerCase()} *${unit.label}*. ¿Me podrías dar más información? 😊`,
-    [unit, tour, advisor, niche]
+    `Hola ${effectiveName}! Vi el tour 360° de *${tour.title}* y me interesa ${niche.unitLabel.toLowerCase()} *${unit.label}*. ¿Me podrías dar más información? 😊`,
+    [unit, tour, effectiveName, niche]
   );
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleShare = useCallback(async () => {
-    if (typeof navigator === 'undefined') return;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `${unit.label} — ${tour.title}`, url: tourUrl });
-        return;
-      } catch { /* fall through */ }
+  const handleInterest = useCallback(() => {
+    // Fire-and-forget lead capture with advisor attribution
+    if (tour.id) {
+      submitLead({
+        tourId:    tour.id,
+        advisorId: advisorId || undefined,
+        name:      'Interesado (WhatsApp)',
+        message:   `Interés en unidad ${unit.label}`,
+      }).catch(() => {});
     }
-    await navigator.clipboard.writeText(tourUrl).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  }, [tourUrl, unit, tour]);
+  }, [tour.id, advisorId, unit.id, unit.label]);
 
-  const interestHref = advisor?.phone
-    ? `https://wa.me/${advisor.phone.replace(/\D/g, '')}?text=${encodeURIComponent(buildInterestMsg())}`
+  const interestHref = effectivePhone
+    ? `https://wa.me/${effectivePhone.replace(/\D/g, '')}?text=${encodeURIComponent(buildInterestMsg())}`
     : null;
 
-  const shareHref = `https://wa.me/?text=${encodeURIComponent(buildShareMsg())}`;
+  const infoHref = effectivePhone
+    ? `https://wa.me/${effectivePhone.replace(/\D/g, '')}?text=${encodeURIComponent(buildInfoMsg())}`
+    : `https://wa.me/?text=${encodeURIComponent(buildInfoMsg())}`;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -237,12 +251,13 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate, onOpenBooking
                 </button>
               )}
 
-              {/* "Me interesa" → WhatsApp to advisor */}
+              {/* "Me interesa" → WhatsApp to the sharing advisor */}
               {interestHref && unit.status !== 'sold' && (
                 <a
                   href={interestHref}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={handleInterest}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold rounded-2xl transition-colors text-sm shadow-sm"
                 >
                   <MessageCircle className="w-4 h-4" />
@@ -262,52 +277,37 @@ export function UnitDetailModal({ unit, tour, onClose, onNavigate, onOpenBooking
                 </button>
               )}
 
-              {/* Share row */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleShare}
-                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors"
-                >
-                  {copied
-                    ? <><Check className="w-4 h-4 text-emerald-500" /> Copiado</>
-                    : <><Share2 className="w-4 h-4" /> Compartir</>
-                  }
-                </button>
-                <a
-                  href={shareHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C45] text-sm font-medium transition-colors border border-[#25D366]/30"
-                >
-                  <Share2 className="w-4 h-4" />
-                  Enviar info
-                </a>
-              </div>
+              {/* Send info via WhatsApp */}
+              <a
+                href={infoHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C45] text-sm font-medium transition-colors border border-[#25D366]/30"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Enviar ficha por WhatsApp
+              </a>
             </div>
           </div>
 
-          {/* Advisor footer */}
-          {advisor && (
+          {/* Advisor footer — shows the advisor who shared the link */}
+          {(effectiveName || effectivePhone) && (
             <div className="flex-shrink-0 border-t border-gray-100 px-5 py-3 flex items-center gap-3 bg-gray-50">
-              {advisor.photoUrl ? (
+              {effectivePhoto ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={advisor.photoUrl}
-                  alt={advisor.name}
-                  className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                />
+                <img src={effectivePhoto} alt={effectiveName} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">
-                  {advisor.name.charAt(0).toUpperCase()}
+                  {effectiveName.charAt(0).toUpperCase()}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{advisor.name}</p>
-                <p className="text-xs text-gray-500 truncate">{advisor.title ?? advisor.company ?? 'Asesor inmobiliario'}</p>
+                <p className="text-sm font-semibold text-gray-900 truncate">{effectiveName}</p>
+                <p className="text-xs text-gray-500 truncate">{effectiveTitle}</p>
               </div>
-              {advisor.phone && (
+              {effectivePhone && (
                 <a
-                  href={`tel:${advisor.phone}`}
+                  href={`tel:${effectivePhone}`}
                   className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-white transition-colors shadow-sm"
                   title="Llamar"
                 >
