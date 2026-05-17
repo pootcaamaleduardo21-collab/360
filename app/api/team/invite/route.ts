@@ -2,16 +2,22 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { buildInviteUrl, getServiceRoleClient, revokeTeamAccess } from '@/lib/teamInviteServer';
+import {
+  DEFAULT_ADMIN_PERMISSIONS,
+  normalizeAdminPermissions,
+  hasAdminPermission,
+  isSubscriptionOwner,
+} from '@/lib/teamPermissions';
 
 /**
  * POST /api/team/invite
  *
- * Invites a user by email as an advisor for the current admin.
+ * Invites a user by email as an advisor or limited admin for the current owner.
  *
- * Body: { email: string }
+ * Body: { email: string, role?: 'admin' | 'advisor', permissions?: string[] }
  *
  * Security:
- *   1. Verify the caller is authenticated and is an admin (not advisor)
+ *   1. Verify the caller is authenticated and can manage team members
  *   2. Use service-role client to call auth.admin.inviteUserByEmail
  *   3. Record the invitation in the team_invites table
  */
@@ -19,7 +25,11 @@ import { buildInviteUrl, getServiceRoleClient, revokeTeamAccess } from '@/lib/te
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, role = 'advisor' } = body as { email: string; role?: 'admin' | 'advisor' };
+    const { email, role = 'advisor' } = body as {
+      email: string;
+      role?: 'admin' | 'advisor';
+      permissions?: unknown;
+    };
     if (!email || typeof email !== 'string') {
       return NextResponse.json({ error: 'Email requerido.' }, { status: 400 });
     }
@@ -35,13 +45,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
     }
 
-    // 2. Verify caller is admin (not advisor)
+    // 2. Verify caller can manage teams. Only the subscription owner/super admin
+    // can create other admins and assign their permissions.
     const callerRole = user.user_metadata?.role as string | undefined;
     if (callerRole === 'advisor') {
-      return NextResponse.json({ error: 'Solo administradores pueden invitar asesores.' }, { status: 403 });
+      return NextResponse.json({ error: 'Solo administradores pueden invitar equipo.' }, { status: 403 });
+    }
+    if (!hasAdminPermission(user, 'manage_team')) {
+      return NextResponse.json({ error: 'No tienes permiso para gestionar el equipo.' }, { status: 403 });
+    }
+
+    const callerIsOwner = callerRole === 'super_admin' || isSubscriptionOwner(user);
+    if (role === 'admin' && !callerIsOwner) {
+      return NextResponse.json({ error: 'Solo el dueño de la suscripción puede crear administradores.' }, { status: 403 });
     }
 
     const adminClient = getServiceRoleClient();
+    const requestedPermissions = normalizeAdminPermissions(body.permissions);
+    const assignedPermissions = role === 'admin'
+      ? requestedPermissions.length
+        ? requestedPermissions
+        : DEFAULT_ADMIN_PERMISSIONS
+      : [];
 
     // 3. Check if already invited (idempotent)
     const { data: existing } = await adminClient
@@ -60,6 +85,7 @@ export async function POST(request: NextRequest) {
       admin_id: user.id,
       email:    email.toLowerCase(),
       role,
+      permissions: assignedPermissions,
       status:   'pending',
     });
     if (insertError) {
@@ -82,6 +108,7 @@ export async function POST(request: NextRequest) {
       data: {
         role,
         invited_by: user.id,
+        team_permissions: assignedPermissions,
       },
     });
 

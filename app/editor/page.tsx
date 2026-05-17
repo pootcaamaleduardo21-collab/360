@@ -689,7 +689,7 @@ function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
       >
         <Upload className="w-4 h-4" /> Subir imágenes 360°
       </button>
-      <p className="text-xs text-gray-600 mt-3">JPG · PNG · Equirectangular 2:1</p>
+      <p className="text-xs text-gray-600 mt-3">JPG · PNG · WebP · .insp · Equirectangular 2:1</p>
     </div>
   );
 }

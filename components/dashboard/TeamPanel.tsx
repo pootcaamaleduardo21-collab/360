@@ -2,10 +2,19 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { getTeamInvites, inviteAdvisor, removeInvite, TeamInvite } from '@/lib/team';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  ADMIN_PERMISSIONS,
+  ADMIN_PERMISSION_LABELS,
+  DEFAULT_ADMIN_PERMISSIONS,
+  type AdminPermission,
+  hasAdminPermission,
+  isSubscriptionOwner,
+} from '@/lib/teamPermissions';
 import {
   Users, Mail, Send, Trash2, Clock, CheckCircle,
   Loader2, AlertCircle, Info, ClipboardList,
-  Copy, Check,
+  Copy, Check, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,14 +51,18 @@ const RESERVATION_STATUS: Record<ReservationRequest['status'], { label: string; 
 };
 
 export function TeamPanel() {
+  const { user } = useAuth();
   const [invites,  setInvites]  = useState<TeamInvite[]>([]);
   const [email,    setEmail]    = useState('');
   const [role,     setRole]     = useState<'advisor' | 'admin'>('advisor');
+  const [permissions, setPermissions] = useState<AdminPermission[]>(DEFAULT_ADMIN_PERMISSIONS);
   const [loading,  setLoading]  = useState(true);
   const [sending,  setSending]  = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const canInviteAdmins = isSubscriptionOwner(user) || user?.user_metadata?.role === 'super_admin';
+  const canInviteTeam = hasAdminPermission(user, 'manage_team');
 
   const load = useCallback(async () => {
     setInvites(await getTeamInvites());
@@ -67,7 +80,8 @@ export function TeamPanel() {
     setInviteUrl(null);
     setCopied(false);
 
-    const result = await inviteAdvisor(trimmed, role);
+    const inviteRole = canInviteAdmins ? role : 'advisor';
+    const result = await inviteAdvisor(trimmed, inviteRole, inviteRole === 'admin' ? permissions : []);
     if (result.inviteUrl) setInviteUrl(result.inviteUrl);
 
     if (result.error) {
@@ -79,6 +93,8 @@ export function TeamPanel() {
     } else {
       setFeedback({ type: 'success', msg: `Invitación enviada a ${trimmed}. Recibirá un correo para registrarse.` });
       setEmail('');
+      setRole('advisor');
+      setPermissions(DEFAULT_ADMIN_PERMISSIONS);
       await load();
     }
     setSending(false);
@@ -96,6 +112,14 @@ export function TeamPanel() {
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
   };
 
+  const togglePermission = (permission: AdminPermission) => {
+    setPermissions((prev) =>
+      prev.includes(permission)
+        ? prev.filter((item) => item !== permission)
+        : [...prev, permission]
+    );
+  };
+
   const fmt = (iso: string) =>
     new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -111,7 +135,7 @@ export function TeamPanel() {
       <div className="flex gap-3 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-sm text-blue-300">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <p>
-          Los asesores invitados recibirán un correo para crear su cuenta. Una vez registrados, verán los tours publicados de tu cuenta y podrán compartirlos con clientes.
+          El dueño de la suscripción define qué puede hacer cada administrador. Los asesores solo ven tours publicados y materiales para compartir con clientes.
         </p>
       </div>
 
@@ -122,8 +146,8 @@ export function TeamPanel() {
         </label>
 
         {/* Role selector */}
-        <div className="grid grid-cols-2 gap-2">
-          {(['advisor', 'admin'] as const).map((r) => (
+        <div className={cn('grid gap-2', canInviteAdmins ? 'grid-cols-2' : 'grid-cols-1')}>
+          {(['advisor', 'admin'] as const).filter((r) => r !== 'admin' || canInviteAdmins).map((r) => (
             <button
               key={r}
               type="button"
@@ -143,6 +167,53 @@ export function TeamPanel() {
           ))}
         </div>
 
+        {role === 'admin' && canInviteAdmins && (
+          <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-blue-300" />
+              <div>
+                <p className="text-sm font-bold text-gray-100">Permisos del administrador</p>
+                <p className="text-xs text-gray-500">Activa solo las áreas que este admin podrá gestionar.</p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {ADMIN_PERMISSIONS.map((permission) => {
+                const item = ADMIN_PERMISSION_LABELS[permission];
+                const checked = permissions.includes(permission);
+                return (
+                  <label
+                    key={permission}
+                    className={cn(
+                      'flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors',
+                      checked
+                        ? 'border-blue-500/40 bg-blue-500/10'
+                        : 'border-gray-800 bg-gray-950/50 hover:border-gray-700'
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => togglePermission(permission)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                    />
+                    <span>
+                      <span className="block text-xs font-semibold text-gray-200">{item.label}</span>
+                      <span className="mt-0.5 block text-[10px] leading-snug text-gray-500">{item.desc}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {!canInviteTeam && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span>No tienes permiso para invitar equipo. Pide al dueño de la suscripción que active el permiso Equipo.</span>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -156,7 +227,7 @@ export function TeamPanel() {
           </div>
           <button
             type="submit"
-            disabled={sending || !email.trim()}
+            disabled={sending || !email.trim() || !canInviteTeam}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0"
           >
             {sending
@@ -238,6 +309,18 @@ export function TeamPanel() {
                   {ROLE_CONFIG[invite.role ?? 'advisor'].label}
                 </span>
               </div>
+              {(invite.role ?? 'advisor') === 'admin' && (invite.permissions?.length ?? 0) > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {invite.permissions.map((permission) => (
+                    <span
+                      key={permission}
+                      className="rounded-md border border-gray-700 bg-gray-800/70 px-1.5 py-0.5 text-[10px] text-gray-400"
+                    >
+                      {ADMIN_PERMISSION_LABELS[permission]?.label ?? permission}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-2 mt-0.5">
                 {invite.status === 'accepted' ? (
                   <span className="flex items-center gap-1 text-[11px] text-emerald-400">

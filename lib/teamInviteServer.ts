@@ -1,4 +1,5 @@
 import { createClient, type User } from '@supabase/supabase-js';
+import { normalizeAdminPermissions } from './teamPermissions';
 
 function isMissingTeamMembersTable(error: { code?: string; message?: string } | null) {
   return error?.code === '42P01' || error?.message?.includes('team_members');
@@ -45,13 +46,14 @@ export async function acceptPendingInviteForUser(user: User) {
   const adminClient = getServiceRoleClient();
   const { data: invite } = await adminClient
     .from('team_invites')
-    .select('id, admin_id, role, status')
+    .select('id, admin_id, role, permissions, status')
     .eq('email', email)
     .maybeSingle();
 
   if (!invite) return { accepted: false };
 
   const role = invite.role === 'admin' ? 'admin' : 'advisor';
+  const permissions = role === 'admin' ? normalizeAdminPermissions(invite.permissions) : [];
 
   const { error: memberError } = await adminClient
     .from('team_members')
@@ -60,6 +62,7 @@ export async function acceptPendingInviteForUser(user: User) {
       member_user_id: user.id,
       email,
       role,
+      permissions,
       status: 'active',
       revoked_at: null,
     }, {
@@ -81,6 +84,7 @@ export async function acceptPendingInviteForUser(user: User) {
       ...(user.user_metadata ?? {}),
       role,
       invited_by: invite.admin_id,
+      team_permissions: permissions,
     },
   });
 

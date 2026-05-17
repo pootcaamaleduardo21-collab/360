@@ -1,10 +1,12 @@
 import { getSupabase } from './supabase';
+import { type AdminPermission } from './teamPermissions';
 
 export interface TeamInvite {
   id: string;
   admin_id: string;
   email: string;
   role: 'admin' | 'advisor';
+  permissions: AdminPermission[];
   status: 'pending' | 'accepted';
   created_at: string;
 }
@@ -26,13 +28,14 @@ export async function getTeamInvites(): Promise<TeamInvite[]> {
 /** Send an invitation email via the server-side API route. */
 export async function inviteAdvisor(
   email: string,
-  role: 'admin' | 'advisor' = 'advisor'
+  role: 'admin' | 'advisor' = 'advisor',
+  permissions: AdminPermission[] = []
 ): Promise<{ ok?: boolean; error?: string; warning?: string; inviteUrl?: string }> {
   try {
     const res = await fetch('/api/team/invite', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ email, role }),
+      body:    JSON.stringify({ email, role, permissions }),
     });
     return await res.json();
   } catch {

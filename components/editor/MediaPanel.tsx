@@ -2,14 +2,23 @@
 
 import { useRef, useState, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Tour, GalleryItem } from '@/types/tour.types';
+import { Tour, GalleryItem, TourModel3D } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { uploadAsset } from '@/lib/storage';
 import {
   FileText, Image, Film, Plus, Trash2, Upload, Loader2,
-  ExternalLink, GripVertical, Youtube, Link2,
+  ExternalLink, GripVertical, Youtube, Link2, Box,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const MODEL_FORMATS = ['glb', 'gltf', 'splat', 'ply', 'obj'] as const;
+type ModelFormat = typeof MODEL_FORMATS[number];
+
+function getModelFormat(filenameOrUrl: string): ModelFormat | null {
+  const clean = filenameOrUrl.split('?')[0]?.split('#')[0] ?? filenameOrUrl;
+  const ext = clean.split('.').pop()?.toLowerCase();
+  return MODEL_FORMATS.includes(ext as ModelFormat) ? (ext as ModelFormat) : null;
+}
 
 // ─── PDF Brochure section ─────────────────────────────────────────────────────
 
@@ -104,6 +113,165 @@ function BrochureSection({ tour }: { tour: Tour }) {
       {!tour.brochureUrl && (
         <p className="text-[10px] text-gray-600 px-1">
           El botón "Descargar brochure" aparecerá en el recorrido para los visitantes.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── 3D model section ────────────────────────────────────────────────────────
+
+function Model3DSection({ tour }: { tour: Tour }) {
+  const updateTour = useTourStore((s) => s.updateTour);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [titleInput, setTitleInput] = useState(tour.model3d?.title ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const saveModel = (model: TourModel3D) => {
+    updateTour({ model3d: model });
+    setUrlInput('');
+    setTitleInput(model.title ?? '');
+    setError(null);
+  };
+
+  const handleUpload = async (file: File) => {
+    const format = getModelFormat(file.name);
+    if (!format) {
+      setError('Formatos aceptados: .glb, .gltf, .splat, .ply, .obj.');
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      setError('El modelo 3D no puede superar 100 MB.');
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await uploadAsset(tour.id, file);
+      saveModel({
+        url: result.url,
+        filename: file.name,
+        title: titleInput.trim() || 'Plano 3D',
+        format,
+      });
+    } catch {
+      setError('Error al subir el modelo. Revisa permisos de storage y vuelve a intentar.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddUrl = () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    const format = getModelFormat(url);
+    if (!format) {
+      setError('La URL debe terminar en .glb, .gltf, .splat, .ply u .obj.');
+      return;
+    }
+    saveModel({
+      url,
+      filename: url.split('/').pop()?.split('?')[0] || undefined,
+      title: titleInput.trim() || 'Plano 3D',
+      format,
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <h4 className="px-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+        Plano 3D / Dollhouse
+      </h4>
+
+      {tour.model3d ? (
+        <div className="rounded-xl border border-cyan-700/30 bg-cyan-900/15 p-3">
+          <div className="flex items-start gap-3">
+            <Box className="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-300" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-cyan-200">
+                {tour.model3d.title || 'Plano 3D'}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] text-cyan-300/60">
+                {tour.model3d.filename ?? tour.model3d.url}
+              </p>
+              {!['glb', 'gltf'].includes(tour.model3d.format) && (
+                <p className="mt-2 text-[10px] leading-4 text-amber-300">
+                  Guardado para pipeline avanzado. El visor actual renderiza .glb, .gltf, .obj y .ply.
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => updateTour({ model3d: undefined })}
+              className="flex-shrink-0 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-800 hover:text-red-400"
+              title="Quitar modelo 3D"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+          <a
+            href={tour.model3d.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 flex items-center gap-1 text-[10px] text-cyan-300 transition-colors hover:text-cyan-200"
+          >
+            <ExternalLink className="h-3 w-3" /> Abrir archivo
+          </a>
+        </div>
+      ) : (
+        <div className="space-y-2 rounded-xl border border-gray-800 bg-gray-900/70 p-3">
+          <input
+            type="text"
+            value={titleInput}
+            onChange={(e) => setTitleInput(e.target.value)}
+            placeholder="Título: Plano 3D, Dollhouse, Maqueta..."
+            className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-xs text-gray-200 outline-none transition-colors placeholder:text-gray-600 focus:border-blue-500"
+          />
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-600 py-3 text-xs font-medium text-gray-500 transition-colors hover:border-cyan-500 hover:text-cyan-300 disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {uploading ? 'Subiendo modelo...' : 'Subir .glb/.gltf/.obj/.ply/.splat'}
+          </button>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+              placeholder="O pega una URL pública al modelo"
+              className="min-w-0 flex-1 rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-xs text-gray-200 outline-none transition-colors placeholder:text-gray-600 focus:border-blue-500"
+            />
+            <button
+              onClick={handleAddUrl}
+              disabled={!urlInput.trim()}
+              className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-cyan-500 disabled:opacity-40"
+            >
+              Agregar
+            </button>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".glb,.gltf,.splat,.ply,.obj,model/gltf-binary,model/gltf+json"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleUpload(f);
+          e.target.value = '';
+        }}
+      />
+
+      {error && <p className="px-1 text-[11px] text-red-400">{error}</p>}
+      {!tour.model3d && (
+        <p className="px-1 text-[10px] leading-4 text-gray-600">
+          Ideal para modelos generados en Polycam, RealityCapture, Luma, Blender o pipelines de drone/360.
         </p>
       )}
     </div>
@@ -364,6 +532,8 @@ export function MediaPanel({ tour }: MediaPanelProps) {
         Medios del tour
       </h3>
       <BrochureSection tour={tour} />
+      <div className="border-t border-gray-800" />
+      <Model3DSection tour={tour} />
       <div className="border-t border-gray-800" />
       <GallerySection tour={tour} />
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { TourCard } from '@/components/dashboard/TourCard';
@@ -16,6 +16,7 @@ import { CRMPanel } from '@/components/dashboard/CRMPanel';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
 import { ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
+import { hasAdminPermission } from '@/lib/teamPermissions';
 import { DevRolePanel } from '@/components/DevRolePanel';
 import { listUserTours, deleteTour, type TourSummary } from '@/lib/db';
 import { useTourStore } from '@/store/tourStore';
@@ -30,16 +31,34 @@ import { cn } from '@/lib/utils';
 
 type DashTab = 'tours' | 'leads' | 'crm' | 'analytics' | 'platform' | 'team' | 'salesHub';
 
-function getRoleTabs(role: UserRole): { id: DashTab; label: string; icon: React.ReactNode }[] {
-  const base: { id: DashTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'tours',     label: 'Mis tours',  icon: <Globe         className="w-4 h-4" /> },
-    { id: 'leads',     label: 'Leads',      icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'crm',       label: 'CRM',        icon: <Building2     className="w-4 h-4" /> },
-    { id: 'analytics', label: 'Analytics',  icon: <BarChart2     className="w-4 h-4" /> },
-    { id: 'salesHub',  label: 'Kit comercial', icon: <FolderOpen className="w-4 h-4" /> },
-  ];
-  if (role !== 'advisor')    base.push({ id: 'team',     label: 'Equipo',     icon: <Users  className="w-4 h-4" /> });
-  return base;
+function getRoleTabs(role: UserRole, user: ReturnType<typeof useAuth>['user']): { id: DashTab; label: string; icon: React.ReactNode }[] {
+  if (role === 'advisor') {
+    return [
+      { id: 'tours',    label: 'Mis tours',      icon: <Globe      className="w-4 h-4" /> },
+      { id: 'salesHub', label: 'Kit comercial', icon: <FolderOpen className="w-4 h-4" /> },
+    ];
+  }
+
+  const tabs: { id: DashTab; label: string; icon: React.ReactNode }[] = [];
+  if (hasAdminPermission(user, 'manage_tours')) {
+    tabs.push({ id: 'tours', label: 'Mis tours', icon: <Globe className="w-4 h-4" /> });
+  }
+  if (hasAdminPermission(user, 'view_leads')) {
+    tabs.push({ id: 'leads', label: 'Leads', icon: <MessageSquare className="w-4 h-4" /> });
+  }
+  if (hasAdminPermission(user, 'view_crm')) {
+    tabs.push({ id: 'crm', label: 'CRM', icon: <Building2 className="w-4 h-4" /> });
+  }
+  if (hasAdminPermission(user, 'view_analytics')) {
+    tabs.push({ id: 'analytics', label: 'Analytics', icon: <BarChart2 className="w-4 h-4" /> });
+  }
+  if (hasAdminPermission(user, 'manage_sales_hub')) {
+    tabs.push({ id: 'salesHub', label: 'Kit comercial', icon: <FolderOpen className="w-4 h-4" /> });
+  }
+  if (hasAdminPermission(user, 'manage_team')) {
+    tabs.push({ id: 'team', label: 'Equipo', icon: <Users className="w-4 h-4" /> });
+  }
+  return tabs.length ? tabs : [{ id: 'salesHub', label: 'Kit comercial', icon: <FolderOpen className="w-4 h-4" /> }];
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -51,7 +70,7 @@ export default function DashboardPage() {
   const initTour = useTourStore((s) => s.initTour);
 
   const { role, baseRole } = useRole();
-  const roleTabs = getRoleTabs(role);
+  const roleTabs = useMemo(() => getRoleTabs(role, user), [role, user]);
 
   const [tours,            setTours]            = useState<TourSummary[]>([]);
   const [isLoading,        setIsLoading]        = useState(true);
@@ -96,7 +115,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (activeTab === 'platform' && role !== 'super_admin') switchTab('tours');
     if (activeTab === 'team' && role === 'advisor') switchTab('tours');
-  }, [activeTab, role, switchTab]);
+    if (!roleTabs.some((tab) => tab.id === activeTab) && activeTab !== 'platform') {
+      switchTab(roleTabs[0]?.id ?? 'tours');
+    }
+  }, [activeTab, role, roleTabs, switchTab]);
 
   const handleNewTour = () => {
     initTour('Nuevo tour');

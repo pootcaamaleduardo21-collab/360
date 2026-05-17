@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { acceptPendingInviteForUser, findAuthUserByEmail, getServiceRoleClient } from '@/lib/teamInviteServer';
+import { normalizeAdminPermissions } from '@/lib/teamPermissions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     const adminClient = getServiceRoleClient();
     const { data: invite, error: inviteError } = await adminClient
       .from('team_invites')
-      .select('id, admin_id, role, status')
+      .select('id, admin_id, role, permissions, status')
       .eq('email', email)
       .maybeSingle();
 
@@ -33,10 +34,12 @@ export async function POST(request: NextRequest) {
     }
 
     const role = invite.role === 'admin' ? 'admin' : 'advisor';
+    const permissions = role === 'admin' ? normalizeAdminPermissions(invite.permissions) : [];
     const metadata = {
       full_name: fullName || undefined,
       role,
       invited_by: invite.admin_id,
+      team_permissions: permissions,
     };
 
     const existingUser = await findAuthUserByEmail(email);

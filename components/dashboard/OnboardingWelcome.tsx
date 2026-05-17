@@ -17,7 +17,7 @@ const STEPS = [
     icon: <Upload className="w-6 h-6" />,
     color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     title: 'Sube tu imagen 360°',
-    desc: 'Arrastra una foto equirectangular (2:1) al editor. Soporta JPG y PNG.',
+    desc: 'Arrastra una foto equirectangular (2:1) al editor. Soporta JPG, PNG, WebP y .insp.',
   },
   {
     icon: <MousePointerClick className="w-6 h-6" />,

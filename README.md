@@ -259,3 +259,4 @@ MIT — Libre para uso comercial
 **Última actualización**: Abril 2026  
 **Status**: Fase 3 completa (Auth + DB + Inventario + Publicación)  
 **Mantenedor**: Eduardo Caámale
+ 

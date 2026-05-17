@@ -117,7 +117,13 @@ CREATE POLICY "events: owner can read" ON tour_events
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES
   ('tour-scenes', 'tour-scenes', true, 52428800, ARRAY['image/jpeg','image/png','image/webp']),
-  ('tour-assets', 'tour-assets', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','audio/mpeg','audio/mp4','audio/wav']),
+  ('tour-assets', 'tour-assets', true, 104857600, ARRAY[
+    'image/jpeg','image/png','image/webp',
+    'audio/mpeg','audio/mp4','audio/wav',
+    'application/pdf',
+    'model/gltf-binary','model/gltf+json',
+    'application/octet-stream','text/plain'
+  ]),
   ('tour-thumbs', 'tour-thumbs', true, 5242880,  ARRAY['image/jpeg','image/png','image/webp'])
 ON CONFLICT (id) DO NOTHING;
 

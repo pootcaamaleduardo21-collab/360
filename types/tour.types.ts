@@ -210,6 +210,16 @@ export interface GalleryItem {
   title?: string;
 }
 
+// ─── 3D model / Dollhouse ────────────────────────────────────────────────────
+
+export interface TourModel3D {
+  url: string;
+  filename?: string;
+  title?: string;
+  format: 'glb' | 'gltf' | 'splat' | 'ply' | 'obj';
+  previewImageUrl?: string;
+}
+
 // ─── Booking ─────────────────────────────────────────────────────────────────
 
 export interface BookingConfig {
@@ -322,6 +332,7 @@ export interface Tour {
   gallery?: GalleryItem[];
   brochureUrl?: string;           // PDF or image URL
   brochureFilename?: string;
+  model3d?: TourModel3D;           // Optional dollhouse / 3D floor plan model
   pointsOfInterest?: PointOfInterest[];
 
   // Branding
