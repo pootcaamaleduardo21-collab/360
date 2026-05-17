@@ -511,16 +511,13 @@ export function Viewer360({
         </div>
       )}
 
-      {/* Property location button (bottom-left, above lead capture) */}
+      {/* Property location button — bottom-left */}
       {!isEditing && !isComparisonPanel && tour.propertyLat != null && tour.propertyLng != null && (
         <a
           href={`https://www.google.com/maps?q=${tour.propertyLat},${tour.propertyLng}`}
           target="_blank"
           rel="noopener noreferrer"
-          className={cn(
-            'absolute left-4 z-20 flex items-center gap-2 px-3.5 py-2 text-white font-medium rounded-xl shadow-lg transition-opacity hover:opacity-90 backdrop-blur-sm border border-white/15',
-            onOpenLeadCapture ? 'bottom-[72px]' : 'bottom-4',
-          )}
+          className="absolute bottom-4 left-4 z-20 flex items-center gap-2 px-3.5 py-2 text-white font-medium rounded-xl shadow-lg transition-opacity hover:opacity-90 backdrop-blur-sm border border-white/15"
           style={{ background: 'rgba(0,0,0,0.62)' }}
         >
           <MapPin className="w-4 h-4 text-blue-300" />
@@ -528,11 +525,17 @@ export function Viewer360({
         </a>
       )}
 
-      {/* Lead capture button — center on mobile to avoid conflict with nav panel, left on desktop */}
+      {/* Lead capture button — right side, stacked above booking/sales panel */}
       {!isEditing && !isComparisonPanel && onOpenLeadCapture && (
         <button
           onClick={onOpenLeadCapture}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 md:left-4 md:translate-x-0 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90"
+          className={cn(
+            'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90',
+            onOpenBooking && onOpenSalesPanel ? 'bottom-[152px]' :
+            onOpenBooking                     ? 'bottom-[108px]' :
+            onOpenSalesPanel                  ? 'bottom-[56px]'  :
+                                                'bottom-4',
+          )}
           style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
         >
           <Plus className="w-4 h-4" />
@@ -540,13 +543,13 @@ export function Viewer360({
         </button>
       )}
 
-      {/* Booking button (bottom-right, above sales panel) */}
+      {/* Booking button — right side, above sales panel */}
       {!isEditing && !isComparisonPanel && onOpenBooking && (
         <button
           onClick={onOpenBooking}
           className={cn(
             'absolute right-4 z-20 flex items-center gap-2 px-4 py-2.5 text-white font-semibold rounded-xl shadow-lg transition-opacity hover:opacity-90',
-            onOpenSalesPanel ? 'bottom-[104px]' : 'bottom-16'
+            onOpenSalesPanel ? 'bottom-[56px]' : 'bottom-4'
           )}
           style={{ background: tour.brandColor ? `${tour.brandColor}dd` : '#059669' }}
         >

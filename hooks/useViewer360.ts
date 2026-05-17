@@ -125,9 +125,8 @@ export function useViewer360({
   const [hotspotPositions,       setHotspotPositions]       = useState<HotspotScreenPosition[]>([]);
   const [overlayPositions,       setOverlayPositions]       = useState<Array<{
     id: string;
-    w: number;
-    h: number;
-    points: Array<{ x: number; y: number; visible: boolean; ndcX: number; ndcY: number; ndcZ: number }>;
+    path: string;                                    // pre-built SVG path string
+    vertices: Array<{ x: number; y: number }>;      // visible vertex screen positions (editor dots)
   }>>([]);
   const overlayPositionsSig = useRef<string>('');
 
@@ -445,28 +444,82 @@ export function useViewer360({
     hotspotPositionsRef.current = positions;
     setHotspotPositions(positions);
 
-    // Project overlay vertices (polylines) — only recompute when overlays exist
+    // Project overlay polylines — full path computation with world-space horizon clipping
     const overlays = scene.overlays ?? [];
     if (overlays.length > 0) {
-      const projected = overlays.map((ov) => ({
-        id: ov.id,
-        w,
-        h,
-        points: ov.points.map(({ yaw, pitch }) => {
+      // Camera forward direction in world space (used for horizon clipping)
+      const fwd = new THREE.Vector3();
+      camera.getWorldDirection(fwd);
+
+      // Project a world point → { x, y } in screen pixels
+      const toScreen = (wx: number, wy: number, wz: number) => {
+        const ndc = new THREE.Vector3(wx, wy, wz).project(camera);
+        return { x: (ndc.x * 0.5 + 0.5) * w, y: (-ndc.y * 0.5 + 0.5) * h };
+      };
+
+      // Find the screen-space horizon crossing for a segment (vis → hid).
+      // Works in world space so there's no NDC mirroring artefact.
+      const clipHorizon = (
+        visW: THREE.Vector3, hidW: THREE.Vector3
+      ): { x: number; y: number } | null => {
+        const dA  = visW.dot(fwd);
+        const dBA = hidW.dot(fwd) - dA;
+        if (Math.abs(dBA) < 1e-6) return null;
+        const t = -dA / dBA;
+        if (t <= 0 || t >= 1) return null;
+        // Point ON the camera plane – push ε in front to avoid z=0 singularity
+        const c = visW.clone().lerp(hidW, t).addScaledVector(fwd, (camera as THREE.PerspectiveCamera).near + 0.05);
+        const ndc = c.project(camera);
+        return { x: (ndc.x * 0.5 + 0.5) * w, y: (-ndc.y * 0.5 + 0.5) * h };
+      };
+
+      const projected = overlays.map((ov) => {
+        // Precompute world + screen positions for every vertex
+        const pts = ov.points.map(({ yaw, pitch }) => {
           const wp  = sphericalToVector3(yaw, pitch).multiplyScalar(SPHERE_RADIUS);
-          const ndc = wp.clone().project(camera);
-          return {
-            x:    (ndc.x  *  0.5 + 0.5) * w,
-            y:    (-ndc.y *  0.5 + 0.5) * h,
-            visible: ndc.z <= 1,
-            ndcX: ndc.x,
-            ndcY: ndc.y,
-            ndcZ: ndc.z,
-          };
-        }),
-      }));
-      // Lightweight change detection: compare a rounded signature string
-      const sig = projected.map((o) => o.points.map((p) => `${p.visible?1:0},${Math.round(p.x)},${Math.round(p.y)}`).join('|')).join(';');
+          const vis = wp.dot(fwd) > 0;          // visible = in front hemisphere
+          const sc  = vis ? toScreen(wp.x, wp.y, wp.z) : { x: 0, y: 0 };
+          return { wp, vis, x: sc.x, y: sc.y };
+        });
+
+        // Build SVG path with horizon clipping
+        const segs: string[] = [];
+        const seg = (ax: number, ay: number, bx: number, by: number) =>
+          segs.push(`M ${ax.toFixed(1)} ${ay.toFixed(1)} L ${bx.toFixed(1)} ${by.toFixed(1)}`);
+
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i], b = pts[i + 1];
+          if (a.vis && b.vis) {
+            seg(a.x, a.y, b.x, b.y);
+          } else if (a.vis) {
+            const c = clipHorizon(a.wp, b.wp);
+            if (c) seg(a.x, a.y, c.x, c.y);
+          } else if (b.vis) {
+            const c = clipHorizon(b.wp, a.wp);
+            if (c) seg(c.x, c.y, b.x, b.y);
+          }
+        }
+        if (ov.style.closed && pts.length >= 2) {
+          const first = pts[0], last = pts[pts.length - 1];
+          if (last.vis && first.vis) {
+            seg(last.x, last.y, first.x, first.y);
+          } else if (last.vis) {
+            const c = clipHorizon(last.wp, first.wp);
+            if (c) seg(last.x, last.y, c.x, c.y);
+          } else if (first.vis) {
+            const c = clipHorizon(first.wp, last.wp);
+            if (c) seg(c.x, c.y, first.x, first.y);
+          }
+        }
+
+        return {
+          id:       ov.id,
+          path:     segs.join(' '),
+          vertices: pts.filter((p) => p.vis).map(({ x, y }) => ({ x, y })),
+        };
+      });
+
+      const sig = projected.map((o) => o.path).join('|');
       if (sig !== overlayPositionsSig.current) {
         overlayPositionsSig.current = sig;
         setOverlayPositions(projected);
