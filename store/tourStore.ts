@@ -13,6 +13,7 @@ import {
   FloorPlanMarker,
   SceneOverlay,
   PolylineStyle,
+  AnnotationOverlay,
 } from '@/types/tour.types';
 
 // ─── Editor slice ─────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ interface EditorState {
 
   addOverlay: (sceneId: string, overlay: SceneOverlay) => void;
   updateOverlayStyle: (sceneId: string, overlayId: string, patch: Partial<PolylineStyle>) => void;
+  updateAnnotationOverlay: (sceneId: string, overlayId: string, patch: Partial<Omit<AnnotationOverlay, 'id' | 'type'>>) => void;
   updateOverlayLabel: (sceneId: string, overlayId: string, label: string) => void;
   removeOverlay: (sceneId: string, overlayId: string) => void;
   addOverlayPoint: (sceneId: string, overlayId: string, point: { yaw: number; pitch: number }) => void;
@@ -312,8 +314,36 @@ export const useTourStore = create<TourStore>()(
                       ? {
                           ...sc,
                           overlays: (sc.overlays ?? []).map((ov) =>
-                            ov.id === overlayId
+                            ov.id === overlayId && ov.type === 'polyline'
                               ? { ...ov, style: { ...ov.style, ...patch } }
+                              : ov
+                          ),
+                        }
+                      : sc
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          })),
+
+        updateAnnotationOverlay: (sceneId, overlayId, patch) =>
+          set((s) => ({
+            tour: s.tour
+              ? {
+                  ...s.tour,
+                  scenes: s.tour.scenes.map((sc) =>
+                    sc.id === sceneId
+                      ? {
+                          ...sc,
+                          overlays: (sc.overlays ?? []).map((ov) =>
+                            ov.id === overlayId && ov.type === 'annotation'
+                              ? {
+                                  ...ov,
+                                  ...patch,
+                                  style: patch.style
+                                    ? { ...ov.style, ...patch.style }
+                                    : ov.style,
+                                }
                               : ov
                           ),
                         }
@@ -369,7 +399,7 @@ export const useTourStore = create<TourStore>()(
                       ? {
                           ...sc,
                           overlays: (sc.overlays ?? []).map((ov) =>
-                            ov.id === overlayId
+                            ov.id === overlayId && ov.type === 'polyline'
                               ? { ...ov, points: [...ov.points, point] }
                               : ov
                           ),
@@ -391,7 +421,7 @@ export const useTourStore = create<TourStore>()(
                       ? {
                           ...sc,
                           overlays: (sc.overlays ?? []).map((ov) =>
-                            ov.id === overlayId
+                            ov.id === overlayId && ov.type === 'polyline'
                               ? { ...ov, points: ov.points.filter((_, i) => i !== index) }
                               : ov
                           ),

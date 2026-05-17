@@ -116,7 +116,28 @@ export interface PolylineOverlay {
   style: PolylineStyle;
 }
 
-export type SceneOverlay = PolylineOverlay;
+export interface AnnotationOverlay {
+  id: string;
+  type: 'annotation';
+  label?: string;
+  yaw: number;
+  pitch: number;
+  contentType: 'text' | 'image' | 'text-image';
+  text?: string;
+  imageUrl?: string;
+  style: {
+    textColor: string;
+    backgroundColor: string;
+    borderColor: string;
+    width: number;
+    opacity: number;
+    fontSize: number;
+    radius: number;
+    shadow: boolean;
+  };
+}
+
+export type SceneOverlay = PolylineOverlay | AnnotationOverlay;
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 

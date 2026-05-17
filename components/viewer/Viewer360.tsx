@@ -16,6 +16,7 @@ import { MediaGallery, MediaGalleryButton } from './MediaGallery';
 import { NavigationPanel } from './NavigationPanel';
 import { IntroSphere } from './IntroSphere';
 import { PolylinesOverlay } from './PolylinesOverlay';
+import { AnnotationsOverlay } from './AnnotationsOverlay';
 import { useTourStore } from '@/store/tourStore';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -208,7 +209,7 @@ export function Viewer360({
   const handleFirstLoad = useCallback(() => setDissolveIntro(true), []);
 
   const {
-    isLoading, error, hotspotPositions, overlayPositions,
+    isLoading, error, hotspotPositions, overlayPositions, annotationPositions,
     lookAt, getAngles, screenToSpherical,
   } = useViewer360({
     containerRef,
@@ -313,6 +314,17 @@ export function Viewer360({
         <PolylinesOverlay
           overlays={(currentScene.overlays ?? []).filter((o) => o.type === 'polyline') as import('@/types/tour.types').PolylineOverlay[]}
           projectedOverlays={overlayPositions}
+          selectedOverlayId={selectedOverlayId}
+          onSelectOverlay={isEditing ? onSelectOverlay : undefined}
+          isEditing={isEditing}
+        />
+      )}
+
+      {/* Text/image annotations — fixed to the 360 sphere without hotspot points */}
+      {(currentScene.overlays?.some((o) => o.type === 'annotation')) && (
+        <AnnotationsOverlay
+          annotations={(currentScene.overlays ?? []).filter((o) => o.type === 'annotation') as import('@/types/tour.types').AnnotationOverlay[]}
+          projectedAnnotations={annotationPositions}
           selectedOverlayId={selectedOverlayId}
           onSelectOverlay={isEditing ? onSelectOverlay : undefined}
           isEditing={isEditing}

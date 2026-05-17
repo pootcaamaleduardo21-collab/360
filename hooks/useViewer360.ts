@@ -13,6 +13,10 @@ export interface HotspotScreenPosition {
   visible: boolean;
 }
 
+export interface AnnotationScreenPosition extends HotspotScreenPosition {
+  scale: number;
+}
+
 function areHotspotPositionsEqual(
   a: HotspotScreenPosition[],
   b: HotspotScreenPosition[]
@@ -128,7 +132,9 @@ export function useViewer360({
     path: string;                                    // pre-built SVG path string
     vertices: Array<{ x: number; y: number }>;      // visible vertex screen positions (editor dots)
   }>>([]);
+  const [annotationPositions,    setAnnotationPositions]    = useState<AnnotationScreenPosition[]>([]);
   const overlayPositionsSig = useRef<string>('');
+  const annotationPositionsSig = useRef<string>('');
 
   // ── Renderer bootstrap (runs once) ──────────────────────────────────────────
 
@@ -410,17 +416,9 @@ export function useViewer360({
     const container = containerRef.current;
     if (!camera || !container || !scene) return;
 
-    const hotspots = scene.hotspots ?? [];
-    if (hotspots.length === 0) {
-      if (hotspotPositionsRef.current.length > 0) {
-        hotspotPositionsRef.current = [];
-        setHotspotPositions([]);
-      }
-      return;
-    }
-
     const w = container.clientWidth;
     const h = container.clientHeight;
+    const hotspots = scene.hotspots ?? [];
 
     const positions = hotspots.map((hotspot) => {
       // World-space position on the sphere
@@ -446,6 +444,35 @@ export function useViewer360({
 
     // Project overlay polylines — full path computation with world-space horizon clipping
     const overlays = scene.overlays ?? [];
+    const annotationOverlays = overlays.filter((ov) => ov.type === 'annotation');
+    if (annotationOverlays.length > 0) {
+      const fwd = new THREE.Vector3();
+      camera.getWorldDirection(fwd);
+
+      const projectedAnnotations = annotationOverlays.map((annotation) => {
+        const worldPos = sphericalToVector3(annotation.yaw, annotation.pitch)
+          .multiplyScalar(SPHERE_RADIUS);
+        const ndc = worldPos.clone().project(camera);
+        const visible = ndc.z <= 1 && worldPos.dot(fwd) > 0;
+        const x = (ndc.x  *  0.5 + 0.5) * w;
+        const y = (-ndc.y * 0.5 + 0.5) * h;
+        const distanceFromCenter = Math.min(1, Math.hypot(ndc.x, ndc.y) / 1.35);
+        const scale = 1 - distanceFromCenter * 0.18;
+        return { id: annotation.id, x, y, visible, scale };
+      });
+
+      const sig = projectedAnnotations
+        .map((p) => `${p.id}:${p.visible ? 1 : 0}:${p.x.toFixed(1)}:${p.y.toFixed(1)}:${p.scale.toFixed(2)}`)
+        .join('|');
+      if (sig !== annotationPositionsSig.current) {
+        annotationPositionsSig.current = sig;
+        setAnnotationPositions(projectedAnnotations);
+      }
+    } else if (annotationPositionsSig.current !== '') {
+      annotationPositionsSig.current = '';
+      setAnnotationPositions([]);
+    }
+
     if (overlays.length > 0) {
       // Camera forward direction in world space (used for horizon clipping)
       const fwd = new THREE.Vector3();
@@ -473,7 +500,7 @@ export function useViewer360({
         return { x: (ndc.x * 0.5 + 0.5) * w, y: (-ndc.y * 0.5 + 0.5) * h };
       };
 
-      const projected = overlays.map((ov) => {
+      const projected = overlays.filter((ov) => ov.type === 'polyline').map((ov) => {
         // Precompute world + screen positions for every vertex
         const pts = ov.points.map(({ yaw, pitch }) => {
           const wp  = sphericalToVector3(yaw, pitch).multiplyScalar(SPHERE_RADIUS);
@@ -614,6 +641,7 @@ export function useViewer360({
     error,
     hotspotPositions,
     overlayPositions,
+    annotationPositions,
     lookAt,
     getAngles,
     screenToSpherical,

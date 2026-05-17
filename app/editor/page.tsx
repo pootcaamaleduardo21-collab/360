@@ -9,7 +9,7 @@ import { getUserRole } from '@/lib/roles';
 import { getTourById, saveTour, createTour } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import { externalizeEmbeddedTourImages, tourHasEmbeddedImages } from '@/lib/tourAssetRepair';
-import { HotspotType, PolylineOverlay } from '@/types/tour.types';
+import { HotspotType } from '@/types/tour.types';
 import { ErrorBoundary }    from '@/components/ErrorBoundary';
 import { ImageUploader }    from '@/components/editor/ImageUploader';
 import { HotspotPanel }     from '@/components/editor/HotspotPanel';
@@ -128,6 +128,7 @@ function EditorInner() {
   const selectHotspot = useTourStore((s) => s.selectHotspot);
 
   const addOverlayPoint = useTourStore((s) => s.addOverlayPoint);
+  const updateAnnotationOverlay = useTourStore((s) => s.updateAnnotationOverlay);
 
   const [addingType,             setAddingType]             = useState<HotspotType | null>(null);
   const [selectedOverlayId,      setSelectedOverlayId]      = useState<string | null>(null);
@@ -487,7 +488,7 @@ function EditorInner() {
             {leftTab === 'overlays' && currentScene && (
               <OverlayPanel
                 sceneId={currentScene.id}
-                overlays={(currentScene.overlays ?? []).filter((o) => o.type === 'polyline') as PolylineOverlay[]}
+                overlays={currentScene.overlays ?? []}
                 selectedOverlayId={selectedOverlayId}
                 onSelectOverlay={setSelectedOverlayId}
                 addingVertexToOverlayId={addingVertexToOverlayId}
@@ -582,7 +583,13 @@ function EditorInner() {
                 onSelectOverlay={setSelectedOverlayId}
                 addingVertexToOverlayId={addingVertexToOverlayId}
                 onVertexAdded={(sceneId, overlayId, yaw, pitch) => {
-                  addOverlayPoint(sceneId, overlayId, { yaw, pitch });
+                  const overlay = currentScene.overlays?.find((item) => item.id === overlayId);
+                  if (overlay?.type === 'annotation') {
+                    updateAnnotationOverlay(sceneId, overlayId, { yaw, pitch });
+                    setAddingVertexToOverlayId(null);
+                  } else {
+                    addOverlayPoint(sceneId, overlayId, { yaw, pitch });
+                  }
                 }}
                 onSetStartView={(yaw, pitch) => {
                   if (currentSceneId) updateScene(currentSceneId, { initialYaw: yaw, initialPitch: pitch });
