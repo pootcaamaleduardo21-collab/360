@@ -16,8 +16,10 @@ function getServiceRoleClient() {
 /**
  * GET /api/materials
  * Returns all materials the current user is allowed to see.
- * - Admin: their own materials
- * - Advisor: their admin's materials (via team_invites)
+ * - Admin / super_admin: their own materials
+ * - Advisor: their admin's materials (team_members is authoritative,
+ *   team_invites is the fallback for advisors whose team_members row may
+ *   not have been created yet — pre-fix edge case)
  */
 export async function GET() {
   try {
@@ -25,9 +27,35 @@ export async function GET() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const { data, error } = await sb
+    // Resolve the admin_id whose materials to return
+    const { data: membership } = await sb
+      .from('team_members')
+      .select('owner_user_id')
+      .eq('member_user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    let adminId = membership?.owner_user_id ?? null;
+
+    if (!adminId) {
+      // Fallback: check team_invites (covers advisors with accepted invites but
+      // no team_members row yet)
+      const { data: invite } = await sb
+        .from('team_invites')
+        .select('admin_id')
+        .eq('advisor_user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      adminId = invite?.admin_id ?? user.id;
+    }
+
+    // Use service-role client so the query is not blocked by RLS when the
+    // advisor's team_members row is missing
+    const admin = getServiceRoleClient();
+    const { data, error } = await admin
       .from('team_materials')
       .select('id, name, description, category, file_name, file_size, file_type, created_at, admin_id')
+      .eq('admin_id', adminId)
       .order('created_at', { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

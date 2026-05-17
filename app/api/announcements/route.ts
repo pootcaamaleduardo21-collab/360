@@ -8,16 +8,19 @@ export async function GET() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    // Determine if user is an advisor and find their admin_id
-    const { data: membership, error: membershipError } = await sb
+    // Resolve which admin's content to show: team_members is authoritative,
+    // team_invites is the fallback for advisors whose team_members row may not
+    // have been created yet (pre-fix edge case).
+    const { data: membership } = await sb
       .from('team_members')
       .select('owner_user_id')
       .eq('member_user_id', user.id)
       .eq('status', 'active')
       .maybeSingle();
 
-    let targetAdminId = membership?.owner_user_id ?? user.id;
-    if (membershipError) {
+    let targetAdminId = membership?.owner_user_id ?? null;
+
+    if (!targetAdminId) {
       const { data: invite } = await sb
         .from('team_invites')
         .select('admin_id')
