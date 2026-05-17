@@ -300,7 +300,7 @@ CREATE INDEX IF NOT EXISTS team_invites_advisor_idx
   WHERE advisor_user_id IS NOT NULL;
 
 ALTER POLICY "tours: public read if published" ON tours
-  TO anon;
+  TO anon, authenticated;
 
 DROP POLICY IF EXISTS "tours: advisor reads admin tours" ON tours;
 CREATE POLICY "tours: advisor reads admin tours" ON tours
