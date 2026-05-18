@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { resolveTeamContext, type TeamContext } from '@/lib/teamAccess';
+import { hasAdminPermission } from '@/lib/teamPermissions';
 
 const BUCKET = 'team-materials';
 
@@ -9,6 +11,10 @@ function getServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+function canManageSalesHub(user: User, team: TeamContext) {
+  return !team.isTeamMember || (team.memberRole === 'admin' && hasAdminPermission(user, 'manage_sales_hub'));
 }
 
 /**
@@ -25,45 +31,20 @@ export async function GET(
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
+    const team = await resolveTeamContext(sb, user);
     const adminClient = getServiceRoleClient();
 
-    // Resolve which admin this user belongs to (same fallback chain as GET /api/materials)
-    const { data: membership } = await sb
-      .from('team_members')
-      .select('owner_user_id')
-      .eq('member_user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    let resolvedAdminId = membership?.owner_user_id ?? user.id;
-
-    if (!membership?.owner_user_id) {
-      const { data: invite } = await sb
-        .from('team_invites').select('admin_id')
-        .eq('advisor_user_id', user.id).eq('status', 'accepted').maybeSingle();
-      if (invite?.admin_id) {
-        resolvedAdminId = invite.admin_id;
-      } else if (user.email) {
-        const { data: pending } = await adminClient
-          .from('team_invites').select('admin_id')
-          .eq('email', user.email.toLowerCase()).maybeSingle();
-        if (pending?.admin_id) resolvedAdminId = pending.admin_id;
-      }
-    }
-
-    // Use service role to fetch file_path — access verified by admin_id check below
     const { data: material, error } = await adminClient
       .from('team_materials')
       .select('file_path, file_name, admin_id')
       .eq('id', params.id)
+      .eq('admin_id', team.ownerUserId)
       .single();
 
     if (error || !material) {
-      return NextResponse.json({ error: 'Material no encontrado.' }, { status: 404 });
+      return NextResponse.json({ error: 'Material no encontrado o sin acceso.' }, { status: 404 });
     }
-    if (material.admin_id !== resolvedAdminId) {
-      return NextResponse.json({ error: 'Sin acceso a este material.' }, { status: 403 });
-    }
+
     const { data: signed, error: signError } = await adminClient.storage
       .from(BUCKET)
       .createSignedUrl(material.file_path, 3600, {
@@ -83,7 +64,7 @@ export async function GET(
 /**
  * DELETE /api/materials/[id]
  * Removes the file from storage and the DB record.
- * Admin only — only the owner can delete their materials.
+ * Admin only — only users with sales hub management can delete materials.
  */
 export async function DELETE(
   _request: NextRequest,
@@ -94,24 +75,25 @@ export async function DELETE(
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
+    const team = await resolveTeamContext(sb, user);
+    if (!canManageSalesHub(user, team)) {
+      return NextResponse.json({ error: 'No tienes permiso para eliminar materiales.' }, { status: 403 });
+    }
+
     const adminClient = getServiceRoleClient();
 
-    // Fetch to get file_path, verifying ownership via admin_id
     const { data: material } = await adminClient
       .from('team_materials')
       .select('file_path, admin_id')
       .eq('id', params.id)
-      .eq('admin_id', user.id)   // ownership check
+      .eq('admin_id', team.ownerUserId)
       .maybeSingle();
 
     if (!material) {
       return NextResponse.json({ error: 'Material no encontrado.' }, { status: 404 });
     }
 
-    // Remove from storage first
     await adminClient.storage.from(BUCKET).remove([material.file_path]);
-
-    // Delete DB record
     await adminClient.from('team_materials').delete().eq('id', params.id);
 
     return NextResponse.json({ ok: true });

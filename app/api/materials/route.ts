@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import { acceptPendingInviteForUser } from '@/lib/teamInviteServer';
+import { resolveTeamContext, type TeamContext } from '@/lib/teamAccess';
+import { hasAdminPermission } from '@/lib/teamPermissions';
 
 const BUCKET = 'team-materials';
 
@@ -14,13 +15,15 @@ function getServiceRoleClient() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+function canManageSalesHub(user: User, team: TeamContext) {
+  return !team.isTeamMember || (team.memberRole === 'admin' && hasAdminPermission(user, 'manage_sales_hub'));
+}
+
 /**
  * GET /api/materials
- * Returns all materials the current user is allowed to see.
- * - Admin / super_admin: their own materials
- * - Advisor: their admin's materials (team_members is authoritative,
- *   team_invites is the fallback for advisors whose team_members row may
- *   not have been created yet — pre-fix edge case)
+ * Returns all materials visible to the current user:
+ * - Owner/admin: their team's materials
+ * - Advisor/limited admin: their owner's materials
  */
 export async function GET() {
   try {
@@ -28,53 +31,12 @@ export async function GET() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const admin = getServiceRoleClient();
-
-    // Resolve the admin_id whose materials to return
-    const { data: membership } = await sb
-      .from('team_members')
-      .select('owner_user_id')
-      .eq('member_user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    let adminId = membership?.owner_user_id ?? null;
-
-    if (!adminId) {
-      // Fallback 2: team_invites by advisor_user_id (accepted)
-      const { data: invite } = await sb
-        .from('team_invites')
-        .select('admin_id')
-        .eq('advisor_user_id', user.id)
-        .eq('status', 'accepted')
-        .maybeSingle();
-      adminId = invite?.admin_id ?? null;
-    }
-
-    if (!adminId && user.email) {
-      // Fallback 3: team_invites by email — covers advisors invited before the
-      // auto-accept fix whose invite is still 'pending' with no advisor_user_id.
-      // Also auto-repairs the broken state for next time.
-      const { data: pendingInvite } = await admin
-        .from('team_invites')
-        .select('admin_id')
-        .eq('email', user.email.toLowerCase())
-        .maybeSingle();
-
-      if (pendingInvite?.admin_id) {
-        adminId = pendingInvite.admin_id;
-        acceptPendingInviteForUser(user).catch(() => {});
-      }
-    }
-
-    adminId = adminId ?? user.id;
-
-    // Use service-role client so the query is not blocked by RLS when the
-    // advisor's team_members row is missing
-    const { data, error } = await admin
+    const team = await resolveTeamContext(sb, user);
+    const adminClient = getServiceRoleClient();
+    const { data, error } = await adminClient
       .from('team_materials')
       .select('id, name, description, category, file_name, file_size, file_type, created_at, admin_id')
-      .eq('admin_id', adminId)
+      .eq('admin_id', team.ownerUserId)
       .order('created_at', { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -95,8 +57,8 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const role = user.user_metadata?.role as string | undefined;
-    if (role === 'advisor') {
+    const team = await resolveTeamContext(sb, user);
+    if (!canManageSalesHub(user, team)) {
       return NextResponse.json({ error: 'Solo administradores pueden subir materiales.' }, { status: 403 });
     }
 
@@ -118,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     const ext = file.name.includes('.') ? `.${file.name.split('.').pop()}` : '';
     const uuid = crypto.randomUUID();
-    const filePath = `${user.id}/${uuid}${ext}`;
+    const filePath = `${team.ownerUserId}/${uuid}${ext}`;
 
     const adminClient = getServiceRoleClient();
 
@@ -133,7 +95,7 @@ export async function POST(request: NextRequest) {
     const { data: record, error: dbError } = await adminClient
       .from('team_materials')
       .insert({
-        admin_id:    user.id,
+        admin_id:    team.ownerUserId,
         name,
         description,
         category,
@@ -146,7 +108,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (dbError) {
-      // Roll back uploaded file on DB error
       await adminClient.storage.from(BUCKET).remove([filePath]);
       return NextResponse.json({ error: dbError.message }, { status: 500 });
     }

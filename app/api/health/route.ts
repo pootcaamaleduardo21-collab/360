@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/health
  * Temporary diagnostic endpoint — checks Supabase connectivity from Vercel.
@@ -35,8 +37,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: reachable,
-      supabase_url: url.slice(0, 40) + '…',
-      anon_key_prefix: key.slice(0, 20) + '…',
+      supabase_configured: true,
       supabase_response: error?.message ?? 'no error (unexpected)',
     });
   } catch (err: unknown) {

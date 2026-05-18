@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools, persist } from 'zustand/middleware';
+import { createJSONStorage, devtools, persist, type StateStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Tour,
@@ -85,6 +85,12 @@ interface CartState {
 // ─── Combined store ───────────────────────────────────────────────────────────
 
 type TourStore = EditorState & ViewerState & CartState;
+
+const noopStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined,
+};
 
 export const useTourStore = create<TourStore>()(
   devtools(
@@ -496,6 +502,9 @@ export const useTourStore = create<TourStore>()(
       }),
       {
         name: 'tour360-store',
+        storage: createJSONStorage(() => (
+          typeof window === 'undefined' ? noopStorage : localStorage
+        )),
         // Only persist viewer preferences and cart, not the full tour (managed separately)
         partialize: (s) => ({
           viewerConfig: s.viewerConfig,

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { resolveTeamContext, type TeamContext } from '@/lib/teamAccess';
+import { hasAdminPermission } from '@/lib/teamPermissions';
 
 const VALID_COLORS = ['blue', 'cyan', 'emerald', 'lime', 'amber', 'purple', 'rose', 'gray'];
 
@@ -14,24 +17,8 @@ function slugify(input: string): string {
     .slice(0, 48);
 }
 
-async function getTargetAdminId(sb: ReturnType<typeof createSupabaseServerClient>, userId: string) {
-  const { data: membership, error: membershipError } = await sb
-    .from('team_members')
-    .select('owner_user_id')
-    .eq('member_user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (!membershipError && membership?.owner_user_id) return membership.owner_user_id;
-
-  const { data: invite } = await sb
-    .from('team_invites')
-    .select('admin_id')
-    .eq('advisor_user_id', userId)
-    .eq('status', 'accepted')
-    .maybeSingle();
-
-  return invite?.admin_id ?? userId;
+function canManageSalesHub(user: User, team: TeamContext) {
+  return !team.isTeamMember || (team.memberRole === 'admin' && hasAdminPermission(user, 'manage_sales_hub'));
 }
 
 export async function GET() {
@@ -40,11 +27,11 @@ export async function GET() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const targetAdminId = await getTargetAdminId(sb, user.id);
+    const team = await resolveTeamContext(sb, user);
     const { data, error } = await sb
       .from('team_material_categories')
       .select('id, key, name, color, sort_order, is_system, admin_id')
-      .or(`admin_id.is.null,admin_id.eq.${targetAdminId}`)
+      .or(`admin_id.is.null,admin_id.eq.${team.ownerUserId}`)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
@@ -61,25 +48,8 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
 
-    const { data: membership, error: membershipError } = await sb
-      .from('team_members')
-      .select('id')
-      .eq('member_user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    let isTeamMember = !!membership;
-    if (membershipError) {
-      const { data: advisorInvite } = await sb
-        .from('team_invites')
-        .select('id')
-        .eq('advisor_user_id', user.id)
-        .eq('status', 'accepted')
-        .maybeSingle();
-      isTeamMember = !!advisorInvite;
-    }
-
-    if (isTeamMember) {
+    const team = await resolveTeamContext(sb, user);
+    if (!canManageSalesHub(user, team)) {
       return NextResponse.json({ error: 'Solo administradores pueden crear categorías.' }, { status: 403 });
     }
 
@@ -93,7 +63,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await sb
       .from('team_material_categories')
       .insert({
-        admin_id: user.id,
+        admin_id: team.ownerUserId,
         key,
         name,
         color,
