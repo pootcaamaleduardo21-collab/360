@@ -16,7 +16,7 @@ interface POIPanelProps {
 const ALL_FILTER = '__all__';
 
 export function POIPanel({ tour, selectedPOIId, onSelectPOI, onClose }: POIPanelProps) {
-  const pois = tour.pointsOfInterest ?? [];
+  const pois = useMemo(() => tour.pointsOfInterest ?? [], [tour.pointsOfInterest]);
 
   const presentCategories = useMemo<POICategory[]>(() => {
     const seen = new Set<POICategory>();

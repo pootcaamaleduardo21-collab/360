@@ -1,12 +1,12 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Tour, GalleryItem, TourModel3D } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { uploadAsset } from '@/lib/storage';
 import {
-  FileText, Image, Film, Plus, Trash2, Upload, Loader2,
+  FileText, Image as ImageIcon, Film, Plus, Trash2, Upload, Loader2,
   ExternalLink, GripVertical, Youtube, Link2, Box,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -292,7 +292,7 @@ function GallerySection({ tour }: { tour: Tour }) {
   const [uploading,  setUploading]  = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
-  const gallery: GalleryItem[] = tour.gallery ?? [];
+  const gallery = useMemo<GalleryItem[]>(() => tour.gallery ?? [], [tour.gallery]);
 
   const addItem = useCallback((item: GalleryItem) => {
     updateTour({ gallery: [...gallery, item] });
@@ -482,7 +482,7 @@ function GallerySection({ tour }: { tour: Tour }) {
         <div className="grid grid-cols-2 gap-2">
           {[
             { mode: 'image-upload' as AddMode, icon: <Upload  className="w-3.5 h-3.5" />, label: 'Subir imagen' },
-            { mode: 'image-url'   as AddMode, icon: <Image    className="w-3.5 h-3.5" />, label: 'URL imagen' },
+            { mode: 'image-url'   as AddMode, icon: <ImageIcon className="w-3.5 h-3.5" />, label: 'URL imagen' },
             { mode: 'youtube'     as AddMode, icon: <Youtube  className="w-3.5 h-3.5" />, label: 'YouTube' },
             { mode: 'video-url'   as AddMode, icon: <Link2    className="w-3.5 h-3.5" />, label: 'URL video' },
           ].map(({ mode, icon, label }) => (

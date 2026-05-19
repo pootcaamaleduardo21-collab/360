@@ -26,7 +26,7 @@ import { InventoryPanel }    from '@/components/editor/InventoryPanel';
 import { OverlayPanel }      from '@/components/editor/OverlayPanel';
 import Link from 'next/link';
 import {
-  ArrowRight, Info, Image, User, ShoppingCart, Plus, Upload,
+  ArrowRight, Info, Image as ImageIcon, User, ShoppingCart, Plus, Upload,
   Layers, Globe, ChevronLeft, ChevronRight, LayoutDashboard,
   Loader2, Map, Building2, Palette, Cloud, CloudOff, Check, Lock,
   Ruler, Film, Sparkles, PenLine,
@@ -43,7 +43,7 @@ const Viewer360 = dynamic(
 const HOTSPOT_TYPES: { value: HotspotType; label: string; icon: React.ReactNode; color: string }[] = [
   { value: 'navigation', label: 'Navegar',  icon: <ArrowRight   className="w-4 h-4" />, color: 'bg-blue-600   hover:bg-blue-500'   },
   { value: 'info',       label: 'Info',     icon: <Info         className="w-4 h-4" />, color: 'bg-amber-600  hover:bg-amber-500'  },
-  { value: 'media',      label: 'Media',    icon: <Image        className="w-4 h-4" />, color: 'bg-purple-600 hover:bg-purple-500' },
+  { value: 'media',      label: 'Media',    icon: <ImageIcon    className="w-4 h-4" />, color: 'bg-purple-600 hover:bg-purple-500' },
   { value: 'agent',      label: 'Agente',   icon: <User         className="w-4 h-4" />, color: 'bg-green-600   hover:bg-green-500'   },
   { value: 'product',    label: 'Producto', icon: <ShoppingCart className="w-4 h-4" />, color: 'bg-rose-600    hover:bg-rose-500'    },
   { value: 'unit',       label: 'Unidad',   icon: <Building2    className="w-4 h-4" />, color: 'bg-emerald-600 hover:bg-emerald-500' },

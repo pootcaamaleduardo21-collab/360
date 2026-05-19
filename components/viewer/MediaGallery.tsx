@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { GalleryItem } from '@/types/tour.types';
 import {
-  X, ChevronLeft, ChevronRight, Image, Film,
+  X, ChevronLeft, ChevronRight, Image as ImageIcon, Film,
   FileText, Download, ExternalLink, Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -222,8 +222,8 @@ export function MediaGalleryButton({
       {hasBrochure && itemCount === 0
         ? <><FileText className="w-3.5 h-3.5" /> Brochure</>
         : hasBrochure
-        ? <><Image    className="w-3.5 h-3.5" /> Galería · PDF</>
-        : <><Image    className="w-3.5 h-3.5" /> Galería ({itemCount})</>
+        ? <><ImageIcon className="w-3.5 h-3.5" /> Galería · PDF</>
+        : <><ImageIcon className="w-3.5 h-3.5" /> Galería ({itemCount})</>
       }
     </button>
   );

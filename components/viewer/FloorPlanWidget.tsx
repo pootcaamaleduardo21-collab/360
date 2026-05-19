@@ -24,7 +24,7 @@ export function FloorPlanWidget({ tour, currentSceneId, onNavigate }: FloorPlanW
   const [expanded, setExpanded] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const markers = tour.floorPlanMarkers ?? [];
+  const markers = useMemo(() => tour.floorPlanMarkers ?? [], [tour.floorPlanMarkers]);
 
   // Navigation edges: pairs of marker positions connected by navigation hotspots
   const navEdges = useMemo(() => {

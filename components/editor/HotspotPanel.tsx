@@ -7,7 +7,7 @@ import {
 } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import {
-  Trash2, ArrowRight, Info, Image, User, ShoppingCart, Building2, MapPin,
+  Trash2, ArrowRight, Info, Image as ImageIcon, User, ShoppingCart, Building2, MapPin,
   Search, Loader2, Navigation, Ban,
   DoorOpen, BedDouble, BedSingle, Bath, ChefHat, Sofa, Armchair, Tv, MonitorPlay,
   Dumbbell, Waves, Wifi, Car, Trees, Flower2, Zap, Flame, Snowflake, Wind, Sun,
@@ -68,7 +68,7 @@ interface RouteSummary {
 const TYPE_OPTIONS: { value: HotspotType; label: string; icon: React.ReactNode }[] = [
   { value: 'navigation', label: 'Navegación',  icon: <ArrowRight   className="w-3.5 h-3.5" /> },
   { value: 'info',       label: 'Información', icon: <Info         className="w-3.5 h-3.5" /> },
-  { value: 'media',      label: 'Media',       icon: <Image        className="w-3.5 h-3.5" /> },
+  { value: 'media',      label: 'Media',       icon: <ImageIcon    className="w-3.5 h-3.5" /> },
   { value: 'agent',      label: 'Agente',      icon: <User         className="w-3.5 h-3.5" /> },
   { value: 'product',    label: 'Producto',    icon: <ShoppingCart className="w-3.5 h-3.5" /> },
   { value: 'unit',       label: 'Unidad',      icon: <Building2    className="w-3.5 h-3.5" /> },

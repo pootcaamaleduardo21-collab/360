@@ -60,6 +60,10 @@ cp .env.local.example .env.local
 # 5. Iniciar servidor local
 npm run dev
 # Acceder a http://localhost:3000
+
+# Verificación de producción local
+npm run verify
+# Ejecuta type-check + build
 ```
 
 ### Variables de Entorno

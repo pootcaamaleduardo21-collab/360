@@ -34,3 +34,7 @@ yarn-error.log*
 # ── Misc ─────────────────────────────────────────────────────────────────────
 .vercel
 .turbo
+
+# ── Local agent/tool workspaces ──────────────────────────────────────────────
+.claire/
+.claude/worktrees/

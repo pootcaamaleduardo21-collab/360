@@ -19,9 +19,10 @@ interface InventoryOverlayProps {
   currentSceneId: string;
   onNavigate: (sceneId: string) => void;
   onUnitClick?: (unit: PropertyUnit) => void;
+  className?: string;
 }
 
-export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUnitClick }: InventoryOverlayProps) {
+export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUnitClick, className }: InventoryOverlayProps) {
   const niche = getNiche(tour);
   const [isOpen,   setIsOpen]   = useState(false);
   const [selected, setSelected] = useState<PropertyUnit | null>(null);
@@ -39,7 +40,10 @@ export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUn
       {/* Toggle button */}
       <button
         onClick={() => setIsOpen((v) => !v)}
-        className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 bg-black/70 hover:bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-white text-sm font-medium transition-colors shadow"
+        className={cn(
+          'absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 bg-black/70 hover:bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-white text-sm font-medium transition-colors shadow',
+          className
+        )}
       >
         <Home className="w-4 h-4" />
         <span>{units.length} {niche.overlayCountLabel}</span>
@@ -53,7 +57,12 @@ export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUn
 
       {/* Panel */}
       {isOpen && (
-        <div className="absolute top-16 left-4 z-20 w-[calc(100vw-2rem)] max-w-[288px] bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+        <div
+          className={cn(
+            'absolute top-16 left-4 z-20 w-[calc(100vw-2rem)] max-w-[288px] bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up',
+            className
+          )}
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
             <h3 className="text-sm font-semibold text-gray-100">{niche.inventoryTitle}</h3>

@@ -322,7 +322,7 @@ function AdvisorTourCard({
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
-            Abrir panel de asesor — QR · Inventario · Reservas · Kit de ventas
+            Abrir herramientas de asesor
           </Link>
         </div>
       )}

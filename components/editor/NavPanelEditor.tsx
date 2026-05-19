@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Tour, NavPanel, NavPanelItem } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
@@ -140,7 +140,10 @@ function ItemRow({ item, depth, scenes, onUpdate, onRemove, onAddChild }: ItemRo
 
 export function NavPanelEditor({ tour }: NavPanelEditorProps) {
   const updateTour = useTourStore((s) => s.updateTour);
-  const panel = tour.navPanel ?? { enabled: false, items: [] };
+  const panel = useMemo<NavPanel>(
+    () => tour.navPanel ?? { enabled: false, items: [] },
+    [tour.navPanel]
+  );
 
   const save = useCallback((patch: Partial<NavPanel>) => {
     updateTour({ navPanel: { ...panel, ...patch } });

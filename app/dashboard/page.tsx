@@ -23,7 +23,7 @@ import { useTourStore } from '@/store/tourStore';
 import {
   Plus, LogOut, Loader2, Globe, LayoutGrid, List,
   Shield, Users, Building2, BarChart2,
-  Play, ChevronDown, Bell, MessageSquare, UserCog, FolderOpen, Megaphone,
+  Play, ChevronDown, MessageSquare, UserCog, FolderOpen, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -80,7 +80,6 @@ export default function DashboardPage() {
   const [activeTab,        setActiveTab]        = useState<DashTab>('tours');
   const [mountedTabs,      setMountedTabs]      = useState<Set<DashTab>>(new Set(['tours']));
   const [menuOpen,         setMenuOpen]         = useState(false);
-  const [notifOpen,        setNotifOpen]        = useState(false);
   const [onboardingDone,   setOnboardingDone]   = useState(false);
 
   const switchTab = useCallback((tab: DashTab) => {
@@ -206,34 +205,6 @@ export default function DashboardPage() {
 
           {/* Dev role tester — super admin only */}
           <DevRolePanel tourId={tours[0]?.id} />
-
-          {/* Notifications */}
-          <div className="relative">
-            <button
-              onClick={() => { setNotifOpen((v) => !v); setMenuOpen(false); }}
-              className="relative w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
-            >
-              <Bell className="w-4 h-4" />
-            </button>
-
-            {notifOpen && (
-              <div className="absolute right-0 top-11 z-50 w-72 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-                  <span className="text-sm font-semibold text-gray-200">Notificaciones</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-500 border border-gray-700">0 nuevas</span>
-                </div>
-                <div className="flex flex-col items-center gap-3 py-8 px-4 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center">
-                    <Bell className="w-5 h-5 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-400">Sin notificaciones</p>
-                    <p className="text-xs text-gray-600 mt-1">Aquí verás alertas de nuevos leads,<br/>visitas a tus tours y más.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* User menu */}
           <div className="relative">
@@ -458,8 +429,8 @@ export default function DashboardPage() {
       </main>
 
       {/* Click outside to close menus */}
-      {(menuOpen || notifOpen) && (
-        <div className="fixed inset-0 z-20" onClick={() => { setMenuOpen(false); setNotifOpen(false); }} />
+      {menuOpen && (
+        <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
       )}
     </div>
   );

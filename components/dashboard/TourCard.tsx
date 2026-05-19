@@ -84,6 +84,8 @@ function ShareModal({ tour, onClose }: { tour: TourSummary; onClose: () => void 
           <div className="flex flex-col items-center gap-3">
             <div className="bg-white rounded-2xl p-3 shadow-lg">
               {qrDataUrl
+                // QR is generated as a data URL, so next/image optimization does not add value here.
+                // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={qrDataUrl} alt="QR Code" className="w-52 h-52" />
                 : <div className="w-52 h-52 flex items-center justify-center bg-gray-100 rounded-xl">
                     <QrCode className="w-10 h-10 text-gray-300 animate-pulse" />

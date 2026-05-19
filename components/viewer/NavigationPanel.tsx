@@ -35,6 +35,14 @@ export function NavigationPanel({ tour, currentSceneId, onNavigate }: Navigation
     return item.children?.some(isActiveScene) ?? false;
   };
 
+  const hasInitialSceneItem = (items: NavPanelItem[]): boolean =>
+    items.some((item) =>
+      (item.type === 'scene' && item.sceneId === tour.initialSceneId) ||
+      (item.children ? hasInitialSceneItem(item.children) : false)
+    );
+
+  const showHomeQuickAction = !!tour.initialSceneId && !hasInitialSceneItem(panel.items);
+
   function NavItem({ item, depth = 0 }: { item: NavPanelItem; depth?: number }) {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded  = expanded.has(item.id);
@@ -161,7 +169,7 @@ export function NavigationPanel({ tour, currentSceneId, onNavigate }: Navigation
         </div>
 
         {/* Home quick-action */}
-        {tour.initialSceneId && (
+        {showHomeQuickAction && (
           <div className="px-3 pt-3 flex-shrink-0">
             <button
               onClick={() => onNavigate(tour.initialSceneId)}
@@ -178,7 +186,7 @@ export function NavigationPanel({ tour, currentSceneId, onNavigate }: Navigation
               }
             >
               <Home className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">General view</span>
+              <span className="truncate">Vista general</span>
             </button>
           </div>
         )}

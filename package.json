@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "verify": "npm run type-check && npm run build",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

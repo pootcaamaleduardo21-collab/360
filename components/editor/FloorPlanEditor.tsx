@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { Tour, FloorPlanMarker, RoomType } from '@/types/tour.types';
 import { useTourStore } from '@/store/tourStore';
 import { uploadAsset } from '@/lib/storage';
@@ -36,7 +36,7 @@ export function FloorPlanEditor({ tour }: Props) {
   const fileInputRef      = useRef<HTMLInputElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
-  const markers = tour.floorPlanMarkers ?? [];
+  const markers = useMemo(() => tour.floorPlanMarkers ?? [], [tour.floorPlanMarkers]);
 
   // ── Open form helpers ──────────────────────────────────────────────────────
 

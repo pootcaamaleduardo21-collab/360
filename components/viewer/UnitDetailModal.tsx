@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { PropertyStatus, Tour, PropertyUnit } from '@/types/tour.types';
 import { getNiche } from '@/lib/niches';
 import { formatCurrency } from '@/lib/utils';
@@ -56,7 +56,7 @@ export function UnitDetailModal({
   const effectiveTitle = advisorTitle || tour.salesAdvisor?.title  || tour.salesAdvisor?.company || 'Asesor inmobiliario';
   const effectivePhoto = (!advisorName && !advisorPhone) ? tour.salesAdvisor?.photoUrl : undefined;
 
-  const ef = {
+  const ef = useMemo(() => ({
     bedrooms:     unit.bedrooms    ?? proto?.bedrooms,
     bathrooms:    unit.bathrooms   ?? proto?.bathrooms,
     parking:      unit.parking     ?? proto?.parking,
@@ -65,7 +65,7 @@ export function UnitDetailModal({
     floorPlanUrl: unit.floorPlanUrl ?? proto?.floorPlanUrl,
     amenities:    unit.amenities   ?? proto?.amenities ?? [],
     currency:     unit.currency    ?? tour.currency    ?? 'MXN',
-  };
+  }), [unit, proto, tour.currency]);
 
   const st = STATUS_STYLE[unit.status];
 
@@ -112,7 +112,7 @@ export function UnitDetailModal({
         message:   `Interés en unidad ${unit.label}`,
       }).catch(() => {});
     }
-  }, [tour.id, advisorId, unit.id, unit.label]);
+  }, [tour.id, advisorId, unit.label]);
 
   const interestHref = effectivePhone
     ? `https://wa.me/${effectivePhone.replace(/\D/g, '')}?text=${encodeURIComponent(buildInterestMsg())}`
@@ -273,7 +273,7 @@ export function UnitDetailModal({
                   style={{ background: tour.brandColor ?? '#059669' }}
                 >
                   <Calendar className="w-4 h-4" />
-                  {tour.bookingConfig?.ctaLabel ?? 'Agendar cita con el asesor'}
+                  {tour.bookingConfig?.ctaLabel ?? 'Agendar visita'}
                 </button>
               )}
 

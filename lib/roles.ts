@@ -4,11 +4,9 @@ export type UserRole = 'super_admin' | 'admin' | 'advisor';
 
 // The email that always gets super_admin regardless of metadata
 const SUPER_ADMIN_EMAIL = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL ?? '';
-const BUILT_IN_ROLE_TESTER_EMAILS = ['pootcaamaleduardo2.1@gmail.com'];
 const ROLE_TESTER_EMAILS = [
   SUPER_ADMIN_EMAIL,
   ...(process.env.NEXT_PUBLIC_ROLE_TESTER_EMAILS ?? '').split(','),
-  ...BUILT_IN_ROLE_TESTER_EMAILS,
 ]
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);

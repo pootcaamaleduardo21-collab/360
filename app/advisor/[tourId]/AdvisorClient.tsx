@@ -11,11 +11,11 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { getSupabase } from '@/lib/supabase';
 import {
-  Link2, Copy, CheckCheck, Download, Upload, Play, ExternalLink, QrCode,
-  Calendar, MessageCircle, Mail, Phone, LayoutDashboard,
+  Link2, Copy, CheckCheck, Download, Upload, Play, ExternalLink,
+  MessageCircle, LayoutDashboard,
   Building2, CheckCircle, Clock, XCircle, AlertCircle,
   FileText, Image as ImageIcon, Video, ChevronRight, Loader2,
-  Share2, BedDouble, Bath, Car, Ruler,
+  BedDouble, Bath, Car, Ruler,
   UserCog, Save, PanelRightClose, PanelRightOpen, Filter, X,
 } from 'lucide-react';
 
@@ -32,7 +32,7 @@ interface Props {
   shareSlug: string | null;
 }
 
-type Tab = 'link' | 'profile' | 'material' | 'booking' | 'units';
+type Tab = 'link' | 'profile' | 'material' | 'units';
 type InventoryStatusFilter = 'all' | PropertyUnit['status'];
 
 const STATUS_CONF = {
@@ -133,12 +133,11 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   const advisorUrl = buildAdvisorUrl(baseUrl, advisor);
 
   const hasMaterial = !!(tour.brochureUrl || (tour.gallery?.length ?? 0) > 0);
-  const hasBooking  = !!(tour.bookingEnabled && tour.bookingConfig);
   const hasUnits    = (tour.units?.length ?? 0) > 0;
 
   // Determine default tab
   useEffect(() => {
-    if (!hasUnits && !hasBooking && hasMaterial) setTab('material');
+    if (!hasUnits && hasMaterial) setTab('material');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate QR for advisor URL
@@ -234,10 +233,9 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'link',    label: 'Mi Link',    icon: <Link2      className="w-4 h-4" /> },
+    { id: 'link',    label: 'Compartir',  icon: <Link2      className="w-4 h-4" /> },
     { id: 'profile', label: 'Perfil',     icon: <UserCog    className="w-4 h-4" /> },
-    ...(hasMaterial ? [{ id: 'material' as Tab, label: 'Material',  icon: <Download   className="w-4 h-4" /> }] : []),
-    ...(hasBooking  ? [{ id: 'booking'  as Tab, label: 'Agendar',   icon: <Calendar   className="w-4 h-4" /> }] : []),
+    ...(hasMaterial ? [{ id: 'material' as Tab, label: 'Kit',       icon: <Download   className="w-4 h-4" /> }] : []),
     ...(hasUnits    ? [{ id: 'units'    as Tab, label: 'Inventario',icon: <Building2  className="w-4 h-4" /> }] : []),
   ];
 
@@ -275,7 +273,10 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
         {/* Dashboard link — bottom-left */}
         <Link
           href="/dashboard"
-          className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white/60 hover:text-white text-xs border border-white/10 transition-colors"
+          className={cn(
+            'absolute left-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white/60 hover:text-white text-xs border border-white/10 transition-colors',
+            tour.propertyLat != null && tour.propertyLng != null ? 'bottom-16' : 'bottom-4'
+          )}
         >
           <LayoutDashboard className="w-3 h-3" />
           <span className="hidden sm:inline">Dashboard</span>
@@ -321,7 +322,7 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ── Mi Link ───────────────────────────────────────────────────── */}
+          {/* ── Compartir ─────────────────────────────────────────────────── */}
           {tab === 'link' && (
             <div className="p-4 space-y-5">
 
@@ -506,35 +507,6 @@ export function AdvisorClient({ tour, tourId, shareSlug }: Props) {
 
               {!hasMaterial && (
                 <p className="text-xs text-gray-500 text-center py-8">No hay material configurado para este tour.</p>
-              )}
-            </div>
-          )}
-
-          {/* ── Agendar ───────────────────────────────────────────────────── */}
-          {tab === 'booking' && tour.bookingConfig && (
-            <div className="p-4 space-y-4">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Agendar cita con el cliente</p>
-
-              <BookingCTA config={tour.bookingConfig} tourTitle={tour.title} advisorUrl={advisorUrl} brandColor={tour.brandColor} />
-
-              {/* Also show advisor contact */}
-              {advisor && (
-                <div className="mt-4 p-3 rounded-xl bg-gray-800 border border-gray-700 space-y-2">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Tu contacto configurado</p>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                      style={{ background: tour.brandColor ?? '#1e40af' }}
-                    >
-                      {advisor.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{advisor.name}</p>
-                      <p className="text-xs text-gray-400">{advisor.title ?? 'Asesor inmobiliario'}</p>
-                      {advisor.phone && <p className="text-xs text-gray-500">{advisor.phone}</p>}
-                    </div>
-                  </div>
-                </div>
               )}
             </div>
           )}
@@ -749,64 +721,6 @@ function GalleryVideoCard({ item }: { item: GalleryItem }) {
   );
 }
 
-function BookingCTA({ config, tourTitle, advisorUrl, brandColor }: {
-  config: NonNullable<Tour['bookingConfig']>;
-  tourTitle: string;
-  advisorUrl: string;
-  brandColor?: string;
-}) {
-  const color = brandColor ?? '#059669';
-
-  if (config.method === 'whatsapp' && config.phone) {
-    const phone = config.phone.replace(/\D/g, '');
-    const text  = encodeURIComponent(`Hola! Me gustaría agendar una cita para ver *${tourTitle}*. ¿Cuándo tendría disponibilidad? 😊\n\nLink del recorrido: ${advisorUrl}`);
-    return (
-      <a
-        href={`https://wa.me/${phone}?text=${text}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-semibold text-sm transition-opacity hover:opacity-90 shadow"
-        style={{ background: color }}
-      >
-        <MessageCircle className="w-4 h-4" />
-        {config.ctaLabel ?? 'Agendar cita por WhatsApp'}
-      </a>
-    );
-  }
-
-  if (config.method === 'email' && config.email) {
-    const subject = encodeURIComponent(`Solicitud de cita — ${tourTitle}`);
-    const body    = encodeURIComponent(`Hola,\n\nMe gustaría agendar una cita para conocer el proyecto ${tourTitle}.\n\nLink del recorrido: ${advisorUrl}\n\nQuedo en espera, gracias.`);
-    return (
-      <a
-        href={`mailto:${config.email}?subject=${subject}&body=${body}`}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-semibold text-sm transition-opacity hover:opacity-90 shadow"
-        style={{ background: color }}
-      >
-        <Mail className="w-4 h-4" />
-        {config.ctaLabel ?? 'Agendar cita por Email'}
-      </a>
-    );
-  }
-
-  if (config.method === 'calendly' && config.calendlyUrl) {
-    return (
-      <a
-        href={config.calendlyUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-semibold text-sm transition-opacity hover:opacity-90 shadow"
-        style={{ background: color }}
-      >
-        <Calendar className="w-4 h-4" />
-        {config.ctaLabel ?? 'Agendar cita en Calendly'}
-      </a>
-    );
-  }
-
-  return null;
-}
-
 function UnitSummary({ units }: { units: PropertyUnit[] }) {
   const counts = units.reduce<Record<string, number>>((acc, u) => {
     acc[u.status] = (acc[u.status] ?? 0) + 1;
@@ -889,7 +803,7 @@ function UnitRow({ unit, tour, onNavigate, onReserve }: {
           onClick={() => onReserve(unit)}
           className="mt-3 w-full rounded-xl bg-emerald-600/15 border border-emerald-500/25 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/25 transition-colors"
         >
-          Solicitar reserva
+          Apartar para cliente
         </button>
       )}
     </div>
@@ -917,7 +831,7 @@ function ReservationModal({
       <div className="w-full max-w-md rounded-3xl border border-gray-700 bg-gray-900 p-4 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-bold text-white">Solicitar reserva</p>
+            <p className="text-sm font-bold text-white">Apartar para cliente</p>
             <p className="text-xs text-gray-500 mt-0.5">{unit.label}</p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-500 hover:bg-gray-800 hover:text-white">

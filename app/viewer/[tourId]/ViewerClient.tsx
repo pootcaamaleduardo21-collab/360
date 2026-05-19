@@ -266,6 +266,7 @@ function ViewerInner({ tourId, initialTour }: { tourId: string; initialTour: Tou
           units={units}
           currentSceneId={currentSceneId ?? ''}
           onNavigate={navigateTo}
+          className={tour.navPanel?.enabled ? 'md:left-[304px]' : undefined}
           onUnitClick={(unit) => {
             setActiveUnit(unit);
             trackEvent({ tourId: tour.id, event: 'unit_click', unitId: unit.id });

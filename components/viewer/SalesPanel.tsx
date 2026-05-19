@@ -51,7 +51,7 @@ export function SalesPanel({ tour, onClose, onUnitClick, onNavigate }: SalesPane
     if (tour.brochureUrl)   t.push({ id: 'brochure',label: 'Brochure',   icon: <FileText   className="w-3.5 h-3.5" /> });
     if (pois.length > 0)    t.push({ id: 'poi',     label: 'Lugares',    icon: <MapPin     className="w-3.5 h-3.5" /> });
     return t;
-  }, [units.length, gallery.length, tour.brochureUrl, pois.length]);
+  }, [units.length, gallery.length, tour.brochureUrl, pois.length, niche.salesPanelTitle]);
 
   const [activeTab, setActiveTab] = useState<PanelTab>(tabs[0]?.id ?? 'units');
   const [lightbox,  setLightbox]  = useState<GalleryItem | null>(null);

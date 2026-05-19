@@ -444,8 +444,8 @@ export function Viewer360({
         />
       )}
 
-      {/* Floor plan widget — shows only when a floor plan + markers exist */}
-      {!isEditing && (
+      {/* Floor plan widget — hidden when the minimap already owns that corner */}
+      {!isEditing && !config.showMinimap && (
         <FloorPlanWidget
           tour={tour}
           currentSceneId={currentScene.id}
@@ -575,7 +575,7 @@ export function Viewer360({
               style={{ background: tour.brandColor ? `${tour.brandColor}dd` : '#059669' }}
             >
               <Calendar className="h-4 w-4 flex-shrink-0" />
-              <span className="text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar'}</span>
+              <span className="text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar visita'}</span>
             </button>
           )}
 
@@ -586,7 +586,13 @@ export function Viewer360({
               style={{ background: tour.brandColor ?? '#1e40af' }}
             >
               <LayoutList className="h-4 w-4 flex-shrink-0" />
-              <span className="text-sm">{tour.brandName ?? 'Explorar'}</span>
+              <span className="text-sm">
+                {(tour.units?.length ?? 0) > 0
+                  ? 'Ver inventario'
+                  : (tour.gallery?.length ?? 0) > 0 || tour.brochureUrl
+                    ? 'Ver material'
+                    : tour.brandName ?? 'Explorar'}
+              </span>
             </button>
           )}
         </div>
