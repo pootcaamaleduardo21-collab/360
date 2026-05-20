@@ -12,7 +12,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { listToursWithUnits, getTourById, saveTour, type CRMUnit } from '@/lib/db';
+import { listToursWithUnits, getTourById, type CRMUnit } from '@/lib/db';
+import { getSupabase } from '@/lib/supabase';
 import { PropertyStatus } from '@/types/tour.types';
 import {
   Loader2, Search, Download, Upload, ChevronDown,
@@ -164,6 +165,9 @@ function parseCSV(text: string): { headers: string[]; rows: string[][] } {
     return cols;
   };
   const headers = parse(lines[0]);
+  if (headers.length === 0 || headers.every((header) => !header.trim())) {
+    throw new Error('CSV sin encabezados.');
+  }
   const rows    = lines.slice(1).filter((l) => l.trim()).map(parse);
   return { headers, rows };
 }
@@ -323,6 +327,14 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
   const handleSave = async () => {
     setStep('saving');
     try {
+      const mappedFields = Object.values(mapping);
+      if (!mappedFields.includes('__tour__')) {
+        throw new Error('Mapea una columna como "Nombre del tour" para saber dónde guardar cada unidad.');
+      }
+      if (!mappedFields.includes('label')) {
+        throw new Error('Mapea una columna como "Identificador" para crear o actualizar unidades.');
+      }
+
       // Group rows by tour (if __tour__ column mapped)
       const tourColHeader = Object.entries(mapping).find(([, v]) => v === '__tour__')?.[0];
       const tourColIdx    = tourColHeader !== undefined ? csvHeaders.indexOf(tourColHeader) : -1;
@@ -378,6 +390,9 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
           }
         }
 
+        if (typeof entry.label !== 'string' || !entry.label.trim()) continue;
+        entry.label = entry.label.trim();
+
         // Merge or add unit (match by label)
         const existing = tourUpdates.get(tourRow.id)!;
         const idx = existing.units.findIndex((u) => (u as Record<string, unknown>).label === entry.label);
@@ -392,8 +407,15 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
       let saved = 0;
       for (const { row, units } of tourUpdates.values()) {
         const updatedData = { ...row.data, units };
-        await sb.from('tours').update({ data: updatedData }).eq('id', row.id);
+        const { error: updateError } = await sb.from('tours').update({ data: updatedData }).eq('id', row.id);
+        if (updateError) throw updateError;
         saved++;
+      }
+
+      if (saved === 0) {
+        setSaveResult('⚠️ No se actualizó ningún tour. Revisa que los nombres en la columna tour coincidan con tus tours.');
+        setStep('preview');
+        return;
       }
 
       setSaveResult(`✅ Importación completa: ${csvRows.length} filas procesadas, ${saved} tour${saved !== 1 ? 's' : ''} actualizados.`);
@@ -606,16 +628,21 @@ export function CRMPanel() {
     setSaving(unitId);
     try {
       const tourRow = await getTourById(tourId);
-      if (!tourRow) return;
+      if (!tourRow) throw new Error('Tour no encontrado o sin permisos.');
       const updated = {
         ...tourRow.data,
         units: (tourRow.data.units ?? []).map((u) =>
           u.id === unitId ? { ...u, status: newStatus } : u
         ),
       };
-      await saveTour(updated);
+      const { error: updateError } = await getSupabase()
+        .from('tours')
+        .update({ data: updated })
+        .eq('id', tourId);
+      if (updateError) throw updateError;
     } catch {
       // Revert on failure
+      setError('No se pudo guardar el cambio de estado. Revisa permisos o conexión.');
       load();
     } finally {
       setSaving(null);

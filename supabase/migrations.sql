@@ -794,6 +794,42 @@ ALTER TABLE team_invites
     CHECK (role IN ('admin', 'advisor'));
 
 
+-- ─── Migration: CRM team-admin updates for tour inventory ───────────────────
+--
+-- Lets invited admins with the CRM permission update the tour JSON used by the
+-- CRM inventory panel, without transferring ownership of the tour.
+
+DROP POLICY IF EXISTS "tours: crm admins update owner tours" ON tours;
+CREATE POLICY "tours: crm admins update owner tours" ON tours
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = tours.user_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
+        AND team_members.role           = 'admin'
+        AND (
+          team_members.permissions ? 'view_crm'
+          OR jsonb_array_length(team_members.permissions) = 0
+        )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM team_members
+      WHERE team_members.owner_user_id  = tours.user_id
+        AND team_members.member_user_id = auth.uid()
+        AND team_members.status         = 'active'
+        AND team_members.role           = 'admin'
+        AND (
+          team_members.permissions ? 'view_crm'
+          OR jsonb_array_length(team_members.permissions) = 0
+        )
+    )
+  );
+
+
 -- ─── Verification ─────────────────────────────────────────────────────────────
 -- Puedes verificar que todo se aplicó correctamente con:
 --

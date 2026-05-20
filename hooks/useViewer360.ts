@@ -104,6 +104,7 @@ export function useViewer360({
   const configRef       = useRef(config);
   configRef.current      = config;
   const settleRafRef    = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(performance.now());
 
   // Ref to always call the latest handleClick from the first useEffect
   const handleClickRef = useRef<(e: PointerEvent) => void>(() => {});
@@ -180,6 +181,17 @@ export function useViewer360({
     // ── Animation loop ─────────────────────────────────────────────────────
     const animate = () => {
       rafRef.current = requestAnimationFrame(animate);
+      const now = performance.now();
+      const deltaSeconds = Math.min((now - lastFrameTimeRef.current) / 1000, 0.05);
+      lastFrameTimeRef.current = now;
+
+      if (
+        configRef.current.autoRotate &&
+        !isDragging.current &&
+        !isEditingRef.current
+      ) {
+        cameraAngles.current.lon += configRef.current.autoRotateSpeed * deltaSeconds;
+      }
 
       const lat = THREE.MathUtils.clamp(cameraAngles.current.lat, -85, 85);
       const phi   = THREE.MathUtils.degToRad(90 - lat);

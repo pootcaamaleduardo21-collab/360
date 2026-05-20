@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Fetch tour
     const { data: tourRow } = await sb
       .from('tours')
-      .select('data, user_id, is_published, slug')
+      .select('data, user_id, is_published, share_slug')
       .eq('id', tourId)
       .single();
 
@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
     }
 
     const appUrl    = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? '';
-    const viewerUrl = tourRow.is_published && (tourRow.slug || tourId)
-      ? `${appUrl}/viewer/${tourRow.slug ?? tourId}`
+    const viewerUrl = tourRow.is_published && (tourRow.share_slug || tourId)
+      ? `${appUrl}/viewer/${tourRow.share_slug ?? tourId}`
       : undefined;
 
     await sendBookingNotification(

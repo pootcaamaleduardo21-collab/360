@@ -19,6 +19,10 @@ interface AnnotationsOverlayProps {
   isEditing?: boolean;
 }
 
+function isTransparentColor(color: string): boolean {
+  return color === 'transparent' || /rgba\([^)]*,\s*0\)$/i.test(color.replace(/\s+/g, ''));
+}
+
 export function AnnotationsOverlay({
   annotations,
   projectedAnnotations,
@@ -36,6 +40,9 @@ export function AnnotationsOverlay({
         const style = annotation.style;
         const hasText = annotation.contentType !== 'image' && !!annotation.text?.trim();
         const hasImage = annotation.contentType !== 'text' && !!annotation.imageUrl?.trim();
+        const transparentBackground = isTransparentColor(style.backgroundColor);
+        const transparentBorder = isTransparentColor(style.borderColor);
+        const floatingText = hasText && !hasImage && transparentBackground;
 
         return (
           <button
@@ -59,9 +66,9 @@ export function AnnotationsOverlay({
               transform: `translate(-50%, -50%) scale(${projected.scale})`,
               borderRadius: style.radius,
               background: style.backgroundColor,
-              border: `1px solid ${style.borderColor}`,
-              boxShadow: style.shadow ? '0 18px 45px rgba(0,0,0,0.38), 0 4px 12px rgba(0,0,0,0.28)' : undefined,
-              backdropFilter: style.backgroundColor.includes('rgba') ? 'blur(10px)' : undefined,
+              border: transparentBorder ? 'none' : `1px solid ${style.borderColor}`,
+              boxShadow: style.shadow && !floatingText ? '0 18px 45px rgba(0,0,0,0.38), 0 4px 12px rgba(0,0,0,0.28)' : undefined,
+              backdropFilter: !transparentBackground && style.backgroundColor.includes('rgba') ? 'blur(10px)' : undefined,
             }}
             aria-label={annotation.label || 'Anotación'}
           >
@@ -76,8 +83,17 @@ export function AnnotationsOverlay({
             )}
             {hasText && (
               <div
-                className="whitespace-pre-wrap break-words px-3 py-2 font-semibold leading-snug"
-                style={{ color: style.textColor, fontSize: style.fontSize }}
+                className={cn(
+                  'whitespace-pre-wrap break-words font-semibold leading-snug',
+                  floatingText ? 'px-0 py-0' : 'px-3 py-2'
+                )}
+                style={{
+                  color: style.textColor,
+                  fontSize: style.fontSize,
+                  textShadow: style.shadow
+                    ? '0 3px 12px rgba(0,0,0,0.92), 0 1px 2px rgba(0,0,0,0.85)'
+                    : undefined,
+                }}
               >
                 {annotation.text}
               </div>

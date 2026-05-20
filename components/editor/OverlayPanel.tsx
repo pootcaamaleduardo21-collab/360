@@ -71,12 +71,12 @@ export function OverlayPanel({
       text: 'Texto sobre el recorrido',
       style: {
         textColor: '#ffffff',
-        backgroundColor: 'rgba(15,23,42,0.78)',
-        borderColor: 'rgba(255,255,255,0.22)',
-        width: 260,
+        backgroundColor: 'rgba(0,0,0,0)',
+        borderColor: 'rgba(0,0,0,0)',
+        width: 320,
         opacity: 1,
-        fontSize: 16,
-        radius: 14,
+        fontSize: 24,
+        radius: 0,
         shadow: true,
       },
     };
@@ -450,6 +450,21 @@ function AnnotationControls({
         </div>
       )}
 
+      {overlay.contentType !== 'image' && (
+        <button
+          type="button"
+          onClick={() => patchStyle({
+            backgroundColor: 'rgba(0,0,0,0)',
+            borderColor: 'rgba(0,0,0,0)',
+            radius: 0,
+            shadow: true,
+          })}
+          className="w-full rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition-colors hover:bg-blue-500/15"
+        >
+          Usar como texto flotante sin caja
+        </button>
+      )}
+
       {overlay.contentType !== 'text' && (
         <div>
           <p className="text-[10px] text-gray-500 mb-1">URL de imagen</p>
@@ -494,6 +509,7 @@ function AnnotationControls({
           <option value="rgba(15,23,42,0.78)">Cristal oscuro</option>
           <option value="rgba(255,255,255,0.88)">Cristal claro</option>
           <option value="rgba(0,0,0,0)">Sin fondo</option>
+          <option value="transparent">Transparente</option>
           <option value="#111827">Sólido oscuro</option>
           <option value="#ffffff">Sólido claro</option>
         </select>

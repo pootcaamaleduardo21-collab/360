@@ -23,6 +23,8 @@ import { cn } from '@/lib/utils';
 import {
   ZoomIn,
   ZoomOut,
+  Pause,
+  Play,
   RotateCcw,
   Maximize2,
   ShoppingCart,
@@ -128,13 +130,20 @@ export function Viewer360({
     if (tutorialDismissed) setShowTutorial(false);
   }, [tutorialDismissed]);
 
-  // Silently preload all other scene images after 2 s so navigation feels instant.
+  // Silently preload nearby scene images after 2 s so navigation feels instant
+  // without pulling every heavy panorama at once.
   // The editor disables this to avoid competing with the active panorama load.
   useEffect(() => {
     if (!preloadAdjacentScenes) return;
     if (tour.scenes.length <= 1) return;
     const timer = setTimeout(() => {
-      tour.scenes.forEach((s) => {
+      const currentIndex = tour.scenes.findIndex((s) => s.id === currentScene.id);
+      const nearbyScenes = tour.scenes.filter((_, index) => {
+        if (index === currentIndex) return false;
+        return Math.abs(index - currentIndex) <= 2;
+      });
+
+      nearbyScenes.forEach((s) => {
         if (s.imageUrl && s.imageUrl !== currentScene.imageUrl) {
           const img = new Image();
           img.src = s.imageUrl;
@@ -142,8 +151,7 @@ export function Viewer360({
       });
     }, 2000);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preloadAdjacentScenes]); // once on mount — all scenes available via closure
+  }, [preloadAdjacentScenes, tour.scenes, currentScene.id, currentScene.imageUrl]);
 
   // Scene transition overlay — instant black on scene change, guaranteed 400ms, then fade out
   useEffect(() => {
@@ -233,6 +241,8 @@ export function Viewer360({
     updateViewerConfig({ fov: 75 });
     lookAt(currentScene.initialYaw ?? 0, currentScene.initialPitch ?? 0);
   };
+  const toggleAutoRotate = () =>
+    updateViewerConfig({ autoRotate: !config.autoRotate });
 
   // ── Hotspot drag ─────────────────────────────────────────────────────────
   const handleHotspotDragStart = useCallback(
@@ -460,6 +470,14 @@ export function Viewer360({
             <ControlButton onClick={zoomIn}  title="Acercar" icon={<ZoomIn  className="w-4 h-4" />} />
             <ControlButton onClick={zoomOut} title="Alejar"  icon={<ZoomOut className="w-4 h-4" />} />
           </div>
+          {!isEditing && (
+            <ControlButton
+              onClick={toggleAutoRotate}
+              title={config.autoRotate ? 'Pausar paneo lento' : 'Activar paneo lento'}
+              icon={config.autoRotate ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              highlight={config.autoRotate}
+            />
+          )}
           <ControlButton onClick={resetView} title="Vista inicial" icon={<RotateCcw className="w-4 h-4" />} />
           <ControlButton onClick={toggleFullscreen} title="Pantalla completa" icon={<Maximize2 className="w-4 h-4" />} />
           {isEditing && onSetStartView && (
