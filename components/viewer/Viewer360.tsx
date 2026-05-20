@@ -120,6 +120,7 @@ export function Viewer360({
   const toggleCart           = useTourStore((s) => s.toggleCart);
   const updateHotspot        = useTourStore((s) => s.updateHotspot);
   const hasBottomMinimap     = config.showMinimap && !isEditing && tour.scenes.length > 1;
+  const hasPrimaryActions    = !isEditing && !isComparisonPanel && (cartItemCount > 0 || onOpenLeadCapture || onOpenBooking || onOpenSalesPanel);
 
   // Track time spent per scene
   const sceneEnteredAt = useRef<number>(Date.now());
@@ -465,7 +466,7 @@ export function Viewer360({
 
       {/* Controls toolbar — zoom hidden on mobile (use pinch), only reset + fullscreen shown */}
       {config.showControls && (
-        <div className="absolute top-[96px] right-4 z-20 flex flex-col gap-2">
+        <div className="absolute top-24 right-3 z-20 flex flex-col gap-1.5 sm:right-4 sm:gap-2">
           <div className="hidden md:flex flex-col gap-2">
             <ControlButton onClick={zoomIn}  title="Acercar" icon={<ZoomIn  className="w-4 h-4" />} />
             <ControlButton onClick={zoomOut} title="Alejar"  icon={<ZoomOut className="w-4 h-4" />} />
@@ -549,26 +550,26 @@ export function Viewer360({
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
-            'absolute left-4 z-20 flex items-center gap-2 px-3.5 py-2 text-white font-medium rounded-xl shadow-lg transition-opacity hover:opacity-90 backdrop-blur-sm border border-white/15',
-            hasBottomMinimap ? 'bottom-[300px] sm:bottom-[190px]' : 'bottom-4'
+            'absolute left-3 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-white shadow-lg backdrop-blur-md transition-opacity hover:opacity-90 sm:left-4 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-xl sm:px-3.5 sm:py-2 sm:font-medium',
+            hasPrimaryActions ? 'bottom-20 sm:bottom-4' : hasBottomMinimap ? 'bottom-4 sm:bottom-[190px]' : 'bottom-4'
           )}
           style={{ background: 'rgba(0,0,0,0.62)' }}
         >
           <MapPin className="w-4 h-4 text-blue-300" />
-          <span className="text-sm">Ver ubicación</span>
+          <span className="hidden text-sm sm:inline">Ver ubicación</span>
         </a>
       )}
 
       {/* Bottom-right actions — real stack so labels and mobile wrapping never overlap */}
-      {!isEditing && !isComparisonPanel && (cartItemCount > 0 || onOpenLeadCapture || onOpenBooking || onOpenSalesPanel) && (
+      {hasPrimaryActions && (
         <div className={cn(
-          'absolute right-4 z-20 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2 sm:max-w-sm',
-          hasBottomMinimap ? 'bottom-[150px] sm:bottom-4' : 'bottom-4'
+          'absolute inset-x-3 bottom-4 z-20 flex max-w-[calc(100vw-1.5rem)] gap-2 sm:inset-x-auto sm:right-4 sm:max-w-sm sm:flex-col sm:items-end',
+          hasBottomMinimap ? 'sm:bottom-4' : 'sm:bottom-4'
         )}>
           {cartItemCount > 0 && (
             <button
               onClick={toggleCart}
-              className="flex max-w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-white font-medium shadow-lg transition-colors hover:bg-rose-500"
+              className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-3 py-3 text-white font-semibold shadow-lg transition-colors hover:bg-rose-500 sm:max-w-full sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5 sm:font-medium"
             >
               <ShoppingCart className="h-4 w-4 flex-shrink-0" />
               <span className="text-sm">{cartItemCount}</span>
@@ -578,33 +579,33 @@ export function Viewer360({
           {onOpenLeadCapture && (
             <button
               onClick={onOpenLeadCapture}
-              className="flex max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90"
+              className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-3 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90 sm:max-w-full sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5"
               style={{ background: tour.brandColor ? `${tour.brandColor}cc` : '#0f766e' }}
             >
               <Plus className="h-4 w-4 flex-shrink-0" />
-              <span className="text-sm">{tour.leadCaptureLabel ?? 'Solicitar información'}</span>
+              <span className="truncate text-xs sm:text-sm">{tour.leadCaptureLabel ?? 'Solicitar información'}</span>
             </button>
           )}
 
           {onOpenBooking && (
             <button
               onClick={onOpenBooking}
-              className="flex max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90"
+              className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-3 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90 sm:max-w-full sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5"
               style={{ background: tour.brandColor ? `${tour.brandColor}dd` : '#059669' }}
             >
               <Calendar className="h-4 w-4 flex-shrink-0" />
-              <span className="text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar visita'}</span>
+              <span className="truncate text-xs sm:text-sm">{tour.bookingConfig?.ctaLabel ?? 'Agendar visita'}</span>
             </button>
           )}
 
           {onOpenSalesPanel && (
             <button
               onClick={onOpenSalesPanel}
-              className="flex max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90"
+              className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-3 text-white font-semibold leading-snug shadow-lg transition-opacity hover:opacity-90 sm:max-w-full sm:flex-none sm:rounded-xl sm:px-4 sm:py-2.5"
               style={{ background: tour.brandColor ?? '#1e40af' }}
             >
               <LayoutList className="h-4 w-4 flex-shrink-0" />
-              <span className="text-sm">
+              <span className="truncate text-xs sm:text-sm">
                 {(tour.units?.length ?? 0) > 0
                   ? 'Ver inventario'
                   : (tour.gallery?.length ?? 0) > 0 || tour.brochureUrl
@@ -626,7 +627,7 @@ export function Viewer360({
 
       {/* Scene name badge */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <span className="px-3 py-1 bg-black/50 backdrop-blur-sm text-white/80 text-xs font-medium rounded-full">
+        <span className="hidden px-3 py-1 bg-black/50 backdrop-blur-sm text-white/80 text-xs font-medium rounded-full sm:inline-flex">
           {currentScene.name}
         </span>
       </div>
@@ -652,10 +653,10 @@ function ControlButton({
       onClick={onClick}
       title={title}
       className={cn(
-        'w-9 h-9 flex items-center justify-center rounded-xl backdrop-blur-sm border transition-colors shadow',
+        'w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-md border transition-colors shadow sm:h-9 sm:w-9 sm:rounded-xl',
         highlight
-          ? 'bg-blue-600/80 hover:bg-blue-500 text-white border-blue-400/40'
-          : 'bg-black/60 hover:bg-black/80 text-white border-white/10'
+          ? 'bg-blue-600/75 hover:bg-blue-500 text-white border-blue-400/40'
+          : 'bg-black/45 hover:bg-black/70 text-white/85 border-white/10'
       )}
     >
       {icon}

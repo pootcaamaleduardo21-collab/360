@@ -41,14 +41,14 @@ export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUn
       <button
         onClick={() => setIsOpen((v) => !v)}
         className={cn(
-          'absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 bg-black/70 hover:bg-black/90 backdrop-blur-sm rounded-xl border border-white/10 text-white text-sm font-medium transition-colors shadow',
+          'absolute top-3 left-3 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2.5 py-2 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/75 sm:top-4 sm:left-4 sm:rounded-xl sm:bg-black/70 sm:px-3 sm:text-sm sm:font-medium',
           className
         )}
       >
-        <Home className="w-4 h-4" />
-        <span>{units.length} {niche.overlayCountLabel}</span>
+        <Home className="w-4 h-4 flex-shrink-0" />
+        <span className="text-xs font-semibold sm:text-sm">{units.length} {niche.overlayCountLabel}</span>
         {/* Status dots */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 pl-0.5">
           {summary.available > 0 && <span className="w-2 h-2 rounded-full bg-green-400" />}
           {summary.reserved  > 0 && <span className="w-2 h-2 rounded-full bg-amber-400" />}
           {summary.sold      > 0 && <span className="w-2 h-2 rounded-full bg-red-400"   />}
@@ -59,7 +59,7 @@ export function InventoryOverlay({ tour, units, currentSceneId, onNavigate, onUn
       {isOpen && (
         <div
           className={cn(
-            'absolute top-16 left-4 z-20 w-[calc(100vw-2rem)] max-w-[288px] bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up',
+            'absolute top-14 left-3 z-20 w-[calc(100vw-1.5rem)] max-w-[288px] bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up sm:top-16 sm:left-4',
             className
           )}
         >

@@ -15,7 +15,7 @@ export function MinimapWidget({ tour, currentSceneId, onNavigate }: MinimapWidge
   const markers      = tour.floorPlanMarkers ?? [];
 
   return (
-    <div className="absolute bottom-4 left-4 z-20 rounded-xl overflow-hidden shadow-2xl border border-white/15">
+    <div className="absolute bottom-4 left-4 z-20 hidden rounded-xl overflow-hidden shadow-2xl border border-white/15 sm:block">
       {/* Header */}
       <div className="bg-black/80 backdrop-blur-md px-3 py-1.5">
         <span className="text-xs font-semibold text-white/70 tracking-wide">Mapa</span>
