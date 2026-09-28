@@ -13,6 +13,7 @@ import { MaterialsPanel } from '@/components/dashboard/MaterialsPanel';
 import { AnnouncementsSection } from '@/components/dashboard/AnnouncementsSection';
 import { AnalyticsOverview } from '@/components/dashboard/AnalyticsOverview';
 import { CRMPanel } from '@/components/dashboard/CRMPanel';
+import { ToolboxAdminPanel } from '@/components/dashboard/ToolboxAdminPanel';
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
 import { ROLE_LABELS, ROLE_COLORS, UserRole } from '@/lib/roles';
@@ -470,6 +471,8 @@ function SalesHubPanel({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       </section>
+
+      <ToolboxAdminPanel isAdmin={isAdmin} />
 
       <div className="grid items-start gap-7 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <MaterialsPanel isAdmin={isAdmin} />
