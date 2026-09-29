@@ -15,6 +15,14 @@ export interface ToolboxResource {
   icon: ToolboxIconName;
 }
 
+export interface ToolboxUpdate {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  linkLabel: string;
+}
+
 export interface ToolboxContent {
   brandName: string;
   heroEyebrow: string;
@@ -38,6 +46,10 @@ export interface ToolboxContent {
   storyTitle: string;
   storyBody: string;
   storyImage: string;
+  updatesEyebrow: string;
+  updatesTitle: string;
+  updatesBody: string;
+  updates: ToolboxUpdate[];
   footerNote: string;
 }
 
@@ -107,6 +119,10 @@ export const DEFAULT_TOOLBOX_CONTENT: ToolboxContent = {
   storyTitle: 'Naturaleza, comunidad y plusvalía en un mismo entorno.',
   storyBody: 'Una propuesta residencial en Playa del Carmen diseñada para vivir bien e invertir con visión de largo plazo.',
   storyImage: '/toolbox/jardines-interior.avif',
+  updatesEyebrow: 'Información vigente',
+  updatesTitle: 'Actualizaciones para asesores.',
+  updatesBody: 'Consulta aquí avisos comerciales, cambios importantes y nuevos materiales del desarrollo.',
+  updates: [],
   footerNote: 'Portal comercial para asesores de Jardines de Ciudad Mayakoba.',
 };
 
@@ -126,10 +142,19 @@ function safeUrl(value: unknown, fallback: string): string {
   }
 }
 
+function safeOptionalText(value: unknown, max = 240): string {
+  return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+function safeOptionalUrl(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  return safeUrl(value, '');
+}
+
 export function sanitizeToolboxContent(value: unknown): ToolboxContent {
   const input = value && typeof value === 'object' ? value as Partial<ToolboxContent> : {};
   const defaults = DEFAULT_TOOLBOX_CONTENT;
-  const rawResources = Array.isArray(input.resources) ? input.resources.slice(0, 12) : defaults.resources;
+  const rawResources = Array.isArray(input.resources) ? input.resources.slice(0, 24) : defaults.resources;
   const resources = rawResources.map((resource, index): ToolboxResource => {
     const raw = resource && typeof resource === 'object' ? resource as Partial<ToolboxResource> : {};
     const fallback = defaults.resources[index] ?? defaults.resources[0];
@@ -140,6 +165,17 @@ export function sanitizeToolboxContent(value: unknown): ToolboxContent {
       description: safeText(raw.description, fallback.description, 180),
       href: safeUrl(raw.href, fallback.href),
       icon,
+    };
+  });
+  const rawUpdates = Array.isArray(input.updates) ? input.updates.slice(0, 12) : defaults.updates;
+  const updates = rawUpdates.map((update, index): ToolboxUpdate => {
+    const raw = update && typeof update === 'object' ? update as Partial<ToolboxUpdate> : {};
+    return {
+      id: safeText(raw.id, `actualizacion-${index + 1}`, 80).replace(/[^a-zA-Z0-9_-]/g, '-'),
+      title: safeText(raw.title, `Actualización ${index + 1}`, 100),
+      description: safeText(raw.description, 'Información importante para el equipo comercial.', 320),
+      href: safeOptionalUrl(raw.href),
+      linkLabel: safeOptionalText(raw.linkLabel, 60),
     };
   });
 
@@ -166,6 +202,10 @@ export function sanitizeToolboxContent(value: unknown): ToolboxContent {
     storyTitle: safeText(input.storyTitle, defaults.storyTitle, 160),
     storyBody: safeText(input.storyBody, defaults.storyBody, 280),
     storyImage: safeUrl(input.storyImage, defaults.storyImage),
+    updatesEyebrow: safeText(input.updatesEyebrow, defaults.updatesEyebrow, 80),
+    updatesTitle: safeText(input.updatesTitle, defaults.updatesTitle, 140),
+    updatesBody: safeText(input.updatesBody, defaults.updatesBody, 280),
+    updates,
     footerNote: safeText(input.footerNote, defaults.footerNote, 180),
   };
 }
