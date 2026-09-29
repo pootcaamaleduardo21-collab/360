@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase';
 import { getServiceRoleClient } from '@/lib/teamInviteServer';
 import { resolveTeamContext } from '@/lib/teamAccess';
@@ -9,7 +10,10 @@ import { TOOLBOX_SLUG, sanitizeToolboxContent } from '@/lib/toolbox';
 
 export async function GET() {
   const content = await getPublicToolboxContent();
-  return NextResponse.json({ content });
+  return NextResponse.json(
+    { content },
+    { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+  );
 }
 
 export async function PATCH(request: NextRequest) {
@@ -52,6 +56,7 @@ export async function PATCH(request: NextRequest) {
     }, { onConflict: 'slug' });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    revalidatePath('/toolbox');
     return NextResponse.json({ content });
   } catch (error) {
     console.error('[PATCH /api/toolbox]', error);
