@@ -22,6 +22,7 @@ import {
 import type { ToolboxContent, ToolboxIconName } from '@/lib/toolbox';
 import styles from './toolbox.module.css';
 import { ToolboxMotion } from './ToolboxMotion';
+import { MotivationalCarousel, UpdateImageCarousel } from './ToolboxCarousels';
 
 const ICONS: Record<ToolboxIconName, LucideIcon> = {
   presentation: FileText,
@@ -160,6 +161,12 @@ export function ToolboxLanding({ content }: { content: ToolboxContent }) {
         </div>
       </section>
 
+      <MotivationalCarousel
+        eyebrow={content.motivationalEyebrow}
+        title={content.motivationalTitle}
+        messages={content.motivationalMessages}
+      />
+
       <section className={styles.featureShell}>
         <a
           href={content.tourUrl}
@@ -241,6 +248,22 @@ export function ToolboxLanding({ content }: { content: ToolboxContent }) {
           </div>
         </div>
       </section>
+
+      <UpdateImageCarousel
+        eyebrow={content.galleryEyebrow}
+        title={content.galleryTitle}
+        body={content.galleryBody}
+        images={content.updateImages}
+        fallback={{
+          id: 'catalogo-destacado',
+          image: content.catalogImage,
+          alt: `Catálogo comercial de ${content.brandName}`,
+          title: content.catalogTitle,
+          description: content.catalogBody,
+          href: content.catalogHref,
+          linkLabel: content.catalogLinkLabel,
+        }}
+      />
 
       <footer className={styles.footer}>
         <div>
