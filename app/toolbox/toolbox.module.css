@@ -33,7 +33,9 @@
 
 .hero {
   position: relative;
-  min-height: calc(100svh - 28px);
+  display: flex;
+  min-height: max(840px, calc(100svh - 28px));
+  flex-direction: column;
   overflow: hidden;
   border-radius: 30px;
   background: var(--color-forest);
@@ -50,8 +52,7 @@
 }
 
 .header {
-  position: absolute;
-  inset: 0 0 auto;
+  position: relative;
   z-index: 3;
   display: flex;
   align-items: center;
@@ -93,13 +94,15 @@
 .headerCta:hover, .primaryButton:hover, .accentButton:hover { transform: translateY(-2px); }
 
 .heroContent {
-  position: absolute;
-  inset: auto clamp(24px, 4vw, 62px) clamp(34px, 6vw, 72px);
+  position: relative;
   z-index: 2;
   display: flex;
+  width: 100%;
   align-items: flex-end;
   justify-content: space-between;
   gap: 48px;
+  margin-top: auto;
+  padding: clamp(90px, 12vh, 150px) clamp(24px, 4vw, 62px) clamp(34px, 6vw, 72px);
 }
 
 .heroCopy { max-width: 850px; animation: reveal .8s cubic-bezier(.2,.75,.25,1) both; }
@@ -121,6 +124,7 @@
 }
 .statusPill span { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; color: #07150a; background: var(--color-accent); }
 .statusPill svg { width: 12px; height: 12px; }
+.statusLabel { margin: -12px 0 18px; color: var(--color-accent-soft); font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
 .eyebrowLight, .eyebrow, .eyebrowAccent { margin: 0 0 15px; font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
 .eyebrowLight, .eyebrowAccent { color: var(--color-accent-soft); }
 .eyebrow { color: #66705f; }
@@ -229,6 +233,25 @@
 .storyFacts span { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 999px; color: #4f5e5e; font-size: 11px; font-weight: 650; }
 .storyFacts svg { width: 14px; height: 14px; color: #2cab41; }
 
+.updatesSection { padding: 0 24px clamp(82px, 10vw, 136px); }
+.updatesInner { display: grid; width: min(1240px, 100%); margin: 0 auto; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); gap: clamp(40px, 7vw, 96px); padding: clamp(34px, 5vw, 64px); border: 1px solid var(--color-border); border-radius: 30px; background: var(--color-paper); }
+.updatesIntro { display: flex; align-items: flex-start; gap: 18px; }
+.updatesIcon { display: grid; flex: 0 0 auto; width: 48px; height: 48px; place-items: center; border-radius: 50%; color: #15372f; background: #dff3d6; }
+.updatesIcon svg { width: 20px; height: 20px; }
+.updatesIntro h2 { margin: 0; font-size: clamp(36px, 4.2vw, 58px); font-weight: 600; line-height: 1; letter-spacing: -.045em; text-wrap: balance; }
+.updatesIntro > div > p:last-child { margin: 22px 0 0; color: var(--color-muted); font-size: 15px; line-height: 1.75; }
+.updatesList { display: grid; align-content: start; gap: 12px; }
+.updateCard { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 18px; padding: 22px 0; border-bottom: 1px solid var(--color-border); }
+.updateCard:first-child { padding-top: 0; }
+.updateCard:last-child { padding-bottom: 0; border-bottom: 0; }
+.updateIndex { color: #87908b; font-size: 11px; font-weight: 700; letter-spacing: .13em; }
+.updateCard h3, .updatesEmpty h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.025em; }
+.updateCard p, .updatesEmpty p { margin: 7px 0 0; color: var(--color-muted); font-size: 14px; line-height: 1.65; }
+.updateCard a { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; color: #257c35; font-size: 13px; font-weight: 700; }
+.updateCard a svg { width: 15px; height: 15px; }
+.updatesEmpty { display: flex; align-items: center; gap: 16px; padding: 24px; border-radius: 22px; background: var(--color-surface); }
+.updatesEmpty > svg { width: 20px; height: 20px; color: #2cab41; }
+
 .footer { width: min(1240px, calc(100% - 48px)); margin: 0 auto; justify-content: space-between; gap: 30px; padding: 30px 0 42px; border-top: 1px solid var(--color-border); }
 .footer p { margin: 0; color: var(--color-text); font-size: 13px; font-weight: 600; }
 .footer span { display: block; margin-top: 4px; color: #788281; font-size: 11px; }
@@ -238,7 +261,7 @@
 @keyframes reveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 900px) {
   .brandName, .brandDivider, .nav > a:first-child, .heroMetric { display: none; }
-  .hero { min-height: 780px; }
+  .hero { min-height: 800px; }
   .heroContent { align-items: flex-start; }
   .sectionIntro { grid-template-columns: 1fr; gap: 24px; }
   .resourceGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -246,17 +269,19 @@
   .tourImageWrap { min-height: 480px; }
   .tourCopy { min-height: 500px; }
   .storyImageWrap { min-height: 460px; order: -1; }
+  .updatesInner { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 600px) {
   .heroShell, .featureShell { padding: 10px; }
-  .hero { min-height: 740px; border-radius: 24px; }
+  .hero { min-height: 780px; border-radius: 24px; }
   .header { padding: 20px; }
   .headerCta { gap: 10px; padding-left: 16px; font-size: 12px; }
   .headerCta span { width: 34px; height: 34px; }
   .logo { width: 116px; }
-  .heroContent { inset: auto 20px 28px; }
-  .statusPill { margin-bottom: 22px; }
+  .heroContent { padding: 100px 20px 28px; }
+  .statusPill { max-width: 100%; margin-bottom: 22px; font-size: 10px; letter-spacing: .04em; }
+  .statusLabel { margin-top: -10px; font-size: 10px; line-height: 1.5; }
   .hero h1 { font-size: clamp(44px, 13vw, 58px); line-height: .98; }
   .heroBody { margin-top: 20px; font-size: 15px; line-height: 1.6; }
   .heroActions { align-items: flex-start; flex-direction: column; gap: 18px; margin-top: 25px; }
@@ -273,6 +298,11 @@
   .storyCard { min-height: 0; border-radius: 24px; }
   .storyImageWrap { min-height: 360px; }
   .storyCopy { padding: 36px 26px 42px; }
+  .updatesSection { padding: 0 20px 82px; }
+  .updatesInner { gap: 34px; padding: 30px 24px; border-radius: 24px; }
+  .updatesIntro { flex-direction: column; }
+  .updatesIntro h2 { font-size: 39px; }
+  .updateCard { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
   .footer { width: calc(100% - 40px); align-items: flex-start; flex-direction: column; }
 }
 
