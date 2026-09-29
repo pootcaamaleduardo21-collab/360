@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeDollarSign,
+  Bell,
   Boxes,
   Building2,
   Check,
@@ -34,6 +35,14 @@ const ICONS: Record<ToolboxIconName, LucideIcon> = {
 };
 
 export function ToolboxLanding({ content }: { content: ToolboxContent }) {
+  const now = new Date();
+  const currentDate = new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'America/Cancun',
+  }).format(now);
+
   return (
     <main className={styles.page}>
       <ToolboxMotion />
@@ -75,8 +84,9 @@ export function ToolboxLanding({ content }: { content: ToolboxContent }) {
             <div className={styles.heroCopy}>
               <div className={styles.statusPill}>
                 <span><Check aria-hidden="true" /></span>
-                {content.statusLabel}
+                <time dateTime={now.toISOString()}>Actualizado {currentDate}</time>
               </div>
+              <p className={styles.statusLabel}>{content.statusLabel}</p>
               <p className={styles.eyebrowLight}>{content.heroEyebrow}</p>
               <h1>{content.heroTitle}</h1>
               <p className={styles.heroBody}>{content.heroBody}</p>
@@ -189,6 +199,45 @@ export function ToolboxLanding({ content }: { content: ToolboxContent }) {
           </div>
           <div className={styles.storyImageWrap}>
             <Image src={content.storyImage} alt="Interior residencial de Jardines de Ciudad Mayakoba" fill sizes="(max-width: 860px) 100vw, 50vw" className={styles.coverImage} />
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.updatesSection} aria-labelledby="toolbox-updates-title">
+        <div className={styles.updatesInner} data-toolbox-reveal>
+          <div className={styles.updatesIntro}>
+            <div className={styles.updatesIcon}><Bell aria-hidden="true" /></div>
+            <div>
+              <p className={styles.eyebrow}>{content.updatesEyebrow}</p>
+              <h2 id="toolbox-updates-title">{content.updatesTitle}</h2>
+              <p>{content.updatesBody}</p>
+            </div>
+          </div>
+
+          <div className={styles.updatesList}>
+            {content.updates.map((update, index) => (
+              <article className={styles.updateCard} key={update.id}>
+                <span className={styles.updateIndex}>{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3>{update.title}</h3>
+                  <p>{update.description}</p>
+                  {update.href && (
+                    <a href={update.href} target="_blank" rel="noopener noreferrer">
+                      {update.linkLabel || 'Consultar actualización'} <ArrowUpRight aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </article>
+            ))}
+            {content.updates.length === 0 && (
+              <div className={styles.updatesEmpty}>
+                <Check aria-hidden="true" />
+                <div>
+                  <h3>Todo al día.</h3>
+                  <p>No hay avisos nuevos para el equipo comercial.</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
