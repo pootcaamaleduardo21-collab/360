@@ -20,11 +20,13 @@ import {
   TOOLBOX_ICON_OPTIONS,
   type ToolboxContent,
   type ToolboxIconName,
+  type ToolboxMotivationalMessage,
   type ToolboxResource,
   type ToolboxUpdate,
+  type ToolboxUpdateImage,
 } from '@/lib/toolbox';
 
-type ImageField = 'heroImage' | 'logoImage' | 'tourImage' | 'storyImage';
+type ImageField = 'heroImage' | 'logoImage' | 'tourImage' | 'storyImage' | 'catalogImage';
 
 const ICON_LABELS: Record<ToolboxIconName, string> = {
   presentation: 'Presentación',
@@ -43,7 +45,7 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<ImageField | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,6 +115,51 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
     update('resources', next);
   };
 
+  const updateMessage = (id: string, patch: Partial<ToolboxMotivationalMessage>) => {
+    update('motivationalMessages', content.motivationalMessages.map((item) => item.id === id ? { ...item, ...patch } : item));
+  };
+
+  const addMessage = () => {
+    update('motivationalMessages', [...content.motivationalMessages, {
+      id: `mensaje-${Date.now()}`,
+      message: 'Escribe aquí un mensaje breve para inspirar al equipo comercial.',
+      author: 'Equipo Jardines',
+    }]);
+  };
+
+  const moveMessage = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= content.motivationalMessages.length) return;
+    const next = [...content.motivationalMessages];
+    [next[index], next[target]] = [next[target], next[index]];
+    update('motivationalMessages', next);
+  };
+
+  const updateGalleryImage = (id: string, patch: Partial<ToolboxUpdateImage>) => {
+    update('updateImages', content.updateImages.map((item) => item.id === id ? { ...item, ...patch } : item));
+  };
+
+  const addGalleryImage = () => {
+    const next = content.updateImages.length + 1;
+    update('updateImages', [...content.updateImages, {
+      id: `imagen-${Date.now()}`,
+      image: content.catalogImage,
+      alt: `Actualización visual ${next} de Jardines`,
+      title: `Nueva actualización visual ${next}`,
+      description: 'Describe la novedad que verá el asesor en esta imagen.',
+      href: '',
+      linkLabel: '',
+    }]);
+  };
+
+  const moveGalleryImage = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= content.updateImages.length) return;
+    const next = [...content.updateImages];
+    [next[index], next[target]] = [next[target], next[index]];
+    update('updateImages', next);
+  };
+
   const uploadImage = async (field: ImageField, file?: File) => {
     if (!file) return;
     setUploading(field);
@@ -125,6 +172,26 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'No se pudo subir la imagen.');
       update(field, payload.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo subir la imagen.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const uploadGalleryImage = async (id: string, file?: File) => {
+    if (!file) return;
+    const uploadKey = `gallery-${id}`;
+    setUploading(uploadKey);
+    setError(null);
+    const form = new FormData();
+    form.append('file', file);
+    form.append('slot', 'gallery');
+    try {
+      const response = await fetch('/api/toolbox/assets', { method: 'POST', body: form });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'No se pudo subir la imagen.');
+      updateGalleryImage(id, { image: payload.url });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo subir la imagen.');
     } finally {
@@ -242,6 +309,32 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </EditorSection>
 
+          <EditorSection title="Mensajes motivacionales" description="Crea un carrusel breve para acompañar e inspirar al equipo comercial. Los mensajes cambian automáticamente.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Etiqueta" value={content.motivationalEyebrow} onChange={(value) => update('motivationalEyebrow', value)} />
+              <Field label="Título de sección" value={content.motivationalTitle} onChange={(value) => update('motivationalTitle', value)} />
+            </div>
+            <div className="space-y-3">
+              {content.motivationalMessages.map((message, index) => (
+                <div key={message.id} className="rounded-2xl border border-gray-800 bg-gray-950/65 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Mensaje {index + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <IconButton label="Subir" disabled={index === 0} onClick={() => moveMessage(index, -1)}><ArrowUp /></IconButton>
+                      <IconButton label="Bajar" disabled={index === content.motivationalMessages.length - 1} onClick={() => moveMessage(index, 1)}><ArrowDown /></IconButton>
+                      <IconButton label="Eliminar" danger onClick={() => update('motivationalMessages', content.motivationalMessages.filter((item) => item.id !== message.id))}><Trash2 /></IconButton>
+                    </div>
+                  </div>
+                  <TextAreaField label="Mensaje" value={message.message} onChange={(value) => updateMessage(message.id, { message: value })} compact />
+                  <Field label="Firma o autor" value={message.author} onChange={(value) => updateMessage(message.id, { author: value })} />
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addMessage} disabled={content.motivationalMessages.length >= 10} className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-400 transition hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40">
+              <Plus className="h-4 w-4" /> Agregar mensaje
+            </button>
+          </EditorSection>
+
           <EditorSection title="Recorrido 360°" description="Convierte la visita virtual en el segundo gran momento de la landing.">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Etiqueta" value={content.tourEyebrow} onChange={(value) => update('tourEyebrow', value)} />
@@ -289,6 +382,50 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
             <button type="button" onClick={addNotice} disabled={content.updates.length >= 12} className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-400 transition hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40">
               <Plus className="h-4 w-4" /> Agregar actualización
             </button>
+          </EditorSection>
+
+          <EditorSection title="Carrusel de imágenes y catálogo" description="Agrega imágenes de novedades. Si no hay ninguna, la landing mostrará automáticamente la imagen estática del catálogo.">
+            <Field label="Etiqueta" value={content.galleryEyebrow} onChange={(value) => update('galleryEyebrow', value)} />
+            <Field label="Título de sección" value={content.galleryTitle} onChange={(value) => update('galleryTitle', value)} />
+            <TextAreaField label="Descripción de sección" value={content.galleryBody} onChange={(value) => update('galleryBody', value)} />
+            <div className="space-y-3">
+              {content.updateImages.map((item, index) => (
+                <div key={item.id} className="rounded-2xl border border-gray-800 bg-gray-950/65 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Imagen {index + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <IconButton label="Subir" disabled={index === 0} onClick={() => moveGalleryImage(index, -1)}><ArrowUp /></IconButton>
+                      <IconButton label="Bajar" disabled={index === content.updateImages.length - 1} onClick={() => moveGalleryImage(index, 1)}><ArrowDown /></IconButton>
+                      <IconButton label="Eliminar" danger onClick={() => update('updateImages', content.updateImages.filter((image) => image.id !== item.id))}><Trash2 /></IconButton>
+                    </div>
+                  </div>
+                  <ImageUploader label="Imagen de la actualización" src={item.image} loading={uploading === `gallery-${item.id}`} onUpload={(file) => uploadGalleryImage(item.id, file)} />
+                  <Field label="Título" value={item.title} onChange={(value) => updateGalleryImage(item.id, { title: value })} />
+                  <TextAreaField label="Descripción" value={item.description} onChange={(value) => updateGalleryImage(item.id, { description: value })} compact />
+                  <Field label="Texto alternativo de la imagen" value={item.alt} onChange={(value) => updateGalleryImage(item.id, { alt: value })} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Enlace opcional" type="url" value={item.href} onChange={(value) => updateGalleryImage(item.id, { href: value })} />
+                    <Field label="Texto del botón opcional" value={item.linkLabel} onChange={(value) => updateGalleryImage(item.id, { linkLabel: value })} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addGalleryImage} disabled={content.updateImages.length >= 12} className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-400 transition hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40">
+              <Plus className="h-4 w-4" /> Agregar imagen al carrusel
+            </button>
+            <div className="space-y-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div>
+                <p className="text-sm font-bold text-emerald-200">Vista estática de catálogo</p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">Se muestra únicamente cuando el carrusel de imágenes está vacío.</p>
+              </div>
+              <ImageUploader label="Imagen del catálogo" src={content.catalogImage} loading={uploading === 'catalogImage'} onUpload={(file) => uploadImage('catalogImage', file)} />
+              <Field label="Título" value={content.catalogTitle} onChange={(value) => update('catalogTitle', value)} />
+              <TextAreaField label="Descripción" value={content.catalogBody} onChange={(value) => update('catalogBody', value)} compact />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Enlace opcional" type="url" value={content.catalogHref} onChange={(value) => update('catalogHref', value)} />
+                <Field label="Texto del botón" value={content.catalogLinkLabel} onChange={(value) => update('catalogLinkLabel', value)} />
+              </div>
+            </div>
           </EditorSection>
         </div>
 
