@@ -21,6 +21,7 @@ import {
   type ToolboxContent,
   type ToolboxIconName,
   type ToolboxResource,
+  type ToolboxUpdate,
 } from '@/lib/toolbox';
 
 type ImageField = 'heroImage' | 'logoImage' | 'tourImage' | 'storyImage';
@@ -79,6 +80,29 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
       href: 'https://',
       icon: 'presentation',
     }]);
+  };
+
+  const updateNotice = (id: string, patch: Partial<ToolboxUpdate>) => {
+    update('updates', content.updates.map((notice) => notice.id === id ? { ...notice, ...patch } : notice));
+  };
+
+  const addNotice = () => {
+    const next = content.updates.length + 1;
+    update('updates', [...content.updates, {
+      id: `actualizacion-${Date.now()}`,
+      title: `Nueva actualización ${next}`,
+      description: 'Comparte aquí la información importante para los asesores.',
+      href: '',
+      linkLabel: '',
+    }]);
+  };
+
+  const moveNotice = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= content.updates.length) return;
+    const next = [...content.updates];
+    [next[index], next[target]] = [next[target], next[index]];
+    update('updates', next);
   };
 
   const moveResource = (index: number, direction: -1 | 1) => {
@@ -188,7 +212,7 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
             </div>
           </EditorSection>
 
-          <EditorSection title="Biblioteca comercial" description="Agrega, ordena o elimina los accesos que utilizan los asesores.">
+          <EditorSection title="Botones y biblioteca comercial" description="Agrega, ordena o elimina todos los accesos que necesiten los asesores.">
             <Field label="Etiqueta" value={content.resourcesEyebrow} onChange={(value) => update('resourcesEyebrow', value)} />
             <Field label="Título de sección" value={content.resourcesTitle} onChange={(value) => update('resourcesTitle', value)} />
             <TextAreaField label="Descripción de sección" value={content.resourcesBody} onChange={(value) => update('resourcesBody', value)} />
@@ -213,8 +237,8 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
                 </div>
               ))}
             </div>
-            <button type="button" onClick={addResource} disabled={content.resources.length >= 12} className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-400 transition hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40">
-              <Plus className="h-4 w-4" /> Agregar botón
+            <button type="button" onClick={addResource} disabled={content.resources.length >= 24} className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-400 transition hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40">
+              <Plus className="h-4 w-4" /> Agregar otro botón
             </button>
           </EditorSection>
 
@@ -235,6 +259,36 @@ export function ToolboxAdminPanel({ isAdmin }: { isAdmin: boolean }) {
             <TextAreaField label="Descripción" value={content.storyBody} onChange={(value) => update('storyBody', value)} />
             <ImageUploader label="Imagen residencial" src={content.storyImage} loading={uploading === 'storyImage'} onUpload={(file) => uploadImage('storyImage', file)} />
             <Field label="Nota de pie de página" value={content.footerNote} onChange={(value) => update('footerNote', value)} />
+          </EditorSection>
+
+          <EditorSection title="Actualizaciones para asesores" description="Publica avisos al final de la landing. Puedes incluir un botón con enlace en cada actualización.">
+            <Field label="Etiqueta" value={content.updatesEyebrow} onChange={(value) => update('updatesEyebrow', value)} />
+            <Field label="Título de sección" value={content.updatesTitle} onChange={(value) => update('updatesTitle', value)} />
+            <TextAreaField label="Descripción de sección" value={content.updatesBody} onChange={(value) => update('updatesBody', value)} />
+
+            <div className="space-y-3">
+              {content.updates.map((notice, index) => (
+                <div key={notice.id} className="rounded-2xl border border-gray-800 bg-gray-950/65 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Actualización {index + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <IconButton label="Subir" disabled={index === 0} onClick={() => moveNotice(index, -1)}><ArrowUp /></IconButton>
+                      <IconButton label="Bajar" disabled={index === content.updates.length - 1} onClick={() => moveNotice(index, 1)}><ArrowDown /></IconButton>
+                      <IconButton label="Eliminar" danger onClick={() => update('updates', content.updates.filter((item) => item.id !== notice.id))}><Trash2 /></IconButton>
+                    </div>
+                  </div>
+                  <Field label="Título" value={notice.title} onChange={(value) => updateNotice(notice.id, { title: value })} />
+                  <TextAreaField label="Descripción" value={notice.description} onChange={(value) => updateNotice(notice.id, { description: value })} compact />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Enlace opcional" type="url" value={notice.href} onChange={(value) => updateNotice(notice.id, { href: value })} />
+                    <Field label="Texto del botón opcional" value={notice.linkLabel} onChange={(value) => updateNotice(notice.id, { linkLabel: value })} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addNotice} disabled={content.updates.length >= 12} className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-400 transition hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40">
+              <Plus className="h-4 w-4" /> Agregar actualización
+            </button>
           </EditorSection>
         </div>
 
