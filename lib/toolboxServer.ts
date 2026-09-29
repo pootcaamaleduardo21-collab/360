@@ -15,6 +15,9 @@ export async function getPublicToolboxContent(): Promise<ToolboxContent> {
   try {
     const client = createClient(url, anonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+      },
     });
     const { data, error } = await client
       .from('advisor_portals')
