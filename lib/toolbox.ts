@@ -23,6 +23,22 @@ export interface ToolboxUpdate {
   linkLabel: string;
 }
 
+export interface ToolboxMotivationalMessage {
+  id: string;
+  message: string;
+  author: string;
+}
+
+export interface ToolboxUpdateImage {
+  id: string;
+  image: string;
+  alt: string;
+  title: string;
+  description: string;
+  href: string;
+  linkLabel: string;
+}
+
 export interface ToolboxContent {
   brandName: string;
   heroEyebrow: string;
@@ -50,6 +66,18 @@ export interface ToolboxContent {
   updatesTitle: string;
   updatesBody: string;
   updates: ToolboxUpdate[];
+  motivationalEyebrow: string;
+  motivationalTitle: string;
+  motivationalMessages: ToolboxMotivationalMessage[];
+  galleryEyebrow: string;
+  galleryTitle: string;
+  galleryBody: string;
+  updateImages: ToolboxUpdateImage[];
+  catalogImage: string;
+  catalogTitle: string;
+  catalogBody: string;
+  catalogHref: string;
+  catalogLinkLabel: string;
   footerNote: string;
 }
 
@@ -123,6 +151,34 @@ export const DEFAULT_TOOLBOX_CONTENT: ToolboxContent = {
   updatesTitle: 'Actualizaciones para asesores.',
   updatesBody: 'Consulta aquí avisos comerciales, cambios importantes y nuevos materiales del desarrollo.',
   updates: [],
+  motivationalEyebrow: 'Impulso comercial',
+  motivationalTitle: 'Una idea para tu próxima conversación.',
+  motivationalMessages: [
+    {
+      id: 'confianza',
+      message: 'La confianza se construye con información clara, vigente y oportuna.',
+      author: 'Equipo Jardines',
+    },
+    {
+      id: 'historia',
+      message: 'Cada recorrido bien contado acerca a una familia a su próximo hogar.',
+      author: 'Jardines de Ciudad Mayakoba',
+    },
+    {
+      id: 'seguridad',
+      message: 'Conocer el proyecto es la mejor herramienta para cerrar con seguridad.',
+      author: 'Ciudad Mayakoba',
+    },
+  ],
+  galleryEyebrow: 'Novedades visuales',
+  galleryTitle: 'Actualizaciones y catálogo.',
+  galleryBody: 'Consulta las imágenes más recientes del desarrollo y compártelas con tus prospectos.',
+  updateImages: [],
+  catalogImage: '/toolbox/jardines-interior.avif',
+  catalogTitle: 'Catálogo comercial de Jardines',
+  catalogBody: 'Una vista general del estilo de vida, los espacios y la propuesta residencial del desarrollo.',
+  catalogHref: '',
+  catalogLinkLabel: 'Consultar catálogo',
   footerNote: 'Portal comercial para asesores de Jardines de Ciudad Mayakoba.',
 };
 
@@ -178,6 +234,32 @@ export function sanitizeToolboxContent(value: unknown): ToolboxContent {
       linkLabel: safeOptionalText(raw.linkLabel, 60),
     };
   });
+  const rawMessages = Array.isArray(input.motivationalMessages) ? input.motivationalMessages.slice(0, 10) : defaults.motivationalMessages;
+  const motivationalMessages = rawMessages.map((message, index): ToolboxMotivationalMessage => {
+    const raw = message && typeof message === 'object' ? message as Partial<ToolboxMotivationalMessage> : {};
+    const fallback = defaults.motivationalMessages[index] ?? defaults.motivationalMessages[0];
+    return {
+      id: safeText(raw.id, `mensaje-${index + 1}`, 80).replace(/[^a-zA-Z0-9_-]/g, '-'),
+      message: safeText(raw.message, fallback.message, 240),
+      author: safeText(raw.author, fallback.author, 100),
+    };
+  });
+  const rawUpdateImages = Array.isArray(input.updateImages) ? input.updateImages.slice(0, 12) : defaults.updateImages;
+  const updateImages = rawUpdateImages.reduce<ToolboxUpdateImage[]>((items, item, index) => {
+    const raw = item && typeof item === 'object' ? item as Partial<ToolboxUpdateImage> : {};
+    const image = safeUrl(raw.image, '');
+    if (!image) return items;
+    items.push({
+      id: safeText(raw.id, `imagen-${index + 1}`, 80).replace(/[^a-zA-Z0-9_-]/g, '-'),
+      image,
+      alt: safeText(raw.alt, `Actualización visual ${index + 1} de Jardines`, 140),
+      title: safeText(raw.title, `Actualización ${index + 1}`, 120),
+      description: safeText(raw.description, 'Novedades para el equipo comercial.', 280),
+      href: safeOptionalUrl(raw.href),
+      linkLabel: safeOptionalText(raw.linkLabel, 60),
+    });
+    return items;
+  }, []);
 
   return {
     brandName: safeText(input.brandName, defaults.brandName, 100),
@@ -206,6 +288,18 @@ export function sanitizeToolboxContent(value: unknown): ToolboxContent {
     updatesTitle: safeText(input.updatesTitle, defaults.updatesTitle, 140),
     updatesBody: safeText(input.updatesBody, defaults.updatesBody, 280),
     updates,
+    motivationalEyebrow: safeText(input.motivationalEyebrow, defaults.motivationalEyebrow, 80),
+    motivationalTitle: safeText(input.motivationalTitle, defaults.motivationalTitle, 140),
+    motivationalMessages,
+    galleryEyebrow: safeText(input.galleryEyebrow, defaults.galleryEyebrow, 80),
+    galleryTitle: safeText(input.galleryTitle, defaults.galleryTitle, 140),
+    galleryBody: safeText(input.galleryBody, defaults.galleryBody, 280),
+    updateImages,
+    catalogImage: safeUrl(input.catalogImage, defaults.catalogImage),
+    catalogTitle: safeText(input.catalogTitle, defaults.catalogTitle, 140),
+    catalogBody: safeText(input.catalogBody, defaults.catalogBody, 280),
+    catalogHref: safeOptionalUrl(input.catalogHref),
+    catalogLinkLabel: safeText(input.catalogLinkLabel, defaults.catalogLinkLabel, 60),
     footerNote: safeText(input.footerNote, defaults.footerNote, 180),
   };
 }
